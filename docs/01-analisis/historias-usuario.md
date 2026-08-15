@@ -120,7 +120,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 > Como Administrador, quiero informar el costo estimado de un servicio antes de realizarlo, para que el cliente lo conozca de antemano.
 
 **HU-25**
-> Como Administrador, quiero registrar la garantía (en días) ofrecida sobre un servicio, para poder verificarla si el cliente vuelve por un reclamo.
+> Como Administrador, quiero registrar opcionalmente una garantía (en días) sobre el trabajo completo realizado en una visita, para poder verificarla si el cliente vuelve por un reclamo.
 
 **HU-26**
 > Como Administrador, quiero consultar el historial de servicios de un cliente o vehículo (por ejemplo, alineaciones realizadas y sus fechas), para verificar la vigencia de la garantía y las condiciones de entrega.
