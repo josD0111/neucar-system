@@ -20,6 +20,9 @@ erDiagram
 
     VENTA ||--|{ ITEM_VENTA : contiene
 
+    ITEM_VENTA ||--o{ PAGO : "recibe (si es crédito)"
+    ORDEN_SERVICIO ||--o{ PAGO : "recibe (si es crédito)"
+
     VEHICULO ||--o{ ORDEN_SERVICIO : "es atendido en"
 
     ORDEN_SERVICIO ||--|{ SERVICIO : contiene
@@ -76,8 +79,6 @@ erDiagram
         int cliente_id FK
         int usuario_id FK
         date fecha
-        string metodo_pago
-        string tipo_pago
         decimal monto_total
         string tipo_comprobante
     }
@@ -89,6 +90,17 @@ erDiagram
         int cantidad
         decimal precio_unitario
         int garantia_ofrecida
+        string tipo_pago
+        decimal saldo_pendiente
+    }
+
+    PAGO {
+        int id PK
+        int item_venta_id FK
+        int orden_servicio_id FK
+        decimal monto
+        date fecha
+        string metodo_pago
     }
 
     VEHICULO {
@@ -107,6 +119,7 @@ erDiagram
         date fecha
         string tipo_pago
         decimal monto_total
+        decimal saldo_pendiente
         int garantia_dias
         string tipo_comprobante
     }
@@ -125,6 +138,8 @@ erDiagram
 - **VENTA–ITEM_VENTA** y **ORDEN_SERVICIO–SERVICIO** usan `|{` (uno o muchos) del lado del detalle, porque no tiene sentido una Venta sin productos ni una Orden de Servicio sin al menos un Servicio.
 - **PRODUCTO–COMPRA** y **PRODUCTO–PROVEEDOR**: la relación muchos-a-muchos entre Producto y Proveedor no aparece como línea directa en el diagrama, porque queda resuelta a través de la entidad intermedia Compra (Proveedor → Compra → Producto).
 - **ORDEN_SERVICIO.garantia_dias** es nullable/opcional, reflejando que el dueño no siempre la ofrece.
+- **ITEM_VENTA/ORDEN_SERVICIO–PAGO** son relaciones excluyentes: un Pago referencia a uno de los dos, nunca ambos. Esto permite manejar crédito por producto individual (no por venta completa) y por orden de servicio completa, con pagos parciales acumulables en el tiempo — ver el caso de validación en `entidades-dominio.md`, sección 12.
+- **Diferencia clave:** en Venta, `tipo_pago` vive en `ITEM_VENTA` (crédito por producto). En Orden de Servicio, `tipo_pago` vive en `ORDEN_SERVICIO` (crédito por visita completa, no por Servicio individual), reflejando cómo el dueño maneja el crédito en la práctica — ver `entidades-dominio.md`, sección 13.
 
 ## Pendiente de confirmar
 

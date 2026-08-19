@@ -42,21 +42,31 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 > Como Administrador o Empleado, quiero registrar los datos de un cliente (nombre, cédula, celular, RUC), para poder identificarlo en futuras compras o servicios.
 
 **HU-10**
-> Como Administrador, quiero registrar una venta o servicio a crédito asociado a un cliente, para llevar el control de lo que me debe.
+> Como Administrador, quiero registrar a crédito uno o más productos de una venta (independientemente de otros productos de la misma venta que se paguen al contado), para llevar el control de lo que me debe el cliente por cada producto.
 
 **Criterios de aceptación:**
-- Dado que registro una venta o servicio, cuando selecciono "a crédito" como forma de pago, entonces el sistema exige asociar la operación a un cliente registrado (no permite venta a crédito a cliente "casual" no registrado).
-- Dado un cliente con una operación a crédito registrada, cuando se guarda la operación, entonces el sistema incrementa el saldo pendiente del cliente en el monto correspondiente.
-- Dado que el sistema no define actualmente una fecha límite de pago (pregunta abierta en `desiciones-alcance.md`), el MVP registra el crédito sin fecha de vencimiento; queda como saldo abierto hasta que se registre un pago.
-- Dado un empleado (rol Empleado) que intenta registrar una venta a crédito, cuando lo hace, entonces el sistema le permite registrarla al precio base (sin descuento), ya que la restricción del rol Empleado es sobre descuentos, no sobre la forma de pago.
+- Dado que registro una venta con varios productos, cuando indico la forma de pago, entonces el sistema me permite definirla **por cada producto/ítem de la venta**, no para la venta completa (ej. 1 producto al contado y 2 a crédito, en la misma venta).
+- Dado un ítem de venta marcado como "a crédito", cuando lo guardo, entonces el sistema exige asociar la venta a un cliente registrado (no permite ítems a crédito en venta a cliente "casual" no registrado).
+- Dado un ítem de venta a crédito, cuando se guarda, entonces el sistema incrementa el saldo pendiente del cliente en el monto de ese ítem específico.
+- Dado que el sistema no define actualmente una fecha límite de pago (pregunta abierta en `desiciones-alcance.md`), el MVP registra el crédito sin fecha de vencimiento; queda como saldo abierto hasta que se registren pagos suficientes.
+- Dado un empleado (rol Empleado) que intenta registrar una venta con algún ítem a crédito, cuando lo hace, entonces el sistema le permite hacerlo al precio base (sin descuento), ya que la restricción del rol Empleado es sobre descuentos, no sobre la forma de pago.
+
+**HU-10.1**
+> Como Administrador, quiero registrar un pago (cuota) sobre un ítem de venta o una orden de servicio a crédito, para reflejar lo que el cliente va abonando y actualizar su saldo pendiente.
+
+**Criterios de aceptación:**
+- Dado un ítem de venta (o una orden de servicio) a crédito con saldo pendiente mayor a cero, cuando registro un pago por un monto menor o igual al saldo, entonces el sistema resta ese monto del saldo pendiente de ese ítem/orden específico, sin afectar el saldo de otros ítems u órdenes del mismo cliente.
+- Dado un ítem de venta a crédito, cuando la suma de sus pagos registrados iguala su monto original, entonces el sistema lo considera saldado (saldo pendiente = 0) y deja de contarlo en el saldo total del cliente.
+- Dado que un cliente tiene dos productos a crédito de una misma venta, cuando paga por completo uno de ellos, entonces el otro producto conserva su saldo pendiente sin modificaciones, y sus futuros pagos se siguen registrando de forma independiente.
+- Dado un intento de registrar un pago por un monto mayor al saldo pendiente del ítem/orden, el sistema debe advertir o rechazar la operación (a definir en diseño si se permite dejar saldo a favor).
 
 **HU-11**
-> Como Administrador, quiero ver el saldo pendiente de un cliente y qué productos o servicios componen ese saldo, para gestionar los cobros.
+> Como Administrador, quiero ver el saldo pendiente de un cliente y el detalle de qué productos o servicios específicos lo componen (con su saldo individual), para gestionar los cobros.
 
 **Criterios de aceptación:**
-- Dado un cliente con una o más operaciones a crédito, cuando consulto su ficha, entonces el sistema muestra el saldo total pendiente y el detalle de cada operación que lo compone (producto/servicio, fecha, monto).
-- Dado un cliente que registra un pago parcial o total de su saldo, cuando se registra el pago, entonces el saldo pendiente se actualiza en consecuencia y queda reflejado en el detalle.
-- Dado un cliente sin deudas pendientes, cuando consulto su ficha, entonces el sistema indica saldo cero, sin mostrar operaciones canceladas como pendientes.
+- Dado un cliente con uno o más ítems de venta y/o órdenes de servicio a crédito, cuando consulto su ficha, entonces el sistema muestra el saldo total pendiente y el detalle de cada ítem/orden que lo compone, con su producto o tipo de servicio, fecha, monto original y saldo pendiente individual.
+- Dado un cliente con un ítem de venta ya saldado (pagos = monto original) y otro con saldo pendiente, cuando consulto su ficha, entonces el sistema solo muestra en el detalle de deuda el ítem que todavía tiene saldo pendiente.
+- Dado un cliente sin deudas pendientes, cuando consulto su ficha, entonces el sistema indica saldo cero, sin mostrar operaciones ya saldadas como pendientes.
 
 **HU-12**
 > Como Administrador, quiero imprimir el comprobante de saldo de un cliente, para que lo firme como respaldo de la deuda.
@@ -126,12 +136,14 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 > Como Administrador, quiero consultar el historial de servicios de un cliente o vehículo (por ejemplo, alineaciones realizadas y sus fechas), para verificar la vigencia de la garantía y las condiciones de entrega.
 
 **HU-27**
-> Como Administrador, quiero registrar un servicio "a crédito" para un cliente de confianza, para permitirle pagarlo más adelante sin perder el registro de la deuda.
+> Como Administrador, quiero registrar una visita/orden de servicio "a crédito" para un cliente de confianza, para permitirle pagarla más adelante sin perder el registro de la deuda.
 
 **Criterios de aceptación:**
-- Dado que registro un servicio realizado, cuando marco la operación como pendiente de pago, entonces el sistema exige registrar (o seleccionar) al cliente correspondiente, con al menos su nombre, ya que según la entrevista este caso no siempre implica un registro completo de datos.
-- Dado un servicio registrado como pendiente de pago, cuando se guarda, entonces el sistema lo suma al saldo pendiente del cliente, de la misma forma que una venta de producto a crédito (ver HU-10/HU-11), para mantener consistencia en el manejo de deudas.
-- Dado que no existe actualmente un criterio formal de "cliente de confianza" en el sistema (es una decisión subjetiva del dueño en el momento), el MVP no debe validar ni restringir quién puede recibir un servicio a crédito; queda a criterio del Administrador al momento de registrar la operación.
+- Dado que registro una orden de servicio con uno o más servicios realizados, cuando marco la orden completa como pendiente de pago, entonces el sistema exige registrar (o seleccionar) al cliente correspondiente, con al menos su nombre, ya que según la entrevista este caso no siempre implica un registro completo de datos.
+- Dado que el crédito en servicios se maneja sobre el total de la visita (no por cada servicio individual dentro de ella — ver `entidades-dominio.md`, sección 13), cuando la orden tiene varios servicios, el sistema no permite marcar unos como contado y otros como crédito dentro de la misma orden.
+- Dado una orden de servicio registrada como pendiente de pago, cuando se guarda, entonces el sistema la suma al saldo pendiente del cliente, de la misma forma que un ítem de venta a crédito (ver HU-10/HU-11).
+- Dado que el cliente va abonando la orden de a cuotas, se aplica el mismo mecanismo de registro de pagos parciales definido en HU-10.1, actualizando el saldo pendiente de la orden hasta saldarla.
+- Dado que no existe actualmente un criterio formal de "cliente de confianza" en el sistema (es una decisión subjetiva del dueño en el momento), el MVP no debe validar ni restringir quién puede recibir una orden a crédito; queda a criterio del Administrador al momento de registrar la operación.
 
 ## 6. Reportes (futuro)
 
@@ -156,7 +168,9 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 ### Notas sobre criterios de aceptación
 
-Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-06, HU-10, HU-11, HU-17, HU-18, HU-20 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, permisos por rol, descuento de stock).
+Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-06, HU-10, HU-10.1, HU-11, HU-17, HU-18, HU-20 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, permisos por rol, descuento de stock).
+
+*HU-10.1 se agregó a partir de la revisión del modelo de datos (ver `entidades-dominio.md`, sección 12), al detectar que faltaba una historia explícita para el registro de pagos/cuotas parciales sobre un ítem a crédito.*
 
 Varios de estos criterios quedan sujetos a las preguntas abiertas listadas en `desiciones-alcance.md` (ej. regla exacta de cálculo de garantía, existencia de vencimiento en el crédito); se recomienda confirmarlas con el dueño antes de pasar a diseño/implementación de esas partes.
 
