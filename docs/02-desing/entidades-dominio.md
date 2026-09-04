@@ -71,17 +71,17 @@ Se modela como entidad propia (y no como texto libre dentro de Producto) pensand
 | nombre | Nombre del producto |
 | categoría_id | Categoría a la que pertenece (ver entidad Categoría) |
 | precio_base | Precio de venta estándar |
-| stock | Cantidad disponible |
+| stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14 |
 | stock_mínimo | Para notificación de stock bajo (futuro) |
 
 **Relaciones:**
 - Un Producto **pertenece** a una Categoría.
-- Un Producto es **comprado** a través de muchas Compras (a distintos Proveedores).
+- Un Producto es **comprado** a través de muchas Compras (lotes), a distintos Proveedores.
 - Un Producto es **vendido** a través de muchos ítems de Venta.
 
 ## 6. Compra
 
-Registra la adquisición de uno o más Productos a un Proveedor. Resuelve la relación muchos-a-muchos entre Producto y Proveedor, y es donde vive la información de garantía "de origen".
+Registra la adquisición de uno o más unidades de un Producto a un Proveedor, en una fecha determinada. Funciona como un **lote de stock**: cada Compra mantiene su propia cantidad disponible, de forma que sea posible saber, al momento de una venta, de qué lote específico proviene la unidad vendida, y por lo tanto qué garantía de proveedor le corresponde (ver corrección detallada en la sección 14).
 
 | Atributo | Descripción |
 |---|---|
@@ -89,14 +89,16 @@ Registra la adquisición de uno o más Productos a un Proveedor. Resuelve la rel
 | producto_id | Producto comprado |
 | proveedor_id | Proveedor al que se le compró |
 | fecha | Fecha de la compra |
-| cantidad | Cantidad de unidades compradas |
+| cantidad | Cantidad de unidades compradas originalmente en este lote |
+| cantidad_disponible | Unidades de este lote que aún no fueron vendidas (se descuenta con cada venta que provenga de este lote) |
 | precio_compra | Precio pagado al proveedor (unitario) |
-| garantía_proveedor | Duración de la garantía ofrecida por el proveedor (relevante sobre todo en baterías) |
+| garantía_proveedor | Duración de la garantía ofrecida por el proveedor para las unidades de este lote (relevante sobre todo en baterías) |
 | factura | Referencia a la factura de compra |
 
 **Relaciones:**
 - Una Compra **pertenece** a un Producto.
 - Una Compra **pertenece** a un Proveedor.
+- Una Compra (como lote de origen) es referenciada por muchos **Ítems de Venta**.
 
 ## 7. Venta
 
@@ -118,22 +120,26 @@ Registra la venta de uno o más Productos a un Cliente (o cliente casual). El ti
 
 ### 7.1 Ítem de Venta
 
-Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Productos). **El tipo de pago se define acá, por ítem**, para poder resolver casos como "compré 3 productos, 1 al contado y 2 a crédito" (ver sección 12).
+Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Productos). **El tipo de pago se define acá, por ítem**, para poder resolver casos como "compré 3 productos, 1 al contado y 2 a crédito" (ver sección 12). **Siempre referencia el lote de Compra específico del cual se descontó stock**, ya que el propio mecanismo de descuento de stock lo requiere (ver corrección detallada en sección 14) — no es una decisión opcional de negocio, sino una consecuencia de cómo se modela el stock.
 
 | Atributo | Descripción |
 |---|---|
 | id | Identificador único |
 | venta_id | Venta a la que pertenece |
-| producto_id | Producto vendido |
+| producto_id | Producto vendido. Se mantiene como campo propio (aunque sea derivable a través de `compra_id`) por conveniencia de consulta — ver nota de diseño en sección 14. |
+| compra_id | Lote de Compra específico del cual se descontó esta unidad. **Obligatorio**: dado que `Producto.stock` es la suma de `Compra.cantidad_disponible` (ver sección 5), toda venta debe descontar de algún lote puntual; no puede existir una unidad vendida "sin lote de origen". Debe corresponder al mismo `producto_id` del ítem. |
 | cantidad | Unidades vendidas |
 | precio_unitario | Precio aplicado (puede diferir del precio_base si hubo descuento — ver HU-18) |
-| garantía_ofrecida | Garantía otorgada al cliente para ese producto en esa venta |
+| garantía_ofrecida | Garantía otorgada al cliente para ese producto en esa venta. No debe superar la `garantía_proveedor` del lote referenciado en `compra_id` — ver HU-06. Si ese lote no tiene garantía de proveedor cargada (producto sin garantía aplicable), este campo queda a criterio del Administrador. |
 | tipo_pago | Contado \| Crédito — aplica a este ítem puntual, no a toda la Venta |
 | saldo_pendiente | Calculado: (precio_unitario × cantidad) − suma de Pagos asociados a este ítem. Si tipo_pago es Contado, siempre es 0. |
 
 **Relaciones:**
 - Un Ítem de Venta **pertenece** a una Venta.
 - Un Ítem de Venta **referencia** un Producto.
+- Un Ítem de Venta **referencia** una Compra (obligatorio: el lote específico de origen de la unidad vendida).
+
+*Nota — reparto entre lotes: si la cantidad solicitada de un Producto en una Venta supera la `cantidad_disponible` del lote más antiguo (regla PEPS/FIFO por defecto — pendiente de confirmar con el dueño, ver sección 14), el sistema genera automáticamente **más de un Ítem de Venta** para ese mismo Producto dentro de la misma Venta, uno por cada lote del cual efectivamente se descontó stock, cada uno con su propio `compra_id` y la porción de `cantidad` correspondiente a ese lote. Esto es una operación interna del sistema al registrar la venta, no algo que el Administrador tenga que armar manualmente ítem por ítem.*
 - Un Ítem de Venta (cuando es a crédito) tiene muchos **Pagos**.
 
 ## 7.2 Pago
@@ -254,6 +260,11 @@ Este caso puso en evidencia una falla real del modelo anterior, que ya se corrig
 
 **Conclusión:** el modelo corregido soporta el caso completo: pagos mixtos dentro de una misma venta, pagos parciales en el tiempo, y saldar un ítem sin afectar a los demás. Esto también impacta las historias de usuario **HU-10** y **HU-11**, que deberían actualizarse para reflejar que el crédito se maneja por ítem y no por venta completa (ver nota abajo).
 
+**Pendiente de trasladar a `historias-usuario.md`:**
+- HU-10 debería aclarar que el crédito se define por ítem/producto, no por venta completa.
+- HU-11 debería aclarar que el saldo mostrado incluye el detalle de qué ítems están pendientes y su saldo individual.
+- Convendría agregar una historia nueva ("Como Administrador quiero registrar un pago/cuota de un ítem a crédito, para actualizar el saldo pendiente del cliente").
+
 ## 13. Validación del modelo: Orden de Servicio a crédito con pagos parciales
 
 Se revisó si el mismo mecanismo de `Pago` soporta el caso equivalente para servicios (no solo para productos).
@@ -271,3 +282,34 @@ Se revisó si el mismo mecanismo de `Pago` soporta el caso equivalente para serv
 **Diferencia importante respecto del caso de Venta:** en la Orden de Servicio, el crédito es **sobre el total de la visita**, no service por service — no se puede, por ejemplo, pagar la alineación al contado y dejar el balanceo a crédito dentro de la misma Orden. Esto es intencional (ver nota en sección 9) porque en la entrevista no surgió esa necesidad; si en el futuro el dueño quisiera fiar solo una parte de los servicios de una visita, habría que mover `tipo_pago` de la Orden al Servicio de detalle, tal como se hizo con Venta → Ítem de Venta.
 
 **Conclusión:** el modelo soporta el caso de servicios a crédito con pagos parciales sin necesidad de cambios adicionales — reutiliza exactamente la misma entidad `Pago` ya creada para Ítem de Venta, gracias a que se diseñó con las dos referencias (`item_venta_id` / `orden_servicio_id`) desde el principio.
+
+## 14. Corrección: trazabilidad de la garantía del proveedor al momento de la venta
+
+Se identificó una inconsistencia real en el modelo: la garantía ofrecida por el proveedor (`garantía_proveedor`) se registraba únicamente en Compra, mientras que la venta se vinculaba directamente con Producto, sin ninguna referencia a qué Compra específica correspondía la unidad vendida.
+
+**El problema, en detalle:**
+
+- El `stock` de un Producto es un valor agregado: puede provenir de varias Compras distintas (a uno o varios Proveedores), cada una con su propia `garantía_proveedor`.
+- Ejemplo simple: el dueño compra baterías del mismo modelo a dos proveedores distintos, uno le da 18 meses de garantía y el otro 12. Ambas compras suman al mismo `stock` del Producto "Batería X".
+- Ejemplo alternativo, sin necesidad de proveedores distintos: el stock de un producto baja del mínimo, se hace una nueva compra al mismo proveedor de siempre, pero esta vez con una garantía distinta a la de la compra anterior (por ejemplo, por una promoción puntual del proveedor).
+- En ambos casos, con el modelo anterior, al vender una unidad de ese Producto **no había forma de saber de cuál de esas compras provenía**, y por lo tanto tampoco de saber qué garantía de proveedor le correspondía a esa unidad puntual.
+
+**Corrección aplicada:**
+
+Se incorporó el concepto de **lote de stock**, usando la propia entidad Compra como lote:
+
+1. Compra ahora tiene `cantidad_disponible`, que representa cuánto queda sin vender de ese lote puntual (arranca igual a `cantidad` y se va descontando con cada venta que provenga de ese lote).
+2. Ítem de Venta ahora tiene `compra_id`, que indica explícitamente de qué lote salió la unidad vendida.
+3. El `stock` del Producto pasa a ser un valor agregado (suma de `cantidad_disponible` de todas sus Compras), en lugar de un contador aislado sin relación con los lotes de origen.
+4. La `garantía_ofrecida` al cliente en el Ítem de Venta queda validada contra la `garantía_proveedor` del lote específico (`compra_id`), no contra un valor genérico del Producto — esto también ajusta el criterio de aceptación de HU-06.
+
+**Pregunta operativa pendiente de confirmar con el dueño:** este modelo asume que, al vender, el sistema puede elegir automáticamente de qué lote descontar stock, típicamente con una regla **PEPS/FIFO** (se vende primero lo que se compró primero). Sin embargo, esto depende de cómo el dueño maneja físicamente el stock en el taller:
+
+- Si los productos de distintas compras están mezclados físicamente en el estante (por ejemplo, cubiertas sin ningún dato visible que indique de qué compra provienen), el sistema puede aplicar FIFO automáticamente sin que el dueño tenga que hacer nada, aunque en la práctica podría no coincidir exactamente con la unidad física que efectivamente se entrega.
+- Si el producto tiene algún dato identificable físicamente (por ejemplo, baterías con fecha de fabricación o número de serie visible), podría ser preferible que el sistema le muestre al dueño las compras disponibles con su garantía, y sea él quien elija manualmente cuál está entregando.
+
+Esta pregunta se agrega al guion de la próxima reunión (ver `guion-reunion-dueno.md`).
+
+**Nota de diseño — por qué `producto_id` se mantiene en Ítem de Venta a pesar de existir `compra_id`:** dado que toda Compra ya referencia un `producto_id`, `producto_id` en Ítem de Venta es técnicamente derivable a través de `compra_id → Compra.producto_id`, y podría eliminarse sin perder información. Se decide mantenerlo de todas formas como una **denormalización deliberada**: permite consultar y filtrar ventas por producto sin necesidad de un `JOIN` contra Compra en cada consulta (por ejemplo, para HU-07, historial de compra/venta de un producto). La capa de lógica de negocio debe garantizar, al registrar cada Ítem de Venta, que `producto_id` coincida siempre con el `producto_id` de la Compra referenciada en `compra_id`, para que ambos campos nunca queden desincronizados.
+
+**Corrección importante respecto de una versión anterior de este documento:** se había planteado `compra_id` como campo opcional, asumiendo que solo hacía falta cuando interesaba trazabilidad de garantía. Sin embargo, dado que `Producto.stock` se define como la suma de `Compra.cantidad_disponible` (sección 5), **toda** unidad vendida necesariamente descuenta de algún lote — por lo tanto `compra_id` debe ser **obligatorio** en todos los casos, no solo cuando la garantía importa. Lo que sí varía según el producto es si esa información se usa para validar garantía (HU-06) o simplemente queda registrada sin uso adicional.

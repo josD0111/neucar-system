@@ -18,6 +18,8 @@ erDiagram
     PRODUCTO ||--o{ COMPRA : "es comprado en"
     PRODUCTO ||--o{ ITEM_VENTA : "es vendido en"
 
+    COMPRA ||--o{ ITEM_VENTA : "es el lote de origen de"
+
     VENTA ||--|{ ITEM_VENTA : contiene
 
     ITEM_VENTA ||--o{ PAGO : "recibe (si es crédito)"
@@ -69,6 +71,7 @@ erDiagram
         int proveedor_id FK
         date fecha
         int cantidad
+        int cantidad_disponible
         decimal precio_compra
         int garantia_proveedor
         string factura
@@ -87,6 +90,7 @@ erDiagram
         int id PK
         int venta_id FK
         int producto_id FK
+        int compra_id FK
         int cantidad
         decimal precio_unitario
         int garantia_ofrecida
@@ -140,6 +144,7 @@ erDiagram
 - **ORDEN_SERVICIO.garantia_dias** es nullable/opcional, reflejando que el dueño no siempre la ofrece.
 - **ITEM_VENTA/ORDEN_SERVICIO–PAGO** son relaciones excluyentes: un Pago referencia a uno de los dos, nunca ambos. Esto permite manejar crédito por producto individual (no por venta completa) y por orden de servicio completa, con pagos parciales acumulables en el tiempo — ver el caso de validación en `entidades-dominio.md`, sección 12.
 - **Diferencia clave:** en Venta, `tipo_pago` vive en `ITEM_VENTA` (crédito por producto). En Orden de Servicio, `tipo_pago` vive en `ORDEN_SERVICIO` (crédito por visita completa, no por Servicio individual), reflejando cómo el dueño maneja el crédito en la práctica — ver `entidades-dominio.md`, sección 13.
+- **COMPRA–ITEM_VENTA** (`compra_id`, **obligatorio**) traza de qué lote de compra proviene cada unidad vendida. No es opcional: dado que `PRODUCTO.stock` se calcula como la suma de `COMPRA.cantidad_disponible`, toda venta debe descontar de algún lote puntual — ver el problema y la corrección detallados en `entidades-dominio.md`, sección 14. Si la cantidad vendida de un producto supera lo disponible en un solo lote, el sistema genera automáticamente varios Ítems de Venta (uno por lote consumido) dentro de la misma Venta.
 
 ## Pendiente de confirmar
 

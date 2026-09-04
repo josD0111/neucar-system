@@ -26,7 +26,8 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **Criterios de aceptación:**
 - Dado que registro la compra de un producto con garantía (ej. una batería), cuando ingreso la fecha de compra y los meses de garantía otorgados por el proveedor, entonces el sistema calcula y guarda la fecha de vencimiento de la garantía del proveedor.
-- Dado un producto con garantía de proveedor registrada, cuando lo vendo a un cliente, entonces el sistema debe permitirme definir la garantía que le ofrezco a ese cliente, sin superar la garantía restante del proveedor a la fecha de venta.
+- Dado un producto con stock proveniente de más de una Compra (lote), con distinta `garantía_proveedor` cada una, cuando se vende una unidad, entonces la garantía que se le puede ofrecer al cliente se valida contra la `garantía_proveedor` del lote (Compra) específico del cual salió esa unidad — no contra un valor genérico del Producto (ver `entidades-dominio.md`, sección 14).
+- Dado un producto con garantía de proveedor registrada, cuando lo vendo a un cliente, entonces el sistema debe permitirme definir la garantía que le ofrezco a ese cliente, sin superar la garantía restante del proveedor del lote correspondiente a la fecha de venta.
 - Dado que la regla exacta de cálculo del margen (ej. "12-13 meses si el proveedor da 18") no está confirmada como fija para todos los productos, el sistema debe permitir ingresar la garantía ofrecida al cliente de forma manual en el MVP, y no calcularla automáticamente, hasta confirmar la regla con el dueño (ver pregunta abierta en `desiciones-alcance.md`).
 - Dado un producto sin garantía aplicable (ej. un filtro), cuando lo registro, entonces el campo de garantía debe poder quedar vacío u omitido, sin bloquear el registro del producto.
 

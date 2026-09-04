@@ -52,7 +52,7 @@
 
 - **¿Que detalles se espera tener en cuenta sobre los productos?**
 
-> Las garantía de los mismos se debe tener en cuenta según el caso especifico del producto, en especial con las baterías. Las baterías empieza a contar su fecha de garantía desde que lo compra a su proveedor, y dependiendo e cuando lo venda este ofrece otra vez una determinada cantidad de meses, normalmente tiene un margen fijo, si la batería tiene garantía de 18 meses según su proveedor, el ofrece una garantía de 12-13 meses para así tener almeno 5 meses para venderlo.
+> Las garantía de los mismos se debe tener en cuenta según el caso especifico del producto, en especial con las baterías. Las baterías empieza a contar su fecha de garantía desde que lo compra a su proveedor, y dependiendo de cuando lo venda este ofrece otra vez una determinada cantidad de meses, normalmente tiene un margen fijo, si la batería tiene garantía de 18 meses según su proveedor, el ofrece una garantía de 12-13 meses para así tener al menos 5 meses para venderlo.
 > Los productos se pueden vender a cuota, el dueño espera poder saber también que ventas se siguen gestionando, los productos que se vendieron, el estado de sus cuotas, el cliente correspondiente.
 
 - **¿Que se debería conocer sobre los proveedores?**

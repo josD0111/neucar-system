@@ -14,8 +14,9 @@ La idea de esta reunión no es solo preguntar, sino **mostrar el prototipo y dej
 - Cuando el proveedor te da, por ejemplo, 18 meses de garantía en una batería, ¿vos le ofrecés al cliente siempre la misma cantidad de meses menos un margen fijo? ¿O varía según el producto, el proveedor, o el cliente?
 - Si varía, ¿de qué depende? (¿tipo de batería, marca, cuánto hace que la tenés en stock?)
 - ¿Hay productos donde nunca ofrecés garantía al cliente, aunque el proveedor sí te la haya dado a vos?
+- **[Nueva]** Cuando comprás el mismo producto más de una vez (por ejemplo, repones stock de baterías) y la garantía que te da el proveedor cambia de una compra a otra, ¿vos podés distinguir físicamente cuál unidad es de qué compra (por ejemplo, por una fecha de fabricación o número de serie visible en la batería)? ¿O una vez que entra al depósito, se mezcla todo y ya no hay forma de saber cuál es cuál?
 
-**Por qué importa:** hoy el sistema deja este campo para carga manual porque no hay una regla clara. Si el dueño da una regla fija o un patrón, se puede automatizar el cálculo y ahorrarle un paso.
+**Por qué importa:** hoy el sistema deja este campo para carga manual porque no hay una regla clara. Si el dueño da una regla fija o un patrón, se puede automatizar el cálculo y ahorrarle un paso. La última pregunta es clave para decidir si el sistema puede elegir automáticamente de qué lote de compra descontar stock al vender, o si conviene que el dueño lo elija manualmente en cada venta (ver `entidades-dominio.md`, sección 14).
 
 ## 2. Garantía de servicios (crítico)
 
