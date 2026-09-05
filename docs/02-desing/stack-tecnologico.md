@@ -45,13 +45,13 @@ La recomendación es diseñar la lógica de negocio (validaciones, cálculo de s
 | Interfaz (frontend) | **React + TypeScript** | Coincide con la experiencia previa del equipo en JavaScript/TypeScript; el tipado estático ayuda a reflejar el modelo de datos de `entidades-dominio.md` en el código y detectar errores antes de la ejecución |
 | Lógica de negocio (backend) | **Node.js + TypeScript**, expuesto como servidor local (ver sección 3) | Centraliza las validaciones de negocio (cálculo de saldos, permisos por rol) en una capa desacoplada de la interfaz, preparada para un eventual acceso móvil |
 | Base de datos | **PGlite** (PostgreSQL embebido vía WebAssembly) | Resuelve la tensión descripta en la sección 1 |
-| ORM / acceso a datos | **Prisma** (alternativa: Drizzle) | Genera el código de acceso a datos a partir de un esquema declarado en TypeScript, que puede derivarse directamente de `diagrama-entidad-relacion.md` |
+| ORM / acceso a datos | **Drizzle ORM** | Cuenta con soporte oficial y nativo para PGlite (`drizzle-orm/pglite`) desde 2024. Prisma, en cambio, solo tuvo una propuesta de adaptador para PGlite impulsada por la comunidad, que nunca se integró de forma oficial al proyecto — por eso se descarta como opción para este stack, pese a ser más conocido en general |
 | Empaquetado / instalador | **electron-builder** | Genera los instaladores para los sistemas operativos definidos (ver sección 2) |
 | Pruebas | **Vitest** (alternativa: Jest) | Para cubrir la lógica de negocio más sensible: cálculo de saldos y pagos parciales, permisos por rol |
 
 ## 5. Correspondencia entre el modelo de datos y el stack
 
-- Cada entidad definida en `entidades-dominio.md` se representa como un modelo en el esquema de Prisma (o Drizzle), en correspondencia directa con las tablas de `diagrama-entidad-relacion.md`.
+- Cada entidad definida en `entidades-dominio.md` se representa como un modelo en el esquema de Drizzle, en correspondencia directa con las tablas de `diagrama-entidad-relacion.md`.
 - Los valores calculados (`saldo_pendiente` en Ítem de Venta y en Orden de Servicio, `monto_total`, etc.) se implementan como funciones en la capa de lógica de negocio, no como columnas fijas en la base de datos, para evitar inconsistencias si un registro se modifica fuera del flujo esperado.
 - Los permisos por rol (Administrador/Empleado — ver `entidades-dominio.md`, sección 1, e HU-17/HU-18) se validan en esta misma capa de lógica de negocio, y no únicamente ocultando elementos en la interfaz, conforme a los criterios de aceptación definidos para esas historias.
 
@@ -59,7 +59,7 @@ La recomendación es diseñar la lógica de negocio (validaciones, cálculo de s
 
 - Confirmar con el dueño, al momento de adquirir la notebook, que efectivamente tendrá Windows instalado (ver sección 2), para validar que la asunción tomada en este documento sigue vigente.
 - Inicializar el proyecto Electron + React + TypeScript (puede utilizarse una plantilla como `electron-vite` para reducir tiempo de configuración inicial).
-- Definir el esquema inicial de Prisma/Drizzle a partir de `diagrama-entidad-relacion.md`.
+- Definir el esquema inicial de Drizzle a partir de `diagrama-entidad-relacion.md`.
 - Configurar PGlite y validar que persiste los datos correctamente entre reinicios de la aplicación, en un entorno lo más parecido posible al de destino final.
 - Configurar `electron-builder` y validar la generación de instaladores tanto desde el entorno Windows 11 (build nativa de `.exe`) como desde el entorno Debian 12 (build de Linux para pruebas locales, y opcionalmente instalación de Wine para poder generar también el `.exe` desde ese equipo si hiciera falta).
 

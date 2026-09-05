@@ -18,7 +18,7 @@ Al ser un equipo tan chico y sin roles separados (ambos hacen de todo), se simpl
 
 | Etapa | Duración | Foco |
 |---|---|---|
-| Sprint 0 | 2-3 días | Setup técnico del proyecto (estructura de `src/`, herramienta elegida para el prototipo) |
+| Sprint 0 | 2-3 días | Setup técnico del proyecto (estructura de `app/`, herramienta elegida para el prototipo) |
 | **Sprint 0.5 — Prototipo** | 3-5 días | Pantallas clickeables (sin backend) de los flujos críticos, para validar con el dueño |
 | *(Reunión con el dueño)* | — | Mostrar el prototipo, recoger ajustes y **cerrar las preguntas abiertas** de `desiciones-alcance.md` |
 | Sprint 1 | 1.5 semanas | Entidades base + operaciones simples, ya con las decisiones del dueño incorporadas |
@@ -46,7 +46,7 @@ No hace falta que el prototipo cubra las 30 historias de usuario; alcanza con es
 Priorización basada en dependencias del modelo de datos: primero lo que otras entidades necesitan para existir (Usuario, Categoría, Producto, Cliente, Proveedor), después lo que depende de eso (Ventas, Servicios, Crédito).
 
 ### Sprint 0 — Preparación (no son historias de usuario, son tareas técnicas)
-- Definir stack tecnológico y crear repositorio base (estructura de `src/`).
+- Definir stack tecnológico y crear repositorio base (estructura de `app/`).
 - Elegir herramienta para el prototipo clickeable (ej. Figma en modo prototipo, o directamente maquetas navegables en HTML/framework elegido, si van a reutilizar ese código después).
 - Configurar base de datos según `diagrama-entidad-relacion.md` (puede avanzar en paralelo al prototipo, ya que no depende de él).
 - Definir convenciones de código y flujo de trabajo con Git (ramas, commits, pull requests).
