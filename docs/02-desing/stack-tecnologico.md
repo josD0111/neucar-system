@@ -63,6 +63,12 @@ La recomendación es diseñar la lógica de negocio (validaciones, cálculo de s
 - Configurar PGlite y validar que persiste los datos correctamente entre reinicios de la aplicación, en un entorno lo más parecido posible al de destino final.
 - Configurar `electron-builder` y validar la generación de instaladores tanto desde el entorno Windows 11 (build nativa de `.exe`) como desde el entorno Debian 12 (build de Linux para pruebas locales, y opcionalmente instalación de Wine para poder generar también el `.exe` desde ese equipo si hiciera falta).
 
-## 7. Riesgo a monitorear
+## 7. Riesgo monitoreado — validado en Sprint 0
 
-PGlite es una tecnología relativamente reciente. Aunque resuelve adecuadamente la tensión planteada en la sección 1, se recomienda que el Sprint 0 incluya una validación temprana y concreta de su persistencia de datos en un entorno similar al de destino final, antes de construir funcionalidad sobre esa base. En caso de detectarse algún inconveniente relevante, las alternativas de respaldo son SQLite (menor robustez formal, pero ampliamente probada en este tipo de aplicaciones) o PostgreSQL instalado como servicio local (ver sección 1, alternativa considerada).
+PGlite es una tecnología relativamente reciente. Se recomendó, durante el Sprint 0, una validación temprana y concreta de su persistencia de datos antes de construir funcionalidad sobre esa base.
+
+**Estado: validado.** Se realizó la prueba en el entorno de desarrollo (Debian 12): se insertó un registro de prueba en el primer arranque de la aplicación, se cerró el proceso por completo, y en el segundo arranque el registro seguía presente. Esto confirma que la persistencia a disco de PGlite funciona correctamente entre reinicios.
+
+Queda pendiente repetir esta misma validación en el entorno de Windows (tanto en la notebook de desarrollo con Windows 11 como, eventualmente, en la notebook real del taller una vez adquirida), para descartar diferencias de comportamiento entre sistemas operativos antes de la entrega final.
+
+En caso de detectarse algún inconveniente en esa validación pendiente, las alternativas de respaldo siguen siendo SQLite (menor robustez formal, pero ampliamente probada en este tipo de aplicaciones) o PostgreSQL instalado como servicio local (ver sección 1, alternativa considerada).
