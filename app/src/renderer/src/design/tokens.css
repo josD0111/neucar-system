@@ -1,0 +1,64 @@
+/* src/renderer/src/design/tokens.css
+ *
+ * Sistema de diseño del prototipo. Ver docs/03-gestion-proyecto/
+ * plan-gestion-proyecto.md, sección 2.1, para las pantallas que este
+ * prototipo debe cubrir.
+ */
+
+:root {
+  /* Color */
+  --color-bg: #f4f3f0;
+  --color-surface: #ffffff;
+  --color-text: #22262b;
+  --color-text-muted: #5c6570;
+  --color-border: #dedad2;
+
+  --color-accent: #e38b29;       /* ámbar de señalización — acciones principales */
+  --color-accent-ink: #7a4713;   /* texto sobre acento claro / hover oscuro */
+  --color-info: #3e5c68;         /* azul acero — estados informativos */
+  --color-ok: #4b7a5b;           /* verde oliva — pagado / disponible */
+  --color-alert: #b23b3b;        /* rojo ladrillo — saldo pendiente / error */
+  --color-alert-bg: #f6e6e2;
+
+  /* Tipografía */
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-data: 'Barlow Condensed', 'Inter', sans-serif;
+
+  /* Layout */
+  --radius: 4px;
+  --sidebar-width: 220px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+input, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.font-data {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
