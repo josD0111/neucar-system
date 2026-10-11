@@ -1,6 +1,6 @@
 # Diagrama Entidad-Relación (DER)
 
-*Basado en `entidades-dominio.md`. Representa el modelo de datos completo del sistema, incluyendo las correcciones acordadas en las revisiones posteriores (normalización de Orden de Servicio, garantía a nivel de visita, Categoría como entidad propia, etc.).*
+*Basado en `entidades-dominio.md`. Representa el modelo de datos completo del sistema, incluyendo las correcciones acordadas en las revisiones posteriores (normalización de Orden de Servicio, Categoría como entidad propia, etc.) y las actualizaciones derivadas de la entrevista del 10/09/2026 (eliminación de garantía en servicios, campo `detalle` en Servicio, `fecha_pago_prevista` en Ítem de Venta y Orden de Servicio).*
 
 ```mermaid
 erDiagram
@@ -96,6 +96,7 @@ erDiagram
         int garantia_ofrecida
         string tipo_pago
         decimal saldo_pendiente
+        date fecha_pago_prevista
     }
 
     PAGO {
@@ -124,7 +125,7 @@ erDiagram
         string tipo_pago
         decimal monto_total
         decimal saldo_pendiente
-        int garantia_dias
+        date fecha_pago_prevista
         string tipo_comprobante
     }
 
@@ -133,6 +134,7 @@ erDiagram
         int orden_id FK
         string tipo_servicio
         decimal monto
+        string detalle
     }
 ```
 
@@ -141,7 +143,8 @@ erDiagram
 - **CLIENTE–VENTA** es opcional del lado de Cliente (`o{`), ya que una Venta puede ser a un cliente "casual" no registrado, salvo cuando es a crédito (ver HU-10, donde el registro pasa a ser obligatorio a nivel de regla de negocio, no de modelo de datos).
 - **VENTA–ITEM_VENTA** y **ORDEN_SERVICIO–SERVICIO** usan `|{` (uno o muchos) del lado del detalle, porque no tiene sentido una Venta sin productos ni una Orden de Servicio sin al menos un Servicio.
 - **PRODUCTO–COMPRA** y **PRODUCTO–PROVEEDOR**: la relación muchos-a-muchos entre Producto y Proveedor no aparece como línea directa en el diagrama, porque queda resuelta a través de la entidad intermedia Compra (Proveedor → Compra → Producto).
-- **ORDEN_SERVICIO.garantia_dias** es nullable/opcional, reflejando que el dueño no siempre la ofrece.
+- **ITEM_VENTA.fecha_pago_prevista** y **ORDEN_SERVICIO.fecha_pago_prevista** son nullable (solo aplican cuando `tipo_pago = Crédito`) y representan la próxima fecha en la que se espera el pago, no un cronograma de cuotas completo — ver `entidades-dominio.md`, sección 12.1. Es un valor sugerido editable, sin validación bloqueante sobre el plazo.
+- **SERVICIO.detalle** es nullable/opcional, para precisar la parte afectada cuando aplica (ej. cantidad de ruedas en alineación/balanceo) — ver `entidades-dominio.md`, sección 9.1.
 - **ITEM_VENTA/ORDEN_SERVICIO–PAGO** son relaciones excluyentes: un Pago referencia a uno de los dos, nunca ambos. Esto permite manejar crédito por producto individual (no por venta completa) y por orden de servicio completa, con pagos parciales acumulables en el tiempo — ver el caso de validación en `entidades-dominio.md`, sección 12.
 - **Diferencia clave:** en Venta, `tipo_pago` vive en `ITEM_VENTA` (crédito por producto). En Orden de Servicio, `tipo_pago` vive en `ORDEN_SERVICIO` (crédito por visita completa, no por Servicio individual), reflejando cómo el dueño maneja el crédito en la práctica — ver `entidades-dominio.md`, sección 13.
 - **COMPRA–ITEM_VENTA** (`compra_id`, **obligatorio**) traza de qué lote de compra proviene cada unidad vendida. No es opcional: dado que `PRODUCTO.stock` se calcula como la suma de `COMPRA.cantidad_disponible`, toda venta debe descontar de algún lote puntual — ver el problema y la corrección detallados en `entidades-dominio.md`, sección 14. Si la cantidad vendida de un producto supera lo disponible en un solo lote, el sistema genera automáticamente varios Ítems de Venta (uno por lote consumido) dentro de la misma Venta.

@@ -1,6 +1,6 @@
 # Entidades del Dominio
 
-*Elaborado a partir de `docs/01-analisis/entrevistas/entrevista_2026-06-30.md`, `desiciones-alcance.md` e `historias-usuario.md`.*
+*Elaborado a partir de `docs/01-analisis/entrevistas/entrevista--2026-06-30.md`, `desiciones-alcance.md` e `historias-usuario.md`. Actualizado con los hallazgos de `entrevista--2026-09-10.md` (ver secciones 9, 9.1 y 12.1).*
 
 Este documento identifica las entidades principales del sistema, sus atributos y sus relaciones, como base para el diseño de la base de datos y del modelo de clases.
 
@@ -71,7 +71,7 @@ Se modela como entidad propia (y no como texto libre dentro de Producto) pensand
 | nombre | Nombre del producto |
 | categoría_id | Categoría a la que pertenece (ver entidad Categoría) |
 | precio_base | Precio de venta estándar |
-| stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14 |
+| stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14. **Denormalización deliberada** (igual que `producto_id` en Ítem de Venta, sección 14): se mantiene como columna propia por conveniencia de consulta rápida (HU-03, HU-04), en vez de calcularse con un `SUM` en cada lectura. La capa de lógica de negocio debe mantenerlo sincronizado en cada Compra y cada Venta — ver también el comentario en `schema.ts` |
 | stock_mínimo | Para notificación de stock bajo (futuro) |
 
 **Relaciones:**
@@ -133,6 +133,7 @@ Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Pro
 | garantía_ofrecida | Garantía otorgada al cliente para ese producto en esa venta. No debe superar la `garantía_proveedor` del lote referenciado en `compra_id` — ver HU-06. Si ese lote no tiene garantía de proveedor cargada (producto sin garantía aplicable), este campo queda a criterio del Administrador. |
 | tipo_pago | Contado \| Crédito — aplica a este ítem puntual, no a toda la Venta |
 | saldo_pendiente | Calculado: (precio_unitario × cantidad) − suma de Pagos asociados a este ítem. Si tipo_pago es Contado, siempre es 0. |
+| fecha_pago_prevista | Fecha en la que el cliente debería venir a pagar (toda o la próxima cuota) cuando tipo_pago es Crédito. Nulo si es Contado. Ver nota de diseño en sección 12.1 |
 
 **Relaciones:**
 - Un Ítem de Venta **pertenece** a una Venta.
@@ -190,7 +191,7 @@ Representa la **visita** del cliente al taller. Agrupa los datos que son comunes
 | tipo_pago | Contado \| Crédito (aplica al total de la visita, no a cada Servicio individual — ver nota) |
 | monto_total | Suma de los montos de los Servicios incluidos |
 | saldo_pendiente | Calculado: monto_total − suma de Pagos asociados a esta Orden. Si tipo_pago es Contado, siempre es 0. |
-| garantía_dias | Días de garantía ofrecidos sobre el trabajo completo de la visita (opcional; no todos los trabajos la incluyen) |
+| fecha_pago_prevista | Fecha en la que el cliente debería venir a pagar (toda o la próxima cuota) cuando tipo_pago es Crédito. Nulo si es Contado. Ver nota de diseño en sección 12.1 |
 | tipo_comprobante | Factura común \| Factura electrónica (futuro) |
 
 **Relaciones:**
@@ -202,6 +203,8 @@ Representa la **visita** del cliente al taller. Agrupa los datos que son comunes
 
 *Nota: a diferencia de la Venta (donde `tipo_pago` vive por Ítem — ver sección 12), en la Orden de Servicio el crédito es sobre el total de la visita, no por Servicio individual. Esto es coherente con cómo el dueño maneja el crédito en la práctica: no se mencionó en la entrevista que quiera cobrar una tarea al contado y otra a crédito dentro de la misma visita, sino que el acuerdo de "fiar" se hace sobre el trabajo completo. Si esa necesidad surgiera más adelante, el mismo ajuste que se hizo en Venta (mover `tipo_pago` al detalle) podría replicarse en Servicio.*
 
+*Nota — eliminación de `garantía_dias` (actualizado tras entrevista 10/09/2026): el modelo original incluía un campo `garantía_dias` opcional sobre el trabajo completo de la visita. La entrevista del 10/09/2026 aclaró explícitamente que **no es necesario registrar la garantía de los servicios ofrecidos**: cuando se termina una orden, se prueba el vehículo con el cliente en el momento, y los pocos casos de reclamo posterior los gestiona el dueño directamente, sin que el sistema necesite llevar un control formal de vigencia de garantía. Por eso se quita el campo del modelo. Lo que sí se mantiene (y es lo que el dueño pidió explícitamente) es el **historial de servicios aplicados al vehículo** — ver sección 9.1 y HU-26 — para poder consultar qué se hizo y cuándo, sin necesidad de una garantía formal asociada.*
+
 ## 9.1 Servicio (detalle)
 
 Representa **cada tarea individual** realizada dentro de una Orden de Servicio (alineación, balanceo, montaje, gomería, etc.). Solo contiene lo que puede variar entre tareas de una misma visita; todo lo demás vive en la Orden.
@@ -212,17 +215,20 @@ Representa **cada tarea individual** realizada dentro de una Orden de Servicio (
 | orden_id | Orden de Servicio a la que pertenece |
 | tipo_servicio | Alineación, balanceo, montaje, gomería, mantenimiento, etc. |
 | monto | Costo de esta tarea puntual |
+| detalle | Texto libre opcional para precisar la parte/alcance afectado cuando aplica (ej. "4 ruedas" en alineación o balanceo). No todos los tipos de servicio lo usan — ver nota |
 
 **Relaciones:**
 - Un Servicio **pertenece** a una Orden de Servicio.
 
-*Nota: la garantía se ofrece sobre el trabajo completo de la visita, no por cada tarea individual, y no es obligatoria (el dueño la ofrece a criterio propio como gesto de buena atención). Por eso `garantía_dias` vive en la Orden de Servicio y no en el detalle — ver corrección más abajo respecto del modelo anterior.*
+*Nota — campo `detalle` (agregado tras entrevista 10/09/2026): el dueño pidió poder ver, además del tipo y monto, "las partes afectadas" de un servicio — mencionó como ejemplo saber la cantidad de ruedas trabajadas en una alineación o balanceo. No se precisó en la entrevista si esto aplica a todos los tipos de servicio o solo a algunos (ej. no tendría sentido en un "cambio de aceite"), por lo que se modela como un campo de **texto libre opcional**, sin estructura fija ni validación por tipo de servicio. Esto es una interpretación provisional del equipo, no una confirmación cerrada del dueño — queda pendiente de validar en una próxima reunión, mostrándole concretamente cómo se vería este campo al cargar una alineación o un balanceo, y confirmar si conviene un campo estructurado (ej. cantidad numérica) en vez de texto libre.*
 
-*Nota: con este modelo, si en una visita se hacen 2 servicios (ej. alineación + balanceo), el vehículo, cliente, fecha, usuario y garantía se cargan **una sola vez** en la Orden, y solo se agregan 2 filas de Servicio con su tipo y monto — sin repetir el resto de los datos. Esto resuelve directamente la redundancia que se había detectado con el modelo anterior (un único registro de Servicio con todos los campos repetidos por cada tarea).*
+*Nota — garantía (actualizada tras entrevista 10/09/2026): la garantía sobre servicios se retiró del modelo por completo (ver nota en sección 9), no solo de este detalle.*
+
+*Nota: con este modelo, si en una visita se hacen 2 servicios (ej. alineación + balanceo), el vehículo, cliente, fecha y usuario se cargan **una sola vez** en la Orden, y solo se agregan 2 filas de Servicio con su tipo, monto y detalle — sin repetir el resto de los datos. Esto resuelve directamente la redundancia que se había detectado con el modelo anterior (un único registro de Servicio con todos los campos repetidos por cada tarea).*
 
 ## 10. Puntos a resolver en el diseño (no cerrados por el análisis)
 
-- **Garantía como entidad propia vs. campos embebidos:** por ahora se modeló la garantía como atributos dentro de Compra (garantía del proveedor), Ítem de Venta (garantía ofrecida por producto) y Orden de Servicio (garantía ofrecida sobre el trabajo completo, opcional). Si la lógica de cálculo de garantía se vuelve más compleja (ver pregunta abierta sobre el margen fijo), podría convenir una entidad "Garantía" separada con su propio estado (vigente/vencida) y reglas.
+- **Garantía como entidad propia vs. campos embebidos:** por ahora se modeló la garantía como atributos dentro de Compra (garantía del proveedor) e Ítem de Venta (garantía ofrecida por producto). Si la lógica de cálculo de garantía se vuelve más compleja (ver pregunta abierta sobre el margen fijo), podría convenir una entidad "Garantía" separada con su propio estado (vigente/vencida) y reglas. *(Actualizado 10/09/2026: la garantía sobre servicios se retiró del modelo — ver nota en sección 9 — por lo que este punto queda acotado solo a garantía de productos.)*
 
 ## 11. Dilema abierto: nivel de detalle de los Servicios
 
@@ -236,7 +242,9 @@ Durante el análisis surgió una tensión que no está resuelta y que **afecta d
 
 **Por qué se decidió así y no dejar todo en un solo campo de texto libre:** aunque el dueño no pidió el detalle, este modelo no le agrega carga de trabajo extra respecto de un campo único de texto — sigue anotando cada tarea con su monto por separado, como ya hace naturalmente al cobrar — pero sí deja la puerta abierta a extraer historial y reportes por tipo de servicio más adelante, sin haber ido en contra de lo que pidió.
 
-**Qué queda pendiente:** esto es una interpretación de nuestro equipo para conciliar ambas necesidades, no una confirmación explícita del dueño. Se recomienda validarlo en la próxima entrevista, mostrándole concretamente cómo se vería la carga de una visita con varios servicios en pantalla, para confirmar que el flujo propuesto realmente no le resulta más complejo que anotar en el cuaderno.
+**Qué queda pendiente:** esto era una interpretación de nuestro equipo para conciliar ambas necesidades, no una confirmación explícita del dueño. Se recomendó validarlo en la próxima entrevista, mostrándole concretamente cómo se vería la carga de una visita con varios servicios en pantalla, para confirmar que el flujo propuesto realmente no le resulta más complejo que anotar en el cuaderno.
+
+**Actualización (entrevista 10/09/2026) — dilema parcialmente resuelto a favor del detalle:** el dueño confirmó, sin que se le preguntara puntualmente por este dilema, que *sí* le interesa el detalle: *"Al dueño le interesa poder ver el detalle de una orden de servicio. Saber los servicios realizados, los precios unitario de cada servicio, las partes afectadas."* Esto valida el enfoque elegido (Orden de Servicio + Servicio como detalle granular) y además confirma que detallar servicio por servicio, con su monto individual, **no le genera carga adicional** — es justamente lo que pidió. Lo que sigue sin confirmarse es el alcance exacto del campo `detalle`/"partes afectadas" (ver campo `detalle` agregado en sección 9.1): no quedó claro en qué servicios aplica y con qué estructura, más allá del ejemplo de cantidad de ruedas en alineación/balanceo.
 
 ## 12. Validación del modelo: caso de pagos mixtos y parciales
 
@@ -264,6 +272,29 @@ Este caso puso en evidencia una falla real del modelo anterior, que ya se corrig
 - HU-10 debería aclarar que el crédito se define por ítem/producto, no por venta completa.
 - HU-11 debería aclarar que el saldo mostrado incluye el detalle de qué ítems están pendientes y su saldo individual.
 - Convendría agregar una historia nueva ("Como Administrador quiero registrar un pago/cuota de un ítem a crédito, para actualizar el saldo pendiente del cliente").
+
+## 12.1 Incorporación: fecha de pago prevista y aviso de mora (entrevista 10/09/2026)
+
+La entrevista del 10/09/2026 agregó dos requisitos nuevos sobre el manejo del crédito, no contemplados hasta ahora:
+
+- *"Se desea registrar la fecha en la que el cliente debería ir a pagar su cuota."*
+- *"Si un cliente no viene en la fecha prevista se le debe notificar al dueño."*
+
+También se confirmaron datos que antes eran una pregunta abierta: los créditos se pagan de forma mensual, no suelen superar los **2 meses**, y normalmente el monto se divide a la mitad para pagar en 2 cuotas. Un cliente con 2 cuotas puede cancelar todo en el primer pago si quiere.
+
+**Decisión de diseño — campo simple en vez de una entidad "Cuota":** en lugar de modelar un cronograma completo de cuotas futuras (una entidad `Cuota` separada de `Pago`), se agrega un único campo `fecha_pago_prevista` directamente en **Ítem de Venta** (sección 7.1) y en **Orden de Servicio** (sección 9), junto a `saldo_pendiente`. Representa la próxima fecha en la que se espera que el cliente venga a pagar (toda la deuda o la siguiente cuota). Se prefirió este enfoque más simple porque:
+
+- El dueño no maneja cronogramas de cuotas fijas de antemano — el monto y la fecha de la próxima cuota se acuerdan "en el momento" con el cliente, igual que ya ocurre con la garantía (sin reglas fijas).
+- En la práctica son como máximo 1-2 pagos por ítem/orden, no un plan de cuotas largo, por lo que una entidad `Cuota` agregaría complejidad sin necesidad real.
+- Es coherente con el pedido explícito del dueño de que el sistema sea simple.
+
+**Flujo:** al registrar un ítem/orden a crédito, el Administrador puede indicar `fecha_pago_prevista` (con un valor sugerido por defecto — ver más abajo). Al registrar un Pago parcial, el sistema puede pedir (opcionalmente) una nueva `fecha_pago_prevista` para la cuota siguiente, si todavía queda saldo pendiente.
+
+**Default sugerido, no bloqueo:** el tope de 2 meses mencionado por el dueño se implementa como un **valor sugerido** al calcular la fecha por defecto (por ejemplo, proponer "hoy + 1 mes" para la primera cuota), pero el Administrador puede modificarlo libremente a cualquier fecha. El sistema **no debe impedir** registrar una fecha más lejana ni rechazar la operación — así como no hay una regla fija para la garantía, tampoco la hay de forma estricta para el plazo de crédito; el dueño lo decide caso a caso.
+
+**Notificación de mora:** se agrega al alcance del MVP (ver `desiciones-alcance.md`, sección 2.2) un indicador/listado de ítems y órdenes a crédito cuya `fecha_pago_prevista` ya pasó y que todavía tienen `saldo_pendiente > 0`. No requiere una entidad nueva: es una consulta/vista sobre los campos ya agregados (`fecha_pago_prevista` + `saldo_pendiente`), comparando contra la fecha actual. Queda para la etapa de diseño técnico definir si se muestra como una sección del dashboard/inicio, una lista aparte, o un aviso puntual por cliente.
+
+**Pendiente de trasladar a `historias-usuario.md`:** agregar una historia para registrar/editar `fecha_pago_prevista` al crear o abonar un crédito, y otra para ver el listado de créditos vencidos (ver HU-10.2 y actualización de HU-27).
 
 ## 13. Validación del modelo: Orden de Servicio a crédito con pagos parciales
 

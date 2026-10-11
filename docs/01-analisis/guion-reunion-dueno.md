@@ -1,6 +1,6 @@
-# Guion — Próxima reunión con el dueño
+# Guion — Reunión con el dueño (usado el 10/09/2026)
 
-*Compila las preguntas abiertas de `desiciones-alcance.md`, los dilemas de diseño de `entidades-dominio.md`, y la validación de las pantallas del prototipo (`plan-gestion-proyecto.md`, sección 2.1). Pensado para llevar a la reunión donde se muestra el prototipo clickeable.*
+*Compila las preguntas abiertas de `desiciones-alcance.md`, los dilemas de diseño de `entidades-dominio.md`, y la validación de las pantallas del prototipo (`plan-gestion-proyecto.md`, sección 2.1). Este guion se usó como base para la reunión del 10/09/2026; el resumen de esa reunión está en `docs/01-analisis/entrevistas/entrevista--2026-09-10.md`, y las respuestas ya se trasladaron a `desiciones-alcance.md`, `entidades-dominio.md` e `historias-usuario.md`. Se mantiene como registro histórico — algunas preguntas de acá (ej. trazabilidad física de lotes, sección 1) quedaron sin responder y siguen abiertas (ver `desiciones-alcance.md`, sección 7.2).*
 
 ## Cómo usar este guion
 

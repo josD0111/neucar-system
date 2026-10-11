@@ -1,6 +1,6 @@
 # Decisiones de Alcance
 
-*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026).*
+*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md`.*
 
 Este documento define qué funcionalidades formarán parte del sistema en su primera versión (MVP), cuáles quedan planificadas para etapas futuras, y cuáles quedan explícitamente fuera de alcance. El objetivo es acotar el trabajo de desarrollo y evitar ambigüedades sobre qué se va a construir.
 
@@ -29,6 +29,8 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 - Registro de clientes: nombre, cédula, celular, RUC (opcional, para factura electrónica).
 - Distinción entre cliente "casual" y cliente registrado con historial.
 - Registro de ventas/servicios a crédito o cuota, con saldo pendiente por cliente.
+- Registro de la fecha en la que el cliente debería pagar su próxima cuota, con un valor sugerido por defecto (créditos de hasta 2 meses, normalmente en 2 cuotas) pero sin bloquear al Administrador si quiere definir otra fecha *(agregado tras entrevista 10/09/2026 — ver HU-10.2)*.
+- Aviso/listado de créditos vencidos (ítems de venta u órdenes de servicio con `fecha_pago_prevista` ya pasada y saldo pendiente), para que el Administrador le avise al dueño *(agregado tras entrevista 10/09/2026 — ver HU-10.2)*.
 - Impresión de comprobante de saldo/deuda para firma del cliente.
 
 ### 2.3 Gestión de proveedores
@@ -47,10 +49,12 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 
 - Registro de servicios ofrecidos: alineación, balanceo, corrección de pisada, mantenimiento, montaje, cambio de pico, gomería, venta de cubierta, entre otros.
 - Un cliente puede solicitar múltiples servicios para un mismo vehículo en una misma orden.
-- Datos mínimos por servicio realizado: fecha, marca del vehículo, número de chapa, color del vehículo, monto, garantía ofrecida (en días).
+- Datos mínimos por servicio realizado: fecha, marca del vehículo, número de chapa, color del vehículo, monto, y opcionalmente el detalle de la parte afectada (ej. cantidad de ruedas en alineación/balanceo) *(campo agregado tras entrevista 10/09/2026, en reemplazo del campo de garantía — ver abajo)*.
 - Cotización previa: informar el costo antes de realizar el servicio.
-- Historial de servicios por cliente/vehículo (para verificar condiciones de entrega y vigencia de garantía).
+- Historial de servicios por cliente/vehículo (para saber qué se le hizo al vehículo y cuándo).
 - Posibilidad de servicio "a crédito" para clientes de confianza (se registra que el cliente queda debiendo).
+
+*Actualizado tras entrevista 10/09/2026: se elimina del alcance la garantía sobre servicios. El dueño aclaró explícitamente que no es necesario registrarla — alcanza con tener el historial de lo realizado. Ver `entidades-dominio.md`, sección 9, e historia HU-25 (descartada).*
 
 ### 2.6 Reportes e impresión
 
@@ -82,16 +86,16 @@ Estas funcionalidades fueron mencionadas por el dueño como deseables, pero no s
 
 Esta sección resume el marco técnico vigente para que el sistema quede *preparado* para emitir factura electrónica, tal como pidió el dueño, aunque su implementación completa no sea parte del MVP.
 
-**Organismo y sistema:** la <cite index="7-1">SET (Subsecretaría de Estado de Tributación) es responsable del SIFEN, la plataforma para la emisión, recepción y gestión de documentos tributarios electrónicos en Paraguay</cite>, que reemplaza progresivamente a las facturas preimpresas.
+**Organismo y sistema:** la SET (Subsecretaría de Estado de Tributación) es responsable del SIFEN, la plataforma para la emisión, recepción y gestión de documentos tributarios electrónicos en Paraguay, que reemplaza progresivamente a las facturas preimpresas.
 
 **Vías de emisión disponibles** (relevante para decidir cómo integrar a futuro):
 
-- <cite index="6-1">e-Kuatia'i: herramienta gratuita provista por la DNIT, pensada para pequeños y medianos contribuyentes con menor volumen de emisión, que permite emitir documentos electrónicos sin necesidad de un sistema propio</cite>. Es la opción más simple, ya que no requiere integración técnica.
-- <cite index="6-1">e-Kuatia (sistema transaccional): pensado para empresas con volumen y sistemas propios, que se integran al SIFEN mediante servicios web, y requiere desarrollo propio o un proveedor tecnológico habilitado</cite>. Es la vía relevante si más adelante se quiere emitir directamente desde Neucar-System.
+- e-Kuatia'i: herramienta gratuita provista por la DNIT, pensada para pequeños y medianos contribuyentes con menor volumen de emisión, que permite emitir documentos electrónicos sin necesidad de un sistema propio. Es la opción más simple, ya que no requiere integración técnica.
+- e-Kuatia (sistema transaccional): pensado para empresas con volumen y sistemas propios, que se integran al SIFEN mediante servicios web, y requiere desarrollo propio o un proveedor tecnológico habilitado. Es la vía relevante si más adelante se quiere emitir directamente desde Neucar-System.
 
-**Flujo técnico general:** <cite index="3-1">cada documento se estructura en formato XML y pasa por validaciones técnicas antes de ser aprobado, incorporando firma digital según los estándares de la autoridad tributaria</cite>. <cite index="4-1">Según el caso se aplica validación previa (donde se asigna un Código de Control, CDC, que convierte al documento en DTE) o posterior; el documento validado se remite al receptor electrónico, y si este no es electrónico, se le entrega el KuDE en formato impreso o digital</cite>. <cite index="4-1">Tanto emisor como receptor deben conservar los DTE durante 5 años</cite>.
+**Flujo técnico general:** cada documento se estructura en formato XML y pasa por validaciones técnicas antes de ser aprobado, incorporando firma digital según los estándares de la autoridad tributaria. Según el caso se aplica validación previa (donde se asigna un Código de Control, CDC, que convierte al documento en DTE) o posterior; el documento validado se remite al receptor electrónico, y si este no es electrónico, se le entrega el KuDE en formato impreso o digital. Tanto emisor como receptor deben conservar los DTE durante 5 años.
 
-**Obligatoriedad y contexto 2026:** <cite index="7-1">para 2026 la obligatoriedad de SIFEN alcanza a grandes contribuyentes, medianos contribuyentes designados por resolución de la SET, y contribuyentes voluntarios</cite>. Un taller como Neucar probablemente no está aún obligado (según tamaño/categoría de contribuyente), pero puede adherirse de forma voluntaria.
+**Obligatoriedad y contexto 2026:** para 2026 la obligatoriedad de SIFEN alcanza a grandes contribuyentes, medianos contribuyentes designados por resolución de la SET, y contribuyentes voluntarios. Un taller como Neucar probablemente no está aún obligado (según tamaño/categoría de contribuyente), pero puede adherirse de forma voluntaria.
 
 **Implicancias para el diseño del sistema:**
 
@@ -103,7 +107,14 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 
 ## 7. Preguntas abiertas / a confirmar con el cliente
 
-- ¿Cómo se calcula exactamente el margen de garantía ofrecido al cliente respecto a la garantía del proveedor (regla fija o varía por producto)?
-- ¿Qué datos exactos requiere la factura electrónica en Paraguay para la integración futura (RUC del taller, timbrado, etc.)?
-- ¿El saldo de un cliente a crédito tiene fecha límite de pago o vencimiento, o queda abierto hasta que se cancele?
-- ¿Se requiere un histórico de cambios de precio de los productos?
+### 7.1 Resueltas en la entrevista del 10/09/2026
+
+- **¿Cómo se calcula exactamente el margen de garantía ofrecido al cliente respecto a la garantía del proveedor?** → No hay regla fija; el dueño lo calcula caso a caso. Se confirma el diseño actual (carga manual del campo, sin cálculo automático — ver HU-06).
+- **¿El saldo de un cliente a crédito tiene fecha límite de pago o vencimiento?** → Sí, hasta 2 meses, normalmente dividido en 2 cuotas mensuales. Se implementa como un valor **sugerido por defecto**, no como un bloqueo — el Administrador puede definir otra fecha libremente (ver HU-10.2). Además, el dueño pidió que el sistema avise si el cliente no viene a pagar en la fecha prevista; esto se incorporó al alcance del MVP (ver sección 2.2).
+- **¿Se requiere un histórico de cambios de precio de los productos?** → No. El dueño indicó que no le interesa el histórico, solo los datos presentes. No se agrega ningún mecanismo de historial de precios al modelo.
+
+### 7.2 Siguen abiertas / nuevas tras la entrevista del 10/09/2026
+
+- ¿Qué datos exactos requiere la factura electrónica en Paraguay para la integración futura (timbrado, punto de expedición, etc.)? El local ya cuenta con RUC, pero todavía no tiene firma digital — dato relevante para la sección 6, pendiente de confirmar el resto.
+- Trazabilidad de garantía por lote de compra (ver `entidades-dominio.md`, sección 14): cuando el dueño repone stock del mismo producto con una garantía de proveedor distinta, ¿puede distinguir físicamente las unidades de cada compra (ej. fecha de fabricación visible), o quedan mezcladas en el depósito? Define si el sistema puede aplicar FIFO automático al descontar stock o si el dueño debe elegir el lote manualmente en cada venta. No se tocó en esta entrevista.
+- **[Nueva]** Alcance exacto del campo `detalle`/"partes afectadas" en Servicio (ver `entidades-dominio.md`, sección 9.1): el dueño mencionó el caso de alineación/balanceo (cantidad de ruedas), pero no se definió si aplica a otros tipos de servicio ni con qué estructura (texto libre vs. campo numérico).

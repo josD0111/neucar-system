@@ -2,6 +2,8 @@
 
 *Basado en `historias-usuario.md` y `entidades-dominio.md`. Define cómo se organiza el trabajo, no qué se construye (eso ya está en `docs/01-analisis` y `docs/02-desing`).*
 
+*Nota de estado (10/09/2026): este plan se redactó antes de la reunión con el dueño, que en ese momento todavía no tenía fecha (ver sección 7). Esa reunión ya se realizó — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md`. Las secciones 2, 2.1 y 7 quedan como registro histórico de la planificación original y no se reescribieron por completo; lo que cambió de forma concreta por esa reunión (campos nuevos, HU agregadas) está reflejado en `desiciones-alcance.md`, `entidades-dominio.md` e `historias-usuario.md`, y en el backlog de la sección 3 de acá.*
+
 ## 1. Metodología
 
 **Scrum**, adaptado a un equipo de 2 personas y un plazo objetivo de **menos de 4 semanas**.
@@ -20,7 +22,7 @@ Al ser un equipo tan chico y sin roles separados (ambos hacen de todo), se simpl
 |---|---|---|
 | Sprint 0 | 2-3 días | Setup técnico del proyecto (estructura de `app/`, herramienta elegida para el prototipo) |
 | **Sprint 0.5 — Prototipo** | 3-5 días | Pantallas clickeables (sin backend) de los flujos críticos, para validar con el dueño |
-| *(Reunión con el dueño)* | — | Mostrar el prototipo, recoger ajustes y **cerrar las preguntas abiertas** de `desiciones-alcance.md` |
+| *(Reunión con el dueño)* ✅ realizada 10/09/2026 | — | Mostrar el prototipo, recoger ajustes y **cerrar las preguntas abiertas** de `desiciones-alcance.md` |
 | Sprint 1 | 1.5 semanas | Entidades base + operaciones simples, ya con las decisiones del dueño incorporadas |
 | Sprint 2 | 1.5 semanas | Ventas, servicios, crédito/pagos |
 | Cierre | 2-3 días | Pruebas integrales, corrección de bugs, preparar entrega/demo |
@@ -68,8 +70,8 @@ Objetivo: al final del sprint, se puede gestionar el catálogo y los actores del
 Objetivo: al final del sprint, el sistema cubre el flujo completo de atención a un cliente, incluyendo crédito y pagos.
 
 - HU-17 a HU-21 — Ventas de productos (con permisos por rol y descuento de stock)
-- HU-22 a HU-27 — Servicios y Órdenes de Servicio
-- HU-10, HU-10.1, HU-11, HU-12 — Crédito, pagos parciales y saldo de cliente (la parte más compleja del sistema — reservar tiempo extra)
+- HU-22 a HU-27 (incluye HU-22.1, agregada tras entrevista 10/09/2026) — Servicios y Órdenes de Servicio. HU-25 (garantía de servicios) se descartó, no se implementa.
+- HU-10, HU-10.1, HU-10.2, HU-11, HU-12 — Crédito, pagos parciales, fecha de pago prevista/aviso de mora y saldo de cliente (la parte más compleja del sistema — reservar tiempo extra; HU-10.2 se agregó tras la entrevista del 10/09/2026 y suma alcance a esta parte)
 
 ### Post-MVP / backlog futuro (no entran en las 4 semanas)
 - HU-08 (notificación de stock bajo)
@@ -104,7 +106,7 @@ Para un equipo de 2 con este plazo, no hace falta una herramienta compleja de ge
 
 ## 7. Riesgos identificados para la planificación
 
-- **La reunión con el dueño todavía no tiene fecha coordinada** — este es el riesgo más urgente del cronograma, porque el Sprint 1 depende de las respuestas que salgan de esa reunión. Se recomienda coordinarla cuanto antes (aunque sea con fecha tentativa), y si se demora más de lo esperado, avanzar el Sprint 1 solo con las partes del modelo que **no** dependen de las preguntas abiertas (ej. Productos, Clientes, Proveedores), dejando para después lo que sí depende de la validación (garantía, dilema de servicios).
+- ~~**La reunión con el dueño todavía no tiene fecha coordinada**~~ — **Resuelto:** la reunión se realizó el 10/09/2026 (ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md`). Las respuestas ya se incorporaron a `desiciones-alcance.md`, `entidades-dominio.md` e `historias-usuario.md`, así que el Sprint 1 puede avanzar con el modelo actualizado. Queda una pregunta sin cerrar (trazabilidad física de lotes — ver `desiciones-alcance.md`, sección 7.2) que no bloquea el Sprint 1.
 - **El módulo de crédito/pagos (HU-10, HU-10.1, HU-11) es el de mayor complejidad técnica** del MVP, según quedó documentado en `entidades-dominio.md` (secciones 12 y 13). Conviene no dejarlo para los últimos días del Sprint 2.
 - **El prototipo podría generar cambios de alcance, no solo de detalle** — si el dueño ve las pantallas y pide algo que no estaba contemplado (por ejemplo, un flujo distinto al de HU-23), hay que evaluar si entra en el MVP de 4 semanas o se anota como post-MVP, en vez de aceptarlo automáticamente y arriesgar el plazo.
 - **Plazo ajustado (4 semanas) para 2 personas sin roles fijos**: si algún sprint se atrasa, priorizar terminar bien las historias del Sprint 1 (fundación) antes que arrancar el Sprint 2, ya que todo lo demás depende de esa base.
