@@ -55,6 +55,8 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 
 Se modela como entidad propia (y no como texto libre dentro de Producto) pensando en que el taller podría ampliar su rubro a futuro (por ejemplo, vender accesorios u otros productos no contemplados hoy). Tener la categoría como entidad permite agregar/renombrar categorías sin tocar el modelo de Producto.
 
+*Actualizado 12/10/2026: el Administrador gestiona las categorías libremente (creación, edición, eliminación) — no se trabaja con una lista fija predefinida por el sistema. El objetivo principal es habilitar el filtrado de productos por categoría (ver `historias-usuario.md`, HU-01.1 y HU-02).*
+
 | Atributo | Descripción |
 |---|---|
 | id | Identificador único |
@@ -72,7 +74,7 @@ Se modela como entidad propia (y no como texto libre dentro de Producto) pensand
 | categoría_id | Categoría a la que pertenece (ver entidad Categoría) |
 | precio_base | Precio de venta estándar |
 | stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14. **Denormalización deliberada** (igual que `producto_id` en Ítem de Venta, sección 14): se mantiene como columna propia por conveniencia de consulta rápida (HU-03, HU-04), en vez de calcularse con un `SUM` en cada lectura. La capa de lógica de negocio debe mantenerlo sincronizado en cada Compra y cada Venta — ver también el comentario en `schema.ts` |
-| stock_mínimo | Para notificación de stock bajo (futuro) |
+| stock_mínimo | Umbral opcional por producto, para la notificación de stock bajo. Incorporado al MVP el 12/10/2026 — ver `historias-usuario.md`, HU-08 |
 
 **Relaciones:**
 - Un Producto **pertenece** a una Categoría.

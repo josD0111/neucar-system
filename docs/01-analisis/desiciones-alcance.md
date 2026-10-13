@@ -19,8 +19,10 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 ### 2.1 Gestión de productos y stock
 
 - Registro de productos (nombre, categoría/tipo, precio, stock disponible).
+- Gestión de categorías de producto por parte del Administrador (creación, edición, eliminación), para habilitar el filtrado del catálogo según las necesidades del taller. No se trabaja con una lista fija de categorías predefinidas.
 - Clasificación por tipo de producto (neumáticos, lubricantes, cubiertas, baterías, filtros de aire/aceite/caja, etc.) para búsqueda rápida.
 - Consulta de existencias en tiempo real.
+- Notificación de stock mínimo/escaso por producto. *(Incorporado al MVP el 12/10/2026; originalmente estaba en la sección 3 como funcionalidad post-MVP — ver nota en esa sección.)*
 - Registro de garantía por producto, con manejo particular para baterías (fecha de garantía del proveedor vs. garantía ofrecida al cliente).
 - Historial de movimientos de un producto: compra (proveedor, fecha, condición), venta (cliente, fecha, estado).
 
@@ -65,7 +67,7 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 
 Estas funcionalidades fueron mencionadas por el dueño como deseables, pero no son prioritarias para la primera versión:
 
-- Notificación automática de stock mínimo/escaso.
+- ~~Notificación automática de stock mínimo/escaso.~~ *(Movida al MVP el 12/10/2026 — ver sección 2.1. El equipo reconsideró la prioridad de esta funcionalidad por su conveniencia para el dueño desde el inicio.)*
 - Reportes y estadísticas: ventas por período, gastos, ganancias, movimiento de recursos.
 - Análisis de rentabilidad/salida de productos (qué tan bien se vende un producto).
 - Acceso al sistema desde celular (el sistema es de escritorio en el MVP).

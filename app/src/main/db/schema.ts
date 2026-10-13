@@ -4,7 +4,10 @@
 // docs/02-desing/diagrama-entidad-relacion.md y docs/02-desing/entidades-dominio.md.
 //
 // Punto de partida para Sprint 0 / Sprint 0.5 — puede ajustarse durante el
-// prototipo, en particular tras la reunión con el dueño (ver guion-reunion-dueno.md).
+// prototipo. Actualizado tras la reunión con el dueño del 10/09/2026 (ver
+// docs/01-analisis/entrevistas/entrevista--2026-09-10.md): se quitó
+// `garantiaDias` de ordenesServicio, se agregó `detalle` en servicios y
+// `fechaPagoPrevista` en itemsVenta/ordenesServicio.
 
 import {
   pgTable,
@@ -14,6 +17,7 @@ import {
   numeric,
   date,
   timestamp,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // 1. Usuario
@@ -59,7 +63,7 @@ export const productos = pgTable("productos", {
     .references(() => categorias.id),
   precioBase: numeric("precio_base", { precision: 12, scale: 2 }).notNull(),
   stock: integer("stock").notNull().default(0),
-  stockMinimo: integer("stock_minimo"), // post-MVP (HU-08)
+  stockMinimo: integer("stock_minimo"), // umbral opcional para notificación de stock bajo (HU-08, MVP)
 });
 
 // 6. Compra (funciona como lote de stock — ver entidades-dominio.md, sección 14)
@@ -107,6 +111,10 @@ export const itemsVenta = pgTable("items_venta", {
   precioUnitario: numeric("precio_unitario", { precision: 12, scale: 2 }).notNull(),
   garantiaOfrecida: integer("garantia_ofrecida"),
   tipoPago: varchar("tipo_pago", { length: 20 }).notNull(), // 'Contado' | 'Crédito'
+  // Próxima fecha en la que se espera el pago (solo si tipoPago = 'Crédito').
+  // Es un valor sugerido y editable, no un vencimiento bloqueante — ver
+  // entidades-dominio.md, sección 12.1, y HU-10.2.
+  fechaPagoPrevista: date("fecha_pago_prevista"),
   // saldoPendiente NO se guarda como columna fija: se calcula en la capa de
   // lógica de negocio a partir de (precioUnitario * cantidad) - suma(pagos).
 });
@@ -115,7 +123,14 @@ export const itemsVenta = pgTable("items_venta", {
 export const pagos = pgTable("pagos", {
   id: serial("id").primaryKey(),
   itemVentaId: integer("item_venta_id").references(() => itemsVenta.id),
-  ordenServicioId: integer("orden_servicio_id"), // referencia agregada más abajo, ver ordenesServicio
+  // Referencia circular a ordenesServicio (definida más abajo): se resuelve
+  // con un callback (lazy reference), por lo que no importa el orden de
+  // declaración entre ambas tablas. El tipo de retorno explícito (AnyPgColumn)
+  // es necesario para evitar un error de TypeScript por inferencia circular,
+  // no por una limitación real de Drizzle en tiempo de ejecución.
+  ordenServicioId: integer("orden_servicio_id").references(
+    (): AnyPgColumn => ordenesServicio.id,
+  ),
   monto: numeric("monto", { precision: 12, scale: 2 }).notNull(),
   fecha: timestamp("fecha").notNull().defaultNow(),
   metodoPago: varchar("metodo_pago", { length: 30 }).notNull(),
@@ -145,8 +160,15 @@ export const ordenesServicio = pgTable("ordenes_servicio", {
   fecha: timestamp("fecha").notNull().defaultNow(),
   tipoPago: varchar("tipo_pago", { length: 20 }).notNull(), // 'Contado' | 'Crédito', aplica a toda la orden
   montoTotal: numeric("monto_total", { precision: 12, scale: 2 }).notNull(),
-  garantiaDias: integer("garantia_dias"), // opcional — no todos los trabajos la incluyen
+  // Próxima fecha en la que se espera el pago (solo si tipoPago = 'Crédito').
+  // Mismo criterio que itemsVenta.fechaPagoPrevista — ver entidades-dominio.md,
+  // sección 12.1, y HU-10.2.
+  fechaPagoPrevista: date("fecha_pago_prevista"),
   tipoComprobante: varchar("tipo_comprobante", { length: 30 }),
+  // NOTA: se eliminó `garantiaDias` (presente en una versión anterior de este
+  // esquema). El dueño confirmó en la entrevista del 10/09/2026 que no es
+  // necesario registrar garantía sobre servicios — ver entidades-dominio.md,
+  // sección 9, e historia HU-25 (descartada).
 });
 
 // 9.1 Servicio (detalle)
@@ -157,16 +179,8 @@ export const servicios = pgTable("servicios", {
     .references(() => ordenesServicio.id),
   tipoServicio: varchar("tipo_servicio", { length: 100 }).notNull(),
   monto: numeric("monto", { precision: 12, scale: 2 }).notNull(),
+  // Texto libre opcional para la parte afectada (ej. "4 ruedas" en alineación
+  // o balanceo). No aplica a todos los tipos de servicio — ver
+  // entidades-dominio.md, sección 9.1, e historia HU-22.1.
+  detalle: varchar("detalle", { length: 255 }),
 });
-
-/**
- * NOTA IMPORTANTE sobre `pagos.ordenServicioId`:
- * Drizzle no permite declarar una referencia circular directa entre dos
- * tablas definidas en el mismo archivo sin un paso adicional. Como
- * `pagos` se define antes que `ordenesServicio` en este archivo, la
- * referencia queda como columna simple (sin `.references()` inline) y debe
- * completarse con una relación declarada aparte, o reordenando las
- * definiciones. Antes de correr la primera migración, revisar la
- * documentación de Drizzle sobre relaciones y foreign keys diferidas,
- * y ajustar esta parte del esquema en consecuencia.
- */

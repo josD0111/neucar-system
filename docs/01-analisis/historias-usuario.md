@@ -1,6 +1,6 @@
 # Historias de Usuario
 
-*Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas).*
+*Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas) y con las decisiones del equipo del 12/10/2026 (HU-01.1 agregada; HU-08 reclasificada de post-MVP a MVP).*
 
 Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
@@ -8,6 +8,13 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **HU-01**
 > Como Administrador, quiero registrar productos con su categoría, precio y stock inicial, para poder gestionar el inventario del taller.
+
+**HU-01.1** *(agregada 12/10/2026)*
+> Como Administrador, quiero crear, editar y eliminar las categorías de producto, para organizar y filtrar el catálogo según las necesidades del taller.
+
+**Criterios de aceptación:**
+- El conjunto de categorías no es una lista fija del sistema: el Administrador puede crear, renombrar o eliminar categorías en cualquier momento.
+- El objetivo principal de la categoría es habilitar el filtrado de productos (ver HU-02); no se le exige ninguna otra regla de negocio.
 
 **HU-02**
 > Como Administrador o Empleado, quiero buscar productos por tipo (neumáticos, baterías, lubricantes, filtros, etc.), para encontrar rápidamente lo que el cliente necesita.
@@ -34,8 +41,13 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **HU-07**
 > Como Administrador, quiero ver el historial de compra y venta de un producto, incluyendo proveedor, fecha, estado y cliente (si fue vendido), para saber si el producto tiene una salida rentable.
 
-**HU-08** *(futuro)*
+**HU-08** *(incorporada al MVP el 12/10/2026 — originalmente post-MVP)*
 > Como Administrador, quiero recibir una notificación cuando un producto esté por debajo de un stock mínimo definido, para reponerlo a tiempo.
+
+**Criterios de aceptación:**
+- El Administrador puede definir un `stock_mínimo` por producto (campo opcional).
+- Un producto con `stock` por debajo de su `stock_mínimo` definido aparece en un listado/aviso visible para el Administrador, de forma análoga al listado de créditos vencidos (ver HU-10.2).
+- Un producto sin `stock_mínimo` definido no genera ninguna notificación.
 
 ## 2. Clientes
 
@@ -186,16 +198,19 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 - Las historias marcadas como *(futuro)* corresponden a funcionalidades post-MVP, según lo definido en `desiciones-alcance.md`.
 - HU-25 fue descartada (ver nota en la historia); no forma parte del MVP ni de ninguna etapa futura.
-- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1).
+- HU-08 se incorporó al MVP el 12/10/2026 (ver nota en la historia); ya no está marcada como futura.
+- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1) y la agregada el 12/10/2026 (HU-01.1).
 - Falta definir el orden de implementación (sprints/iteraciones) de las historias del MVP; se recomienda abordarlo en `docs/03-gestion-proyecto/`.
 
 ### Notas sobre criterios de aceptación
 
-Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-06, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-18, HU-20, HU-22.1 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios).
+Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-18, HU-20, HU-22.1 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo).
 
 *HU-10.1 se agregó a partir de la revisión del modelo de datos (ver `entidades-dominio.md`, sección 12), al detectar que faltaba una historia explícita para el registro de pagos/cuotas parciales sobre un ítem a crédito.*
 
 *HU-10.2 y HU-22.1 se agregaron tras la entrevista del 10/09/2026, a partir de pedidos explícitos del dueño (fecha de pago prevista + aviso de mora, y detalle de partes afectadas en servicios — ver `entidades-dominio.md`, secciones 9.1 y 12.1). HU-25 (garantía en servicios) se descartó por el mismo motivo.*
+
+*HU-01.1 se agregó el 12/10/2026 para hacer explícita la gestión de categorías por parte del Administrador, previamente implícita en HU-01/HU-02. En la misma fecha, HU-08 (notificación de stock mínimo) se reclasificó de post-MVP a MVP — ver `desiciones-alcance.md`, sección 2.1.*
 
 Varios de estos criterios quedan sujetos a las preguntas abiertas listadas en `desiciones-alcance.md` (ej. regla exacta de cálculo de garantía de productos, alcance exacto del campo `detalle` en Servicio); se recomienda confirmarlas con el dueño antes de pasar a diseño/implementación de esas partes. La pregunta sobre existencia de vencimiento en el crédito ya se resolvió (tope de 2 meses, sin bloqueo — ver HU-10.2).
 

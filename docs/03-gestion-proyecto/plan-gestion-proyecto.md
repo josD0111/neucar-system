@@ -61,7 +61,7 @@ Priorización basada en dependencias del modelo de datos: primero lo que otras e
 ### Sprint 1 — Fundación del sistema
 Objetivo: al final del sprint, se puede gestionar el catálogo y los actores del negocio, aunque todavía no haya ventas.
 
-- HU-01 a HU-08 — Productos, stock y categorías
+- HU-01, HU-01.1 (agregada 12/10/2026) a HU-08 — Productos, categorías y stock, incluyendo gestión de categorías y notificación de stock mínimo (HU-08 reclasificada de post-MVP a MVP el 12/10/2026)
 - HU-09, HU-13 — Registro de clientes (incluyendo cliente casual)
 - HU-14 a HU-16 — Proveedores y compras
 - Gestión de Usuarios y roles (Administrador/Empleado) — soporte técnico de HU-17/HU-18, no tiene HU propia todavía; conviene agregarla al backlog si no está.
@@ -74,7 +74,6 @@ Objetivo: al final del sprint, el sistema cubre el flujo completo de atención a
 - HU-10, HU-10.1, HU-10.2, HU-11, HU-12 — Crédito, pagos parciales, fecha de pago prevista/aviso de mora y saldo de cliente (la parte más compleja del sistema — reservar tiempo extra; HU-10.2 se agregó tras la entrevista del 10/09/2026 y suma alcance a esta parte)
 
 ### Post-MVP / backlog futuro (no entran en las 4 semanas)
-- HU-08 (notificación de stock bajo)
 - HU-28, HU-29 (reportes y estadísticas)
 - HU-30 (acceso móvil)
 - Integración real con SIFEN (ver `desiciones-alcance.md`, sección 6)
