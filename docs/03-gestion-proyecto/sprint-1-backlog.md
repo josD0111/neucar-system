@@ -15,10 +15,11 @@ Al final del sprint se gestiona el catálogo y los actores del negocio desde la 
 
 Ningún otro punto puede avanzar sin esto.
 
-- [ ] Configuración de `drizzle-kit` (`drizzle.config.ts`) apuntando a `app/src/main/db/schema.ts` y generación de la primera migración.
-- [ ] Integración de PGlite en el proceso `main` de Electron: inicialización de la base, ejecución de migraciones al arrancar la aplicación, y validación de persistencia entre reinicios en Windows (pendiente desde `stack-tecnologico.md`, sección 7; ya validada en Debian 12).
-- [ ] Servidor Express local (dentro del proceso Electron, en `localhost`) para exponer la lógica de negocio, según lo definido en `stack-tecnologico.md`, sección 3.
-- [ ] Convención de respuesta de la API (formato de error, formato de éxito).
+- [x] Configuración de `drizzle-kit` (`drizzle.config.ts`) apuntando a `app/src/main/db/schema.ts`. Se usa `drizzle-kit push` (sin archivos de migración versionados), decisión tomada el 13/10/2026 para esta etapa temprana del proyecto.
+- [x] Integración de PGlite en el proceso `main` de Electron (`src/main/db/client.ts`, inicialización en `src/main/index.ts`).
+- [ ] Validación de persistencia de PGlite entre reinicios en Windows (pendiente desde `stack-tecnologico.md`, sección 7; ya validada en Debian 12).
+- [x] Servidor Express local (`src/main/api/server.ts`, montado en `src/main/index.ts`), escuchando en `127.0.0.1`, con endpoint de diagnóstico `GET /api/health`.
+- [x] Convención de respuesta de la API (`src/main/api/response.ts`): formato `{ ok: true, data }` / `{ ok: false, error }`.
 - [ ] Reemplazo del selector de rol del prototipo (`Sidebar`, estado `rol` en `App.tsx`) por un login real contra la tabla `usuarios` (ver punto 1).
 
 ## 1. Usuarios y roles (sin HU propia — soporte de HU-17/HU-18)
@@ -64,7 +65,12 @@ El punto 3 incluye la construcción de dos pantallas nuevas sin prototipo previo
 
 ## Definición de Hecho
 
-Se aplica la definida en `plan-gestion-proyecto.md`, sección 5: criterios de aceptación cumplidos, revisión cruzada del otro integrante, sin romper funcionalidad previa, integrado a la rama de desarrollo (`dev/prototype` en esta etapa del proyecto).
+Se aplica la definida en `plan-gestion-proyecto.md`, sección 5: criterios de aceptación cumplidos, revisión cruzada del otro integrante, sin romper funcionalidad previa, integrado a la rama de desarrollo (`dev/sprint01` en esta etapa del proyecto).
+
+## Deuda técnica registrada
+
+- **Versión de Electron desactualizada (detectado 13/10/2026 vía `npm audit`):** la versión fijada en `package.json` (`^39.2.6`) tiene vulnerabilidades reportadas (bypass de sandbox en popups, lectura cross-origin sin `corsEnabled`, Node.js habilitado en Web Workers vía `<webview>`). El fix disponible implica saltar a `electron@44.7.1`, un cambio de versión mayor que requiere validar compatibilidad con `electron-vite`, `electron-builder` y `@electron-toolkit/*` antes de aplicarlo. No se resuelve en este sprint; queda pendiente de programar como tarea propia, con tiempo para probar que el resto de la app sigue funcionando tras el upgrade.
+- Las demás vulnerabilidades reportadas por `npm audit` (`brace-expansion`, `esbuild`/`@esbuild-kit` vía `drizzle-kit`, `extract-zip`) corresponden a herramientas de desarrollo/build y no se empaquetan en la aplicación instalada; `brace-expansion` tiene fix sin cambios disruptivos (`npm audit fix`), las otras dos no se corrigen porque su fix implica bajar `drizzle-kit` a una versión anterior.
 
 ## Fuera de este sprint
 

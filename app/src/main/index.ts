@@ -1,8 +1,11 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+import type { Server } from 'node:http'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDb } from './db/client'
-import { usuarios } from './db/schema'
+import { startServer } from './api/server'
+
+let apiServer: Server | null = null
 
 function createWindow(): void {
   // Create the browser window.
@@ -50,6 +53,10 @@ app.whenReady().then(async () => {
   // se puede borrar este bloque una vez confirmado que funciona.
   const db = await initDb()
 
+  // --- Servidor local (Express) que expone la lógica de negocio ---
+  // Ver src/main/api/server.ts y stack-tecnologico.md, sección 3.
+  apiServer = startServer(db)
+
   ipcMain.on('ping', () => console.log('pong'))
 
   createWindow()
@@ -65,6 +72,7 @@ app.whenReady().then(async () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  apiServer?.close()
   if (process.platform !== 'darwin') {
     app.quit()
   }
