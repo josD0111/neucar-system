@@ -15,6 +15,8 @@ import './design/tokens.css'
 import { Sidebar, type Pantalla, type Rol } from './components/Sidebar'
 import { AppDataProvider } from './data/AppDataContext'
 import { StockScreen } from './screens/StockScreen'
+import { CategoriaScreen } from './screens/CategoriaScreen'
+import { ProveedorScreen } from './screens/ProveedorScreen'
 import { VentaScreen } from './screens/VentaScreen'
 import { OrdenServicioScreen } from './screens/OrdenServicioScreen'
 import { ClienteScreen } from './screens/ClienteScreen'
@@ -26,7 +28,12 @@ function App(): React.JSX.Element {
   return (
     <AppDataProvider>
       <div style={{ height: '100vh', overflow: 'hidden', position: 'relative' }}>
-        <Sidebar pantallaActiva={pantalla} onCambiarPantalla={setPantalla} rol={rol} onCambiarRol={setRol} />
+        <Sidebar
+          pantallaActiva={pantalla}
+          onCambiarPantalla={setPantalla}
+          rol={rol}
+          onCambiarRol={setRol}
+        />
         <main
           style={{
             marginLeft: 'var(--sidebar-width)',
@@ -38,6 +45,8 @@ function App(): React.JSX.Element {
           }}
         >
           {pantalla === 'stock' && <StockScreen />}
+          {pantalla === 'categorias' && <CategoriaScreen />}
+          {pantalla === 'proveedores' && <ProveedorScreen />}
           {pantalla === 'venta' && <VentaScreen rol={rol} />}
           {pantalla === 'servicio' && <OrdenServicioScreen />}
           {pantalla === 'cliente' && <ClienteScreen />}
