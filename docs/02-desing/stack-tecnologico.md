@@ -67,8 +67,8 @@ La recomendación es diseñar la lógica de negocio (validaciones, cálculo de s
 
 PGlite es una tecnología relativamente reciente. Se recomendó, durante el Sprint 0, una validación temprana y concreta de su persistencia de datos antes de construir funcionalidad sobre esa base.
 
-**Estado: validado.** Se realizó la prueba en el entorno de desarrollo (Debian 12): se insertó un registro de prueba en el primer arranque de la aplicación, se cerró el proceso por completo, y en el segundo arranque el registro seguía presente. Esto confirma que la persistencia a disco de PGlite funciona correctamente entre reinicios.
+**Estado: validado en Debian 12 y en Windows 11.** Se realizó la prueba en el entorno de desarrollo Debian 12: se insertó un registro de prueba en el primer arranque de la aplicación, se cerró el proceso por completo, y en el segundo arranque el registro seguía presente. La misma prueba se repitió el 15/10/2026 en la notebook de desarrollo con Windows 11, con el mismo resultado. Esto confirma que la persistencia a disco de PGlite funciona correctamente entre reinicios en ambos sistemas operativos de desarrollo del equipo.
 
-Queda pendiente repetir esta misma validación en el entorno de Windows (tanto en la notebook de desarrollo con Windows 11 como, eventualmente, en la notebook real del taller una vez adquirida), para descartar diferencias de comportamiento entre sistemas operativos antes de la entrega final.
+Queda pendiente repetir esta misma validación en la notebook real del taller una vez adquirida, ya que podría tener una configuración de disco o permisos distinta a la de las notebooks de desarrollo.
 
 En caso de detectarse algún inconveniente en esa validación pendiente, las alternativas de respaldo siguen siendo SQLite (menor robustez formal, pero ampliamente probada en este tipo de aplicaciones) o PostgreSQL instalado como servicio local (ver sección 1, alternativa considerada).

@@ -12,10 +12,20 @@
 // post-MVP), no algo que deba ocurrir como efecto secundario de este punto.
 
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+// Parchea Express para que un error lanzado (o una promesa rechazada) dentro
+// de un handler async se reenvíe automáticamente al middleware de errores.
+// Sin esto, Express 4 no captura ese caso: la petición queda colgada sin
+// respuesta en vez de devolver un error (ver sprint-1-backlog.md, deuda
+// técnica detectada el 16/10/2026).
+import "express-async-errors";
 import type { Server } from "node:http";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "../db/schema";
 import { sendOk, sendServerError } from "./response";
+import { categoriasRouter } from "./routes/categorias";
+import { productosRouter } from "./routes/productos";
+import { proveedoresRouter } from "./routes/proveedores";
+import { comprasRouter } from "./routes/compras";
 
 export const API_PORT = 4000;
 export const API_HOST = "127.0.0.1";
@@ -50,8 +60,13 @@ export function createServer(db: Db): Express {
     sendOk(res, { status: "ok", dbReady: Boolean(db) });
   });
 
-  // TODO (sprint 1): montar acá los routers de cada entidad a medida que se
-  // implementen — ej. app.use("/api/productos", productosRouter(db)).
+  app.use("/api/categorias", categoriasRouter(db));
+  app.use("/api/productos", productosRouter(db));
+  app.use("/api/proveedores", proveedoresRouter(db));
+  app.use("/api/compras", comprasRouter(db));
+
+  // TODO (sprint 1, punto 4 — a cargo del otro integrante): montar acá el
+  // router de clientes.
 
   // Manejador de errores: cualquier handler que llame a next(err), o que
   // lance una excepción dentro de una ruta async envuelta correctamente,
