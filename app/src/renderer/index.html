@@ -4,9 +4,15 @@
     <meta charset="UTF-8" />
     <title>Electron</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <!-- connect-src habilita el fetch del renderer a la API local (Express
+         en 127.0.0.1:4000, ver src/main/api/server.ts). Sin esto, el
+         fetch cae en default-src 'self' y el navegador lo bloquea en
+         silencio: el error que se ve en la interfaz ("No se pudo conectar
+         con el servidor local") es justamente el CSP cortando la petición,
+         no el servidor estando caído. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:4000"
     />
   </head>
 
