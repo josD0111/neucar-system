@@ -14,15 +14,29 @@
 // hace falta elegir una categoría o un proveedor, para no bloquear el
 // registro de compras/productos nuevos. Falta construir esas pantallas de
 // CRUD completo (editar/eliminar categoría, editar proveedor) aparte.
+//
+// Ajustes de UX (19-20/10/2026), a pedido del dueño del taller al probar:
+//  - Los <select> de categoría/proveedor se reemplazaron por un combo con
+//    buscador (SelectorBuscable, basado en <input list> + <datalist>, sin
+//    agregar ninguna librería nueva), porque con muchos registros cargados
+//    buscar en un <select> común era tedioso.
+//  - En el alta de producto nuevo, los datos del primer lote de compra pasan
+//    a ir ANTES que el precio de venta y el stock mínimo — el flujo natural
+//    es "¿qué compré?" antes que "¿a cuánto lo vendo?".
+//  - Los campos numéricos obligatorios que antes arrancaban en 0 o 1
+//    (cantidad, precio de compra, precio base) ahora arrancan vacíos, con
+//    el valor de ejemplo como placeholder. Con un 0 fijo como valor inicial,
+//    al tipear se insertaba antes del cero (ej. "0123" en vez de "123") y
+//    había que borrarlo a mano cada vez.
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { useCategorias, useProductos, useProveedores, useStockBajo } from '../api/hooks'
 import { categoriasApi } from '../api/categorias'
 import { proveedoresApi } from '../api/proveedores'
 import { productosApi } from '../api/productos'
 import { comprasApi } from '../api/compras'
 import { urlPdfListadoStock, ApiClientError } from '../api/client'
-import type { Categoria, Compra, Proveedor, Producto } from '../api/types'
+import type { Compra, Proveedor, Producto } from '../api/types'
 
 function Panel({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
@@ -85,124 +99,213 @@ function MensajeError({ mensaje }: { mensaje: string | null }) {
   )
 }
 
-// --- Selector de categoría con alta rápida ------------------------------
+// --- Selector con buscador (categoría / proveedor) + alta rápida ---------
+//
+// Combobox propio (input + lista flotante dibujada con CSS), en reemplazo
+// del anterior basado en <input list> + <datalist>. Se abandona el
+// datalist nativo por dos problemas reales detectados al usarlo:
+//  - La lista de sugerencias la dibuja el navegador como una capa aparte,
+//    anclada a la posición de pantalla del input en el momento de abrirse:
+//    si la página se scrollea con la lista abierta, el input se mueve pero
+//    la lista queda flotando en su posición original, superpuesta al resto.
+//  - El datalist no deja controlar su alto máximo ni su scroll interno —
+//    con muchas opciones cargadas, el tamaño y el comportamiento de la
+//    lista quedan a criterio del navegador, no del diseño de la pantalla.
+//
+// La lista ahora es un <ul> propio, con `position: absolute` dentro de un
+// contenedor `position: relative` (ver el <div> que envuelve el <input>):
+// al formar parte del flujo normal del documento, se desplaza junto con la
+// página al scrollear, en vez de quedar anclada a una posición de pantalla
+// fija. Tiene un alto máximo (`ALTO_MAXIMO_LISTA`) con scroll propio para
+// cuando hay muchas opciones, en vez de estirarse sin límite.
+//
+// Comportamiento de búsqueda: al abrir el selector (foco o clic) se
+// muestran todas las opciones sin filtrar, para poder recorrerlas aunque ya
+// haya un valor cargado. En cuanto se empieza a tipear, la lista se filtra
+// por coincidencia parcial en cualquier parte del nombre (no hace falta
+// escribirlo completo ni respetar mayúsculas). Se puede navegar con las
+// flechas y confirmar con Enter/clic, igual que con el datalist anterior,
+// pero sin sus limitaciones visuales. `useId()` sigue evitando que dos
+// selectores iguales abiertos a la vez (ej. el alta de producto y la
+// edición de un lote) choquen por el mismo id de lista.
 
-function SelectorCategoria({
-  categorias,
-  valor,
-  onCambiar,
-  onCategoriaCreada
-}: {
-  categorias: Categoria[]
-  valor: number | ''
-  onCambiar: (id: number) => void
-  onCategoriaCreada: () => void
-}) {
-  const [alta, setAlta] = useState(false)
-  const [nombreNuevo, setNombreNuevo] = useState('')
-  const [guardando, setGuardando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+const ALTO_MAXIMO_LISTA = 220
 
-  const crear = async () => {
-    if (!nombreNuevo.trim()) return
-    setGuardando(true)
-    setError(null)
-    try {
-      const creada = await categoriasApi.crear(nombreNuevo.trim())
-      onCategoriaCreada()
-      onCambiar(creada.id)
-      setNombreNuevo('')
-      setAlta(false)
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'No se pudo crear la categoría.')
-    } finally {
-      setGuardando(false)
-    }
-  }
-
-  if (alta) {
-    return (
-      <Campo label="Categoría nueva">
-        <div style={{ display: 'flex', gap: 4 }}>
-          <input
-            autoFocus
-            value={nombreNuevo}
-            onChange={(e) => setNombreNuevo(e.target.value)}
-            placeholder="Nombre de la categoría"
-            style={estiloInput}
-          />
-          <button type="button" onClick={crear} disabled={guardando} style={estiloBotonSecundario}>
-            Agregar
-          </button>
-          <button type="button" onClick={() => setAlta(false)} style={estiloBotonSecundario}>
-            ×
-          </button>
-        </div>
-        <MensajeError mensaje={error} />
-      </Campo>
-    )
-  }
-
-  return (
-    <Campo label="Categoría">
-      <div style={{ display: 'flex', gap: 4 }}>
-        <select
-          value={valor}
-          onChange={(e) => onCambiar(Number(e.target.value))}
-          style={estiloInput}
-        >
-          <option value="" disabled>
-            Elegir...
-          </option>
-          {categorias.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => setAlta(true)}
-          style={estiloBotonSecundario}
-          title="Nueva categoría"
-        >
-          + nueva
-        </button>
-      </div>
-    </Campo>
-  )
+interface ItemConNombre {
+  id: number
+  nombre: string
 }
 
-// --- Selector de proveedor con alta rápida ------------------------------
-
-function SelectorProveedor({
-  proveedores,
+function SelectorBuscable<T extends ItemConNombre>({
+  items,
   valor,
   onCambiar,
-  onProveedorCreado
+  onCrear,
+  onCreado,
+  etiquetaCampo,
+  etiquetaBotonNuevo,
+  placeholderBuscar,
+  placeholderNuevo
 }: {
-  proveedores: Proveedor[]
+  items: T[]
   valor: number | ''
-  onCambiar: (id: number) => void
-  onProveedorCreado: () => void
+  onCambiar: (id: number | '') => void
+  onCrear: (nombre: string) => Promise<T>
+  onCreado: () => void
+  etiquetaCampo: string
+  etiquetaBotonNuevo: string
+  placeholderBuscar: string
+  placeholderNuevo: string
 }) {
+  const listboxId = useId()
+  const contenedorRef = useRef<HTMLDivElement>(null)
+
   const [alta, setAlta] = useState(false)
   const [nombreNuevo, setNombreNuevo] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const crear = async () => {
+  const seleccionado = items.find((i) => i.id === valor) ?? null
+  const [texto, setTexto] = useState(seleccionado?.nombre ?? '')
+  const [abierto, setAbierto] = useState(false)
+  const [tecleando, setTecleando] = useState(false)
+  const [indiceActivo, setIndiceActivo] = useState(0)
+
+  // Último valor que ESTE selector le pidió al padre a través de
+  // `onCambiar` (ej. al tipear sin coincidencia exacta, o al elegir una
+  // opción). El efecto de sincronización de abajo lo usa para distinguir
+  // un cambio de `valor` que originamos nosotros mismos (no hay que volver
+  // a pisar `texto`: el usuario puede estar en medio de escribir algo) de
+  // uno que vino de afuera (ej. se reseteó el formulario).
+  const ultimoValorPropio = useRef(valor)
+
+  const notificarCambio = (nuevoValor: number | ''): void => {
+    ultimoValorPropio.current = nuevoValor
+    onCambiar(nuevoValor)
+  }
+
+  // Si `valor` cambia desde afuera (ej. se seleccionó por el alta rápida,
+  // o se reseteó el formulario), el texto visible se vuelve a sincronizar.
+  // Si el cambio lo originamos nosotros mismos (ver `notificarCambio`), se
+  // ignora: sin este chequeo, tipear algo que no coincide con ningún ítem
+  // llama a `onCambiar('')`, el padre actualiza `valor` a '', este efecto
+  // se dispara por ese cambio de `valor` y terminaba pisando con un texto
+  // vacío lo que el usuario recién había tipeado (bug reportado: "escribo
+  // algo después de seleccionar y se borra todo").
+  useEffect(() => {
+    if (ultimoValorPropio.current === valor) return
+    ultimoValorPropio.current = valor
+    setTexto(seleccionado?.nombre ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor])
+
+  // Cierra la lista al hacer clic fuera del selector. Sin esto, la lista
+  // solo se cerraría al perder el foco el input (ver manejarBlur), lo que
+  // deja afuera, por ejemplo, un clic en otra parte de la pantalla que no
+  // mueve el foco.
+  useEffect(() => {
+    if (!abierto) return
+    const manejarClicFuera = (e: MouseEvent): void => {
+      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
+        setAbierto(false)
+      }
+    }
+    document.addEventListener('mousedown', manejarClicFuera)
+    return () => document.removeEventListener('mousedown', manejarClicFuera)
+  }, [abierto])
+
+  const filtrados =
+    tecleando && texto.trim()
+      ? items.filter((i) => i.nombre.toLowerCase().includes(texto.trim().toLowerCase()))
+      : items
+
+  const abrir = (): void => {
+    setAbierto(true)
+    setTecleando(false)
+    setIndiceActivo(0)
+  }
+
+  const elegir = (item: T): void => {
+    notificarCambio(item.id)
+    setTexto(item.nombre)
+    setAbierto(false)
+    setTecleando(false)
+  }
+
+  // Quita la selección actual y deja el campo listo para elegir de nuevo.
+  // onMouseDown (no onClick) + preventDefault, igual que en las opciones de
+  // la lista: evita que el input pierda el foco antes de procesar el clic.
+  const limpiar = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    setTexto('')
+    setTecleando(false)
+    notificarCambio('')
+    setAbierto(true)
+    setIndiceActivo(0)
+  }
+
+  const manejarCambioTexto = (nuevoTexto: string): void => {
+    setTexto(nuevoTexto)
+    setTecleando(true)
+    setAbierto(true)
+    setIndiceActivo(0)
+    // Si lo tipeado coincide exacto con una opción (ej. se pegó el nombre
+    // completo), se toma como seleccionada; si no, se limpia la selección
+    // hasta que el usuario elija de la lista o salga del campo.
+    const exacto = items.find((i) => i.nombre.toLowerCase() === nuevoTexto.trim().toLowerCase())
+    notificarCambio(exacto ? exacto.id : '')
+  }
+
+  const manejarBlur = (): void => {
+    // El cierre se retrasa un instante para que un clic sobre una opción
+    // de la lista (ver onMouseDown más abajo) ya haya sido procesado antes
+    // de que esta función la descarte; si no, el blur llega primero y el
+    // clic nunca se registra.
+    window.setTimeout(() => {
+      setAbierto(false)
+      const encontrado = items.find((i) => i.nombre.toLowerCase() === texto.trim().toLowerCase())
+      setTexto(encontrado ? encontrado.nombre : '')
+      if (!encontrado) notificarCambio('')
+    }, 150)
+  }
+
+  const manejarTeclado = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (!abierto && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault()
+      abrir()
+      return
+    }
+    if (!abierto || filtrados.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setIndiceActivo((i) => Math.min(i + 1, filtrados.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setIndiceActivo((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const item = filtrados[indiceActivo]
+      if (item) elegir(item)
+    } else if (e.key === 'Escape') {
+      setAbierto(false)
+      setTexto(seleccionado?.nombre ?? '')
+    }
+  }
+
+  const crear = async (): Promise<void> => {
     if (!nombreNuevo.trim()) return
     setGuardando(true)
     setError(null)
     try {
-      const creado = await proveedoresApi.crear(nombreNuevo.trim())
-      onProveedorCreado()
-      onCambiar(creado.id)
+      const creado = await onCrear(nombreNuevo.trim())
+      onCreado()
+      notificarCambio(creado.id)
+      setTexto(creado.nombre)
       setNombreNuevo('')
       setAlta(false)
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'No se pudo crear el proveedor.')
+      setError(err instanceof ApiClientError ? err.message : 'No se pudo crear.')
     } finally {
       setGuardando(false)
     }
@@ -210,13 +313,13 @@ function SelectorProveedor({
 
   if (alta) {
     return (
-      <Campo label="Proveedor nuevo">
+      <Campo label={`${etiquetaCampo} nueva`}>
         <div style={{ display: 'flex', gap: 4 }}>
           <input
             autoFocus
             value={nombreNuevo}
             onChange={(e) => setNombreNuevo(e.target.value)}
-            placeholder="Nombre del proveedor"
+            placeholder={placeholderNuevo}
             style={estiloInput}
           />
           <button type="button" onClick={crear} disabled={guardando} style={estiloBotonSecundario}>
@@ -232,29 +335,114 @@ function SelectorProveedor({
   }
 
   return (
-    <Campo label="Proveedor">
-      <div style={{ display: 'flex', gap: 4 }}>
-        <select
-          value={valor}
-          onChange={(e) => onCambiar(Number(e.target.value))}
-          style={estiloInput}
-        >
-          <option value="" disabled>
-            Elegir...
-          </option>
-          {proveedores.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
+    <Campo label={etiquetaCampo}>
+      <div ref={contenedorRef} style={{ display: 'flex', gap: 4 }}>
+        <div style={{ position: 'relative', width: 220 }}>
+          <input
+            role="combobox"
+            aria-expanded={abierto}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            autoComplete="off"
+            value={texto}
+            onChange={(e) => manejarCambioTexto(e.target.value)}
+            onFocus={abrir}
+            onClick={abrir}
+            onBlur={manejarBlur}
+            onKeyDown={manejarTeclado}
+            placeholder={placeholderBuscar}
+            style={{
+              ...estiloInput,
+              width: '100%',
+              paddingRight: texto ? 22 : estiloInput.padding
+            }}
+          />
+          {texto !== '' && (
+            <button
+              type="button"
+              aria-label={`Quitar ${etiquetaCampo.toLowerCase()} seleccionada`}
+              title="Quitar selección"
+              onMouseDown={limpiar}
+              style={{
+                position: 'absolute',
+                right: 2,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                border: 'none',
+                background: 'none',
+                color: 'var(--color-text-muted)',
+                fontSize: 15,
+                lineHeight: 1,
+                padding: '2px 4px',
+                cursor: 'pointer'
+              }}
+            >
+              ×
+            </button>
+          )}
+          {abierto && (
+            <ul
+              id={listboxId}
+              role="listbox"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 2px)',
+                left: 0,
+                right: 0,
+                margin: 0,
+                padding: 4,
+                listStyle: 'none',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                maxHeight: ALTO_MAXIMO_LISTA,
+                overflowY: 'auto',
+                zIndex: 20
+              }}
+            >
+              {filtrados.length === 0 ? (
+                <li style={{ padding: '6px 8px', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  Sin resultados.
+                </li>
+              ) : (
+                filtrados.map((item, i) => (
+                  <li
+                    key={item.id}
+                    role="option"
+                    aria-selected={item.id === valor}
+                    // onMouseDown (no onClick) + preventDefault para que la
+                    // opción se elija ANTES de que el input pierda el foco:
+                    // si no, el blur del input (ver manejarBlur) se dispara
+                    // primero y alcanza a cerrar/limpiar la lista.
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      elegir(item)
+                    }}
+                    onMouseEnter={() => setIndiceActivo(i)}
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      background: i === indiceActivo ? 'var(--color-bg)' : 'transparent',
+                      fontWeight: item.id === valor ? 600 : 400
+                    }}
+                  >
+                    {item.nombre}
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setAlta(true)}
           style={estiloBotonSecundario}
-          title="Nuevo proveedor"
+          title={etiquetaBotonNuevo}
         >
-          + nuevo
+          {etiquetaBotonNuevo}
         </button>
       </div>
     </Campo>
@@ -278,8 +466,8 @@ function FormularioCompra({
 }) {
   const [proveedorId, setProveedorId] = useState<number | ''>('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
-  const [cantidad, setCantidad] = useState(1)
-  const [precioCompra, setPrecioCompra] = useState(0)
+  const [cantidad, setCantidad] = useState<number | ''>('')
+  const [precioCompra, setPrecioCompra] = useState<number | ''>('')
   const [garantia, setGarantia] = useState<number | ''>('')
   const [factura, setFactura] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -290,8 +478,12 @@ function FormularioCompra({
       setError('Elegí un proveedor.')
       return
     }
-    if (cantidad <= 0) {
+    if (cantidad === '' || cantidad <= 0) {
       setError('La cantidad debe ser mayor a 0.')
+      return
+    }
+    if (precioCompra === '') {
+      setError('El precio de compra es obligatorio.')
       return
     }
     setGuardando(true)
@@ -302,7 +494,7 @@ function FormularioCompra({
         proveedorId,
         fecha,
         cantidad,
-        precioCompra,
+        precioCompra: Number(precioCompra),
         garantiaProveedor: garantia === '' ? null : garantia,
         factura: factura.trim() || null
       })
@@ -326,11 +518,16 @@ function FormularioCompra({
             flexWrap: 'wrap'
           }}
         >
-          <SelectorProveedor
-            proveedores={proveedores}
+          <SelectorBuscable
+            items={proveedores}
             valor={proveedorId}
             onCambiar={setProveedorId}
-            onProveedorCreado={onProveedorCreado}
+            onCrear={(nombre) => proveedoresApi.crear(nombre)}
+            onCreado={onProveedorCreado}
+            etiquetaCampo="Proveedor"
+            etiquetaBotonNuevo="+ nuevo"
+            placeholderBuscar="Buscar proveedor..."
+            placeholderNuevo="Nombre del proveedor"
           />
           <Campo label="Fecha">
             <input
@@ -346,7 +543,8 @@ function FormularioCompra({
               type="number"
               min={1}
               value={cantidad}
-              onChange={(e) => setCantidad(Number(e.target.value))}
+              placeholder="1"
+              onChange={(e) => setCantidad(e.target.value === '' ? '' : Number(e.target.value))}
               className="font-data"
               style={{ ...estiloInput, width: 70 }}
             />
@@ -355,12 +553,13 @@ function FormularioCompra({
             <input
               type="number"
               value={precioCompra}
-              onChange={(e) => setPrecioCompra(Number(e.target.value))}
+              placeholder="0"
+              onChange={(e) => setPrecioCompra(e.target.value === '' ? '' : Number(e.target.value))}
               className="font-data"
               style={{ ...estiloInput, width: 110 }}
             />
           </Campo>
-          <Campo label="Garantía proveedor (días/meses)">
+          <Campo label="Garantía proveedor (meses)">
             <input
               type="number"
               value={garantia}
@@ -399,7 +598,7 @@ function FormularioEdicion({
   onGuardado
 }: {
   producto: Producto
-  categorias: Categoria[]
+  categorias: { id: number; nombre: string }[]
   onCategoriaCreada: () => void
   onCerrar: () => void
   onGuardado: () => void
@@ -452,11 +651,16 @@ function FormularioEdicion({
               style={{ ...estiloInput, width: 200 }}
             />
           </Campo>
-          <SelectorCategoria
-            categorias={categorias}
+          <SelectorBuscable
+            items={categorias}
             valor={categoriaId}
             onCambiar={setCategoriaId}
-            onCategoriaCreada={onCategoriaCreada}
+            onCrear={(nombre) => categoriasApi.crear(nombre)}
+            onCreado={onCategoriaCreada}
+            etiquetaCampo="Categoría"
+            etiquetaBotonNuevo="+ nueva"
+            placeholderBuscar="Buscar categoría..."
+            placeholderNuevo="Nombre de la categoría"
           />
           <Campo label="Precio base">
             <input
@@ -490,6 +694,12 @@ function FormularioEdicion({
 }
 
 // --- Formulario: alta de producto nuevo (siempre junto a su primera compra) --
+//
+// Orden deliberado (ajustado el 20/10/2026 a pedido del dueño): primero lo
+// mínimo para identificar el producto (nombre y categoría), después los
+// datos del lote que se está comprando ahora mismo —que es lo que
+// disparó el alta—, y recién al final el precio de venta y el stock
+// mínimo, que son decisiones de catálogo más que de esta compra puntual.
 
 function FormularioProductoNuevo({
   categorias,
@@ -499,7 +709,7 @@ function FormularioProductoNuevo({
   onCerrar,
   onGuardado
 }: {
-  categorias: Categoria[]
+  categorias: { id: number; nombre: string }[]
   proveedores: Proveedor[]
   onCategoriaCreada: () => void
   onProveedorCreado: () => void
@@ -508,14 +718,14 @@ function FormularioProductoNuevo({
 }) {
   const [nombre, setNombre] = useState('')
   const [categoriaId, setCategoriaId] = useState<number | ''>('')
-  const [precioBase, setPrecioBase] = useState(0)
-  const [stockMinimo, setStockMinimo] = useState<number | ''>('')
   const [proveedorId, setProveedorId] = useState<number | ''>('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
-  const [cantidad, setCantidad] = useState(1)
-  const [precioCompra, setPrecioCompra] = useState(0)
+  const [cantidad, setCantidad] = useState<number | ''>('')
+  const [precioCompra, setPrecioCompra] = useState<number | ''>('')
   const [garantia, setGarantia] = useState<number | ''>('')
   const [factura, setFactura] = useState('')
+  const [precioBase, setPrecioBase] = useState<number | ''>('')
+  const [stockMinimo, setStockMinimo] = useState<number | ''>('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -528,8 +738,16 @@ function FormularioProductoNuevo({
       setError('Elegí un proveedor para el primer lote.')
       return
     }
-    if (cantidad <= 0) {
+    if (cantidad === '' || cantidad <= 0) {
       setError('La cantidad debe ser mayor a 0.')
+      return
+    }
+    if (precioCompra === '') {
+      setError('El precio de compra es obligatorio.')
+      return
+    }
+    if (precioBase === '') {
+      setError('El precio de venta (precio base) es obligatorio.')
       return
     }
     setGuardando(true)
@@ -545,7 +763,7 @@ function FormularioProductoNuevo({
         proveedorId,
         fecha,
         cantidad,
-        precioCompra,
+        precioCompra: Number(precioCompra),
         garantiaProveedor: garantia === '' ? null : garantia,
         factura: factura.trim() || null
       })
@@ -570,30 +788,17 @@ function FormularioProductoNuevo({
             style={{ ...estiloInput, width: 200 }}
           />
         </Campo>
-        <SelectorCategoria
-          categorias={categorias}
+        <SelectorBuscable
+          items={categorias}
           valor={categoriaId}
           onCambiar={setCategoriaId}
-          onCategoriaCreada={onCategoriaCreada}
+          onCrear={(nombre) => categoriasApi.crear(nombre)}
+          onCreado={onCategoriaCreada}
+          etiquetaCampo="Categoría"
+          etiquetaBotonNuevo="+ nueva"
+          placeholderBuscar="Buscar categoría..."
+          placeholderNuevo="Nombre de la categoría"
         />
-        <Campo label="Precio base (venta)">
-          <input
-            type="number"
-            value={precioBase}
-            onChange={(e) => setPrecioBase(Number(e.target.value))}
-            className="font-data"
-            style={{ ...estiloInput, width: 110 }}
-          />
-        </Campo>
-        <Campo label="Stock mínimo (opcional)">
-          <input
-            type="number"
-            value={stockMinimo}
-            onChange={(e) => setStockMinimo(e.target.value === '' ? '' : Number(e.target.value))}
-            className="font-data"
-            style={{ ...estiloInput, width: 90 }}
-          />
-        </Campo>
       </div>
 
       <div
@@ -616,11 +821,195 @@ function FormularioProductoNuevo({
             flexWrap: 'wrap'
           }}
         >
-          <SelectorProveedor
-            proveedores={proveedores}
+          <SelectorBuscable
+            items={proveedores}
             valor={proveedorId}
             onCambiar={setProveedorId}
-            onProveedorCreado={onProveedorCreado}
+            onCrear={(nombre) => proveedoresApi.crear(nombre)}
+            onCreado={onProveedorCreado}
+            etiquetaCampo="Proveedor"
+            etiquetaBotonNuevo="+ nuevo"
+            placeholderBuscar="Buscar proveedor..."
+            placeholderNuevo="Nombre del proveedor"
+          />
+          <Campo label="Fecha">
+            <input
+              type="date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              className="font-data"
+              style={estiloInput}
+            />
+          </Campo>
+          <Campo label="Cantidad">
+            <input
+              type="number"
+              min={1}
+              value={cantidad}
+              placeholder="1"
+              onChange={(e) => setCantidad(e.target.value === '' ? '' : Number(e.target.value))}
+              className="font-data"
+              style={{ ...estiloInput, width: 70 }}
+            />
+          </Campo>
+          <Campo label="Precio compra (unit.)">
+            <input
+              type="number"
+              value={precioCompra}
+              placeholder="0"
+              onChange={(e) => setPrecioCompra(e.target.value === '' ? '' : Number(e.target.value))}
+              className="font-data"
+              style={{ ...estiloInput, width: 110 }}
+            />
+          </Campo>
+          <Campo label="Garantía proveedor (meses)">
+            <input
+              type="number"
+              value={garantia}
+              onChange={(e) => setGarantia(e.target.value === '' ? '' : Number(e.target.value))}
+              className="font-data"
+              style={{ ...estiloInput, width: 90 }}
+            />
+          </Campo>
+          <Campo label="N° factura (opcional)">
+            <input
+              value={factura}
+              onChange={(e) => setFactura(e.target.value)}
+              style={{ ...estiloInput, width: 120 }}
+            />
+          </Campo>
+        </div>
+      </div>
+
+      <div
+        style={{
+          borderTop: '1px dashed var(--color-border)',
+          margin: 'var(--space-3) 0',
+          paddingTop: 'var(--space-3)'
+        }}
+      >
+        <p
+          style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 var(--space-2) 0' }}
+        >
+          Precio de venta y stock
+        </p>
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-2)',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap'
+          }}
+        >
+          <Campo label="Precio base (venta)">
+            <input
+              type="number"
+              value={precioBase}
+              placeholder="0"
+              onChange={(e) => setPrecioBase(e.target.value === '' ? '' : Number(e.target.value))}
+              className="font-data"
+              style={{ ...estiloInput, width: 110 }}
+            />
+          </Campo>
+          <Campo label="Stock mínimo (opcional)">
+            <input
+              type="number"
+              value={stockMinimo}
+              onChange={(e) => setStockMinimo(e.target.value === '' ? '' : Number(e.target.value))}
+              className="font-data"
+              style={{ ...estiloInput, width: 90 }}
+            />
+          </Campo>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <button onClick={guardar} disabled={guardando} style={estiloBotonPrincipal}>
+          Guardar producto y lote
+        </button>
+        <button onClick={onCerrar} style={estiloBotonSecundario}>
+          Cancelar
+        </button>
+      </div>
+      <MensajeError mensaje={error} />
+    </Panel>
+  )
+}
+
+// --- Formulario: editar un lote de compra ya registrado ------------------
+
+function FormularioEdicionLote({
+  lote,
+  proveedores,
+  onProveedorCreado,
+  onCerrar,
+  onGuardado
+}: {
+  lote: Compra
+  proveedores: Proveedor[]
+  onProveedorCreado: () => void
+  onCerrar: () => void
+  onGuardado: () => void
+}) {
+  const [proveedorId, setProveedorId] = useState<number | ''>(lote.proveedorId)
+  const [fecha, setFecha] = useState(lote.fecha)
+  const [cantidad, setCantidad] = useState(lote.cantidad)
+  const [precioCompra, setPrecioCompra] = useState(lote.precioCompra)
+  const [garantia, setGarantia] = useState<number | ''>(lote.garantiaProveedor ?? '')
+  const [factura, setFactura] = useState(lote.factura ?? '')
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const guardar = async () => {
+    if (!proveedorId) {
+      setError('Elegí un proveedor.')
+      return
+    }
+    if (cantidad <= 0) {
+      setError('La cantidad debe ser mayor a 0.')
+      return
+    }
+    setGuardando(true)
+    setError(null)
+    try {
+      await comprasApi.editar(lote.id, {
+        proveedorId,
+        fecha,
+        cantidad,
+        precioCompra: Number(precioCompra),
+        garantiaProveedor: garantia === '' ? null : garantia,
+        factura: factura.trim() || null
+      })
+      onGuardado()
+      onCerrar()
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'No se pudo guardar el lote.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <tr style={{ background: 'var(--color-bg)' }}>
+      <td colSpan={7} style={{ padding: 'var(--space-3)' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--space-2)',
+            alignItems: 'flex-end',
+            flexWrap: 'wrap'
+          }}
+        >
+          <SelectorBuscable
+            items={proveedores}
+            valor={proveedorId}
+            onCambiar={setProveedorId}
+            onCrear={(nombre) => proveedoresApi.crear(nombre)}
+            onCreado={onProveedorCreado}
+            etiquetaCampo="Proveedor"
+            etiquetaBotonNuevo="+ nuevo"
+            placeholderBuscar="Buscar proveedor..."
+            placeholderNuevo="Nombre del proveedor"
           />
           <Campo label="Fecha">
             <input
@@ -645,12 +1034,12 @@ function FormularioProductoNuevo({
             <input
               type="number"
               value={precioCompra}
-              onChange={(e) => setPrecioCompra(Number(e.target.value))}
+              onChange={(e) => setPrecioCompra(e.target.value)}
               className="font-data"
               style={{ ...estiloInput, width: 110 }}
             />
           </Campo>
-          <Campo label="Garantía proveedor">
+          <Campo label="Garantía proveedor (meses)">
             <input
               type="number"
               value={garantia}
@@ -666,19 +1055,22 @@ function FormularioProductoNuevo({
               style={{ ...estiloInput, width: 120 }}
             />
           </Campo>
+          <button onClick={guardar} disabled={guardando} style={estiloBotonPrincipal}>
+            Guardar cambios
+          </button>
+          <button onClick={onCerrar} style={estiloBotonSecundario}>
+            Cancelar
+          </button>
         </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-        <button onClick={guardar} disabled={guardando} style={estiloBotonPrincipal}>
-          Guardar producto y lote
-        </button>
-        <button onClick={onCerrar} style={estiloBotonSecundario}>
-          Cancelar
-        </button>
-      </div>
-      <MensajeError mensaje={error} />
-    </Panel>
+        <p
+          style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 'var(--space-2) 0 0 0' }}
+        >
+          &ldquo;Cantidad&rdquo; es la cantidad total del lote; si ya se vendió parte, el stock
+          disponible se ajusta por la diferencia, no se reemplaza.
+        </p>
+        <MensajeError mensaje={error} />
+      </td>
+    </tr>
   )
 }
 
@@ -686,13 +1078,19 @@ function FormularioProductoNuevo({
 
 function DetalleLotes({
   productoId,
-  proveedores
+  proveedores,
+  onProveedorCreado,
+  onCambioStock
 }: {
   productoId: number
   proveedores: Proveedor[]
+  onProveedorCreado: () => void
+  onCambioStock: () => void
 }) {
   const [lotes, setLotes] = useState<Compra[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [recarga, setRecarga] = useState(0)
+  const [edicionLoteAbierta, setEdicionLoteAbierta] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelado = false
@@ -707,7 +1105,7 @@ function DetalleLotes({
     return () => {
       cancelado = true
     }
-  }, [productoId])
+  }, [productoId, recarga])
 
   const nombreProveedor = (id: number) => proveedores.find((p) => p.id === id)?.nombre ?? `#${id}`
 
@@ -731,28 +1129,53 @@ function DetalleLotes({
           <th style={{ padding: 4 }}>Fecha</th>
           <th style={{ padding: 4 }}>Disponible</th>
           <th style={{ padding: 4 }}>Precio compra</th>
-          <th style={{ padding: 4 }}>Garantía proveedor</th>
+          <th style={{ padding: 4 }}>Garantía proveedor (meses)</th>
           <th style={{ padding: 4 }}>Factura</th>
+          <th style={{ padding: 4 }} />
         </tr>
       </thead>
       <tbody>
         {lotes.map((lote) => (
-          <tr key={lote.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-            <td style={{ padding: '4px 8px 4px 0' }}>{nombreProveedor(lote.proveedorId)}</td>
-            <td className="font-data" style={{ padding: 4 }}>
-              {lote.fecha}
-            </td>
-            <td className="font-data" style={{ padding: 4 }}>
-              {lote.cantidadDisponible}
-            </td>
-            <td className="font-data" style={{ padding: 4 }}>
-              {Number(lote.precioCompra).toLocaleString('es-PY')}
-            </td>
-            <td style={{ padding: 4 }}>
-              {lote.garantiaProveedor ? `${lote.garantiaProveedor}` : '—'}
-            </td>
-            <td style={{ padding: 4 }}>{lote.factura ?? '—'}</td>
-          </tr>
+          <Fragment key={lote.id}>
+            <tr style={{ borderTop: '1px solid var(--color-border)' }}>
+              <td style={{ padding: '4px 8px 4px 0' }}>{nombreProveedor(lote.proveedorId)}</td>
+              <td className="font-data" style={{ padding: 4 }}>
+                {lote.fecha}
+              </td>
+              <td className="font-data" style={{ padding: 4 }}>
+                {lote.cantidadDisponible}
+              </td>
+              <td className="font-data" style={{ padding: 4 }}>
+                {Number(lote.precioCompra).toLocaleString('es-PY')}
+              </td>
+              <td style={{ padding: 4 }}>
+                {lote.garantiaProveedor ? `${lote.garantiaProveedor} meses` : '—'}
+              </td>
+              <td style={{ padding: 4 }}>{lote.factura ?? '—'}</td>
+              <td style={{ padding: 4, textAlign: 'right' }}>
+                <button
+                  onClick={() =>
+                    setEdicionLoteAbierta(edicionLoteAbierta === lote.id ? null : lote.id)
+                  }
+                  style={{ ...estiloBotonSecundario, padding: '2px 8px', fontSize: 11 }}
+                >
+                  Editar
+                </button>
+              </td>
+            </tr>
+            {edicionLoteAbierta === lote.id && (
+              <FormularioEdicionLote
+                lote={lote}
+                proveedores={proveedores}
+                onProveedorCreado={onProveedorCreado}
+                onCerrar={() => setEdicionLoteAbierta(null)}
+                onGuardado={() => {
+                  setRecarga((n) => n + 1)
+                  onCambioStock()
+                }}
+              />
+            )}
+          </Fragment>
         ))}
       </tbody>
     </table>
@@ -760,6 +1183,64 @@ function DetalleLotes({
 }
 
 // --- Pantalla principal ---------------------------------------------------
+
+// --- Filtro tipo "chip" (checkbox con apariencia de botón) --------------
+//
+// Reemplaza el <label><input type="checkbox">…</label> suelto que tenían
+// "Solo con existencias" y "Solo stock bajo": al no tener ningún borde ni
+// fondo, quedaban visualmente más débiles que los demás campos del filtro
+// (que sí tienen etiqueta + recuadro) y costaba notar, de un vistazo,
+// cuáles estaban activos. Acá el estado "activo" se ve en el propio chip
+// (borde y fondo con el color de acento), no solo en el tilde del
+// checkbox. `colorActivo` deja usar el color de alerta para "Solo stock
+// bajo", coherente con el badge rojo que ya se usa en la tabla para lo
+// mismo.
+function FiltroToggle({
+  checked,
+  onChange,
+  children,
+  colorActivo = 'accent'
+}: {
+  checked: boolean
+  onChange: (valor: boolean) => void
+  children: React.ReactNode
+  colorActivo?: 'accent' | 'alert'
+}): React.JSX.Element {
+  const color = colorActivo === 'alert' ? 'var(--color-alert)' : 'var(--color-accent)'
+  const fondo =
+    colorActivo === 'alert'
+      ? 'var(--color-alert-bg)'
+      : 'rgba(227, 139, 41, 0.12)' /* tinte de --color-accent */
+
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        fontSize: 12,
+        padding: '0 10px',
+        height: 31 /* misma altura que los <input>/<select> de al lado (padding 4 + borde 1 x2 + línea de texto) */,
+        borderRadius: 'var(--radius)',
+        border: `1px solid ${checked ? color : 'var(--color-border)'}`,
+        background: checked ? fondo : 'var(--color-surface)',
+        color: checked ? color : 'var(--color-text)',
+        fontWeight: checked ? 600 : 400,
+        cursor: 'pointer',
+        userSelect: 'none',
+        whiteSpace: 'nowrap'
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ accentColor: color }}
+      />
+      {children}
+    </label>
+  )
+}
 
 export function StockScreen() {
   const [categoriaId, setCategoriaId] = useState<number | ''>('')
@@ -791,22 +1272,65 @@ export function StockScreen() {
 
   const nombreCategoria = (id: number) => categorias.datos.find((c) => c.id === id)?.nombre ?? '—'
 
+  const hayFiltrosActivos = q !== '' || categoriaId !== '' || soloConStock || verStockBajo
+  const limpiarFiltros = () => {
+    setQ('')
+    setCategoriaId('')
+    setSoloConStock(false)
+    setVerStockBajo(false)
+  }
+
   return (
     <div>
-      <h2 style={{ marginTop: 0 }}>Control de stock</h2>
-      <p style={{ color: 'var(--color-text-muted)', fontSize: 13, marginTop: -8 }}>
-        El stock de cada producto es la suma de sus lotes de compra. Desplegá un producto para ver
-        el detalle por proveedor y garantía.
-      </p>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 'var(--space-3)',
+          flexWrap: 'wrap'
+        }}
+      >
+        <div>
+          <h2 style={{ marginTop: 0, marginBottom: 4 }}>Control de stock</h2>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: 13, margin: 0 }}>
+            El stock de cada producto es la suma de sus lotes de compra. Desplegá un producto para
+            ver el detalle por proveedor y garantía.
+          </p>
+        </div>
+
+        {/* Acciones de la pantalla (no son filtros): separadas del panel de
+            abajo para que la barra de filtros no quede mezclada con ellas. */}
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
+          <a
+            href={urlPdfListadoStock()}
+            target="_blank"
+            rel="noreferrer"
+            style={{ ...estiloBotonSecundario, textDecoration: 'none' }}
+          >
+            Descargar listado (PDF)
+          </a>
+          {/* El botón mantiene siempre el mismo texto y sigue funcionando
+              como toggle (un segundo clic cierra el formulario): el cierre
+              explícito ya lo resuelve el "Cancelar" propio del formulario,
+              más abajo. Es el mismo patrón que ya usan "Editar" y
+              "+ Registrar compra" en cada fila, que tampoco cambian de
+              texto al abrirse. Antes este botón se renombraba a
+              "Cancelar" al abrir el formulario, duplicando el botón
+              "Cancelar" que el formulario ya tiene en su parte inferior. */}
+          <button onClick={() => setAltaAbierta((v) => !v)} style={estiloBotonPrincipal}>
+            + Nuevo producto
+          </button>
+        </div>
+      </div>
 
       <Panel>
         <div
           style={{
             display: 'flex',
-            gap: 'var(--space-2)',
+            gap: 'var(--space-3)',
             alignItems: 'flex-end',
-            flexWrap: 'wrap',
-            marginBottom: 'var(--space-3)'
+            flexWrap: 'wrap'
           }}
         >
           <Campo label="Buscar por nombre">
@@ -814,14 +1338,14 @@ export function StockScreen() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Ej: filtro, batería..."
-              style={{ ...estiloInput, width: 180 }}
+              style={{ ...estiloInput, width: 180, height: 31, boxSizing: 'border-box' }}
             />
           </Campo>
           <Campo label="Categoría">
             <select
               value={categoriaId}
               onChange={(e) => setCategoriaId(e.target.value === '' ? '' : Number(e.target.value))}
-              style={estiloInput}
+              style={{ ...estiloInput, height: 31, boxSizing: 'border-box' }}
             >
               <option value="">Todas</option>
               {categorias.datos.map((c) => (
@@ -831,36 +1355,39 @@ export function StockScreen() {
               ))}
             </select>
           </Campo>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-            <input
-              type="checkbox"
-              checked={soloConStock}
-              onChange={(e) => setSoloConStock(e.target.checked)}
-            />
-            Solo con existencias
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-            <input
-              type="checkbox"
-              checked={verStockBajo}
-              onChange={(e) => setVerStockBajo(e.target.checked)}
-            />
-            Solo stock bajo
-          </label>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-2)' }}>
-            <a
-              href={urlPdfListadoStock()}
-              target="_blank"
-              rel="noreferrer"
-              style={{ ...estiloBotonSecundario, textDecoration: 'none' }}
-            >
-              Descargar listado (PDF)
-            </a>
-            <button onClick={() => setAltaAbierta((v) => !v)} style={estiloBotonPrincipal}>
-              {altaAbierta ? 'Cancelar' : '+ Nuevo producto'}
-            </button>
-          </div>
+          {/* Separador vertical: marca visualmente que lo que sigue son
+              "modos de vista" sobre el listado, distinto de buscar/filtrar
+              por un criterio puntual. */}
+          <div
+            aria-hidden
+            style={{ width: 1, alignSelf: 'stretch', background: 'var(--color-border)' }}
+          />
+
+          {/* Mismo truco que en Campo: una etiqueta invisible mantiene la
+              altura alineada con "Buscar por nombre" y "Categoría", que sí
+              tienen una etiqueta visible arriba. */}
+          <Campo label={'\u00A0'}>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <FiltroToggle checked={soloConStock} onChange={setSoloConStock}>
+                Solo con existencias
+              </FiltroToggle>
+              <FiltroToggle checked={verStockBajo} onChange={setVerStockBajo} colorActivo="alert">
+                Solo stock bajo
+              </FiltroToggle>
+            </div>
+          </Campo>
+
+          {hayFiltrosActivos && (
+            <Campo label={'\u00A0'}>
+              <button
+                onClick={limpiarFiltros}
+                style={{ ...estiloBotonSecundario, height: 31, padding: '0 10px', fontSize: 12 }}
+              >
+                Limpiar filtros
+              </button>
+            </Campo>
+          )}
         </div>
 
         {errorListado && <MensajeError mensaje={errorListado} />}
@@ -929,6 +1456,17 @@ export function StockScreen() {
                         >
                           {p.stock}
                         </span>
+                        {p.stockMinimo != null && (
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 11,
+                              color: 'var(--color-text-muted)'
+                            }}
+                          >
+                            / mín. {p.stockMinimo}
+                          </span>
+                        )}
                         {bajoMinimo && (
                           <span
                             style={{
@@ -940,7 +1478,7 @@ export function StockScreen() {
                               color: 'var(--color-alert)'
                             }}
                           >
-                            Stock bajo (mín. {p.stockMinimo})
+                            Stock bajo
                           </span>
                         )}
                       </td>
@@ -989,7 +1527,12 @@ export function StockScreen() {
                     {abierto && (
                       <tr>
                         <td colSpan={6} style={{ padding: '0 8px 12px 32px' }}>
-                          <DetalleLotes productoId={p.id} proveedores={proveedores.datos} />
+                          <DetalleLotes
+                            productoId={p.id}
+                            proveedores={proveedores.datos}
+                            onProveedorCreado={proveedores.refrescar}
+                            onCambioStock={refrescarListado}
+                          />
                         </td>
                       </tr>
                     )}

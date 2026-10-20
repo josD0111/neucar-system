@@ -6,7 +6,7 @@
 // un producto ya existente.
 
 import { Router } from "express";
-import { and, eq, ilike, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, sql } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import * as schema from "../../db/schema";
 import type { Db } from "../server";
@@ -25,7 +25,14 @@ export function productosRouter(db: Db): Router {
     const rows = await db
       .select()
       .from(schema.productos)
-      .where(condiciones.length ? and(...condiciones) : undefined);
+      .where(condiciones.length ? and(...condiciones) : undefined)
+      // Sin ORDER BY, Postgres/PGlite devuelve las filas en el orden físico
+      // en que las encuentra al recorrer la tabla, que no tiene por qué ser
+      // el de alta y que puede cambiar con cada UPDATE (ej. al editar un
+      // producto, la fila reescrita puede terminar al final del recorrido).
+      // Se ordena explícitamente por nombre, sin distinguir mayúsculas de
+      // minúsculas, para que el listado sea siempre alfabético y estable.
+      .orderBy(asc(sql`lower(${schema.productos.nombre})`));
     sendOk(res, rows);
   });
 
@@ -35,12 +42,16 @@ export function productosRouter(db: Db): Router {
       .from(schema.productos)
       .where(
         sql`${schema.productos.stockMinimo} IS NOT NULL AND ${schema.productos.stock} <= ${schema.productos.stockMinimo}`,
-      );
+      )
+      .orderBy(asc(sql`lower(${schema.productos.nombre})`));
     sendOk(res, rows);
   });
 
   router.get("/listado-pdf", async (_req, res) => {
-    const productos = await db.select().from(schema.productos);
+    const productos = await db
+      .select()
+      .from(schema.productos)
+      .orderBy(asc(sql`lower(${schema.productos.nombre})`));
     const categorias = await db.select().from(schema.categorias);
     const nombreCategoria = new Map(categorias.map((c) => [c.id, c.nombre]));
 
