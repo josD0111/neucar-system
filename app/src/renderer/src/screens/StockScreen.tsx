@@ -30,7 +30,7 @@
 //    había que borrarlo a mano cada vez.
 
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import { useCategorias, useProductos, useProveedores, useStockBajo } from '../api/hooks'
+import { useCategorias, useProductos, useProveedores } from '../api/hooks'
 import { categoriasApi } from '../api/categorias'
 import { proveedoresApi } from '../api/proveedores'
 import { productosApi } from '../api/productos'
@@ -1242,11 +1242,17 @@ function FiltroToggle({
   )
 }
 
+// Cantidad fija de productos por página (paginación procesada en el
+// backend, ver routes/productos.ts). Si en algún momento se quiere dejar
+// que el usuario la cambie, alcanza con convertir esto en un estado más.
+const PRODUCTOS_POR_PAGINA = 20
+
 export function StockScreen() {
   const [categoriaId, setCategoriaId] = useState<number | ''>('')
   const [q, setQ] = useState('')
   const [soloConStock, setSoloConStock] = useState(false)
   const [verStockBajo, setVerStockBajo] = useState(false)
+  const [pagina, setPagina] = useState(1)
   const [expandido, setExpandido] = useState<number | null>(null)
   const [formularioCompraAbierto, setFormularioCompraAbierto] = useState<number | null>(null)
   const [edicionAbierta, setEdicionAbierta] = useState<number | null>(null)
@@ -1254,20 +1260,53 @@ export function StockScreen() {
 
   const categorias = useCategorias()
   const proveedores = useProveedores()
+  // "Solo stock bajo" es un filtro más del mismo listado paginado (ver
+  // soloStockBajo en FiltrosProductos), no un endpoint aparte: corrección
+  // del 20/10/2026 — antes usaba GET /productos/stock-bajo, que no conocía
+  // la categoría, la búsqueda ni "solo con existencias" ya elegidos, así que
+  // activarlo descartaba en silencio los demás filtros en vez de
+  // combinarse con ellos.
   const listado = useProductos({
     categoriaId: categoriaId || undefined,
     q: q || undefined,
-    soloConStock
+    soloConStock,
+    soloStockBajo: verStockBajo,
+    pagina,
+    porPagina: PRODUCTOS_POR_PAGINA
   })
-  const stockBajo = useStockBajo()
 
-  const productos = verStockBajo ? stockBajo.datos : listado.datos
-  const cargando = verStockBajo ? stockBajo.cargando : listado.cargando
-  const errorListado = verStockBajo ? stockBajo.error : listado.error
+  // Si cambia algún filtro, hay que volver a la página 1: de lo contrario
+  // se podría quedar "parado" en una página que ya no existe para el nuevo
+  // filtro (ej. estar en la página 4 y filtrar a una categoría con 1 sola
+  // página de resultados). Se resetea en cada manejador de filtro (ver más
+  // abajo), no con un useEffect: hacer setState síncrono dentro de un
+  // efecto dispara una re-renderización en cascada (regla de lint
+  // react-hooks/set-state-in-effect) — mismo criterio ya aplicado en
+  // api/hooks.ts para `cargando`.
+  const cambiarQ = (nuevoQ: string): void => {
+    setQ(nuevoQ)
+    setPagina(1)
+  }
+  const cambiarCategoriaId = (nuevoId: number | ''): void => {
+    setCategoriaId(nuevoId)
+    setPagina(1)
+  }
+  const cambiarSoloConStock = (valor: boolean): void => {
+    setSoloConStock(valor)
+    setPagina(1)
+  }
+  const cambiarVerStockBajo = (valor: boolean): void => {
+    setVerStockBajo(valor)
+    setPagina(1)
+  }
+
+  const productos = listado.datos.items
+  const cargando = listado.cargando
+  const errorListado = listado.error
+  const totalPaginas = Math.max(1, Math.ceil(listado.datos.total / PRODUCTOS_POR_PAGINA))
 
   const refrescarListado = () => {
     listado.refrescar()
-    stockBajo.refrescar()
   }
 
   const nombreCategoria = (id: number) => categorias.datos.find((c) => c.id === id)?.nombre ?? '—'
@@ -1278,6 +1317,7 @@ export function StockScreen() {
     setCategoriaId('')
     setSoloConStock(false)
     setVerStockBajo(false)
+    setPagina(1)
   }
 
   return (
@@ -1336,7 +1376,7 @@ export function StockScreen() {
           <Campo label="Buscar por nombre">
             <input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => cambiarQ(e.target.value)}
               placeholder="Ej: filtro, batería..."
               style={{ ...estiloInput, width: 180, height: 31, boxSizing: 'border-box' }}
             />
@@ -1344,7 +1384,9 @@ export function StockScreen() {
           <Campo label="Categoría">
             <select
               value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={(e) =>
+                cambiarCategoriaId(e.target.value === '' ? '' : Number(e.target.value))
+              }
               style={{ ...estiloInput, height: 31, boxSizing: 'border-box' }}
             >
               <option value="">Todas</option>
@@ -1369,10 +1411,14 @@ export function StockScreen() {
               tienen una etiqueta visible arriba. */}
           <Campo label={'\u00A0'}>
             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <FiltroToggle checked={soloConStock} onChange={setSoloConStock}>
+              <FiltroToggle checked={soloConStock} onChange={cambiarSoloConStock}>
                 Solo con existencias
               </FiltroToggle>
-              <FiltroToggle checked={verStockBajo} onChange={setVerStockBajo} colorActivo="alert">
+              <FiltroToggle
+                checked={verStockBajo}
+                onChange={cambiarVerStockBajo}
+                colorActivo="alert"
+              >
                 Solo stock bajo
               </FiltroToggle>
             </div>
@@ -1541,6 +1587,43 @@ export function StockScreen() {
               })}
             </tbody>
           </table>
+        )}
+
+        {/* Paginación: aplica siempre, "Solo stock bajo" incluido — ahora es
+            un filtro más sobre el mismo endpoint paginado (ver más arriba),
+            no un listado aparte sin paginar. */}
+        {!cargando && !errorListado && productos.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 'var(--space-3)',
+              paddingTop: 'var(--space-3)',
+              borderTop: '1px solid var(--color-border)'
+            }}
+          >
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              Página {listado.datos.pagina} de {totalPaginas} — {listado.datos.total} producto
+              {listado.datos.total === 1 ? '' : 's'} en total
+            </span>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <button
+                onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                disabled={pagina <= 1}
+                style={{ ...estiloBotonSecundario, opacity: pagina <= 1 ? 0.5 : 1 }}
+              >
+                ← Anterior
+              </button>
+              <button
+                onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                disabled={pagina >= totalPaginas}
+                style={{ ...estiloBotonSecundario, opacity: pagina >= totalPaginas ? 0.5 : 1 }}
+              >
+                Siguiente →
+              </button>
+            </div>
+          </div>
         )}
       </Panel>
     </div>

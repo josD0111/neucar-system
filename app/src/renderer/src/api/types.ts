@@ -41,6 +41,15 @@ export interface ProductoConLotes extends Producto {
   lotes: Compra[]
 }
 
+// Respuesta paginada genérica (ver GET /api/productos, paginación procesada
+// en el backend — pedido 20/10/2026). `pagina` es 1-based.
+export interface ListadoPaginado<T> {
+  items: T[]
+  total: number
+  pagina: number
+  porPagina: number
+}
+
 export interface ProductoNuevoInput {
   nombre: string
   categoriaId: number

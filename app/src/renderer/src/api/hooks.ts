@@ -19,7 +19,7 @@ import { categoriasApi } from './categorias'
 import { proveedoresApi } from './proveedores'
 import { productosApi, type FiltrosProductos } from './productos'
 import { ApiClientError } from './client'
-import type { Categoria, Proveedor, Producto } from './types'
+import type { Categoria, ListadoPaginado, Proveedor, Producto } from './types'
 
 export interface RecursoAsync<T> {
   datos: T
@@ -73,12 +73,28 @@ export function useProveedores(): RecursoAsync<Proveedor[]> {
   return useRecursoAsync<Proveedor[]>([], () => proveedoresApi.listar(), [])
 }
 
-export function useProductos(filtros: FiltrosProductos): RecursoAsync<Producto[]> {
-  return useRecursoAsync<Producto[]>([], () => productosApi.listar(filtros), [
-    filtros.categoriaId,
-    filtros.q,
-    filtros.soloConStock
-  ])
+// Valor inicial de la respuesta paginada, antes de que llegue la primera
+// respuesta del backend (ver ListadoPaginado en api/types.ts).
+const LISTADO_PAGINADO_INICIAL: ListadoPaginado<Producto> = {
+  items: [],
+  total: 0,
+  pagina: 1,
+  porPagina: 20
+}
+
+export function useProductos(filtros: FiltrosProductos): RecursoAsync<ListadoPaginado<Producto>> {
+  return useRecursoAsync<ListadoPaginado<Producto>>(
+    LISTADO_PAGINADO_INICIAL,
+    () => productosApi.listar(filtros),
+    [
+      filtros.categoriaId,
+      filtros.q,
+      filtros.soloConStock,
+      filtros.soloStockBajo,
+      filtros.pagina,
+      filtros.porPagina
+    ]
+  )
 }
 
 export function useStockBajo(): RecursoAsync<Producto[]> {
