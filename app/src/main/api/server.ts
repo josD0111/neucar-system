@@ -16,15 +16,20 @@ import type { Server } from "node:http";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "../db/schema";
 import { sendOk, sendServerError } from "./response";
-
+import { authRouter } from "./routes/auth";
+import { clientesRouter } from "./routes/clientes";
+// Puerto y dirección en los que escucha el servidor local.
 export const API_PORT = 4000;
 export const API_HOST = "127.0.0.1";
 
+// Tipo de la base de datos (Drizzle sobre PGlite), compartido por servicios y rutas.
 export type Db = PgliteDatabase<typeof schema>;
 
+// Arma la aplicación Express: middlewares globales, rutas y manejador de errores.
 export function createServer(db: Db): Express {
   const app = express();
 
+  // Permite leer el cuerpo de las peticiones en formato JSON (req.body).
   app.use(express.json());
 
   // CORS mínimo: el renderer corre en un origen distinto al de este servidor
@@ -34,7 +39,9 @@ export function createServer(db: Db): Express {
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    // Authorization es necesario para que el navegador deje pasar el token de sesión.
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    // Las peticiones "preflight" del navegador se responden acá, sin llegar a las rutas.
     if (_req.method === "OPTIONS") {
       res.sendStatus(204);
       return;
@@ -44,12 +51,17 @@ export function createServer(db: Db): Express {
 
   // Endpoint de diagnóstico: confirma que el servidor está arriba y que
   // tiene una instancia de base de datos inicializada. Sirve para validar
-  // el cableado de este punto antes de construir los endpoints de cada
-  // entidad (productos, clientes, proveedores, etc. — ver sprint-1-backlog.md).
+  // el cableado antes de construir los endpoints de cada entidad
+  // (productos, clientes, proveedores, etc. — ver sprint-1-backlog.md).
   app.get("/api/health", (_req: Request, res: Response) => {
     sendOk(res, { status: "ok", dbReady: Boolean(db) });
   });
 
+  // Rutas de autenticación (login, logout, sesión actual).
+  // Se montan una sola vez, al crear el servidor, y no dentro de otro handler.
+  app.use("/api/auth", authRouter(db));
+  // Rutas de clientes (HU-09), protegidas por sesión.
+  app.use("/api/clientes", clientesRouter(db));
   // TODO (sprint 1): montar acá los routers de cada entidad a medida que se
   // implementen — ej. app.use("/api/productos", productosRouter(db)).
 
@@ -64,6 +76,8 @@ export function createServer(db: Db): Express {
   return app;
 }
 
+// Crea el servidor y lo pone a escuchar en API_HOST:API_PORT.
+// Devuelve el servidor HTTP para poder cerrarlo al salir de la app (ver index.ts).
 export function startServer(db: Db): Server {
   const app = createServer(db);
   const server = app.listen(API_PORT, API_HOST, () => {
