@@ -1577,8 +1577,25 @@ export function StockScreen() {
 
                 return (
                   <Fragment key={p.id}>
-                    <tr style={{ borderTop: '1px solid var(--color-border)' }}>
-                      <td style={{ padding: 8, width: 24 }}>
+                    <tr
+                      style={{
+                        borderTop: '1px solid var(--color-border)',
+                        // Resalta la fila del producto cuyos lotes están
+                        // desplegados, para que quede claro a qué producto
+                        // pertenece el panel de detalle que aparece debajo
+                        // (antes todas las filas eran visualmente iguales).
+                        background: abierto ? 'var(--color-bg)' : undefined
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: 8,
+                          width: 24,
+                          borderLeft: abierto
+                            ? '3px solid var(--color-accent)'
+                            : '3px solid transparent'
+                        }}
+                      >
                         <button
                           onClick={() => setExpandido(abierto ? null : p.id)}
                           style={{ border: 'none', background: 'none', fontSize: 14 }}
@@ -1587,7 +1604,7 @@ export function StockScreen() {
                           {abierto ? '▾' : '▸'}
                         </button>
                       </td>
-                      <td style={{ padding: 8 }}>{p.nombre}</td>
+                      <td style={{ padding: 8, fontWeight: abierto ? 600 : 400 }}>{p.nombre}</td>
                       <td style={{ padding: 8, color: 'var(--color-text-muted)' }}>
                         {nombreCategoria(p.categoriaId)}
                       </td>
@@ -1672,15 +1689,50 @@ export function StockScreen() {
                     )}
 
                     {abierto && (
-                      <tr>
-                        <td colSpan={6} style={{ padding: '0 8px 12px 32px' }}>
-                          <DetalleLotes
-                            productoId={p.id}
-                            proveedores={proveedores.datos}
-                            onProveedorCreado={proveedores.refrescar}
-                            onCambioStock={refrescarListado}
-                            recargaExterna={recargaLotes}
-                          />
+                      // Panel de detalle con fondo e indentación propios
+                      // (gris, --color-bg, igual que la fila resaltada de
+                      // arriba) para que no se confunda con más filas de la
+                      // tabla de productos (blanca). La tarjeta blanca
+                      // interna separa visualmente cada lote de la lista de
+                      // productos, y el borde de acento a la izquierda la
+                      // conecta con la fila del producto que la abrió.
+                      <tr style={{ background: 'var(--color-bg)' }}>
+                        <td
+                          colSpan={6}
+                          style={{
+                            padding: '0 8px 16px 32px',
+                            borderLeft: '3px solid var(--color-accent)'
+                          }}
+                        >
+                          <div
+                            style={{
+                              background: 'var(--color-surface)',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 'var(--radius)',
+                              padding: 'var(--space-3)',
+                              marginTop: 'var(--space-2)'
+                            }}
+                          >
+                            <h4
+                              style={{
+                                margin: '0 0 var(--space-3) 0',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                letterSpacing: 0.5,
+                                color: 'var(--color-text-muted)'
+                              }}
+                            >
+                              Lotes de compra — {p.nombre}
+                            </h4>
+                            <DetalleLotes
+                              productoId={p.id}
+                              proveedores={proveedores.datos}
+                              onProveedorCreado={proveedores.refrescar}
+                              onCambioStock={refrescarListado}
+                              recargaExterna={recargaLotes}
+                            />
+                          </div>
                         </td>
                       </tr>
                     )}
