@@ -161,22 +161,36 @@ export function productosRouter(db: Db): Router {
       doc.y += 4
     }
 
-    // Antes de dibujar algo de `alto` puntos, chequea si entra en lo que
-    // queda de página; si no, abre una nueva y repite el encabezado de
-    // columnas (y, si se cortó en medio de una categoría, un recordatorio
-    // de cuál es) para no perder contexto al dar vuelta la hoja.
-    function asegurarEspacio(alto: number, categoriaEnCurso: string | null): void {
+    // Chequea si entra en lo que queda de página algo de `alto` puntos; si
+    // no, abre una nueva. Devuelve si hubo salto, para que cada lugar que
+    // la usa decida QUÉ dibujar después del salto — no es lo mismo cortar
+    // antes de la franja de una categoría nueva (que ya va a dibujar su
+    // propio encabezado a continuación) que cortar en medio de la lista de
+    // una categoría (donde hay que repetir el encabezado de columnas a
+    // mano, porque lo que sigue son filas sueltas, no una franja).
+    function saltarPaginaSiHaceFalta(alto: number): boolean {
       const limite = doc.page.height - doc.page.margins.bottom
-      if (doc.y + alto <= limite) return
+      if (doc.y + alto <= limite) return false
       doc.addPage()
-      if (categoriaEnCurso) {
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(10)
-          .fillColor(COLOR_TEXTO_MUTED)
-          .text(`${categoriaEnCurso} (continuación)`, xIzq, doc.y, { width: anchoPagina })
-        doc.y += 6
-      }
+      return true
+    }
+
+    // Corrección del 20/10/2026: antes esta misma función dibujaba el
+    // encabezado de columnas incondicionalmente al saltar de página,
+    // incluso cuando el salto ocurría justo antes de la franja de una
+    // categoría nueva — eso dejaba un encabezado de columnas huérfano
+    // arriba de la franja, seguido por la franja y OTRO encabezado de
+    // columnas debajo (el que dibuja el código de la franja, más abajo).
+    // Ahora el encabezado "de más" solo se dibuja acá, pensado para el
+    // corte de página en medio de una lista de filas.
+    function asegurarEspacioFila(alto: number, categoriaEnCurso: string): void {
+      if (!saltarPaginaSiHaceFalta(alto)) return
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor(COLOR_TEXTO_MUTED)
+        .text(`${categoriaEnCurso} (continuación)`, xIzq, doc.y, { width: anchoPagina })
+      doc.y += 6
       encabezadoTabla()
     }
 
@@ -197,8 +211,11 @@ export function productosRouter(db: Db): Router {
 
         // Franja de categoría + encabezado de columnas: 26pt de la franja
         // más una fila, para no dejar un título de categoría solo al pie de
-        // la página sin ninguna fila debajo.
-        asegurarEspacio(26 + altoFila, null)
+        // la página sin ninguna fila debajo. Si hace falta saltar de
+        // página, no hay que dibujar nada más acá: la franja y el
+        // encabezado de columnas de abajo ya se dibujan al principio de la
+        // página nueva.
+        saltarPaginaSiHaceFalta(26 + altoFila)
         const yCat = doc.y
         doc.rect(xIzq, yCat, anchoPagina, 20).fill(COLOR_FONDO)
         doc
@@ -210,7 +227,7 @@ export function productosRouter(db: Db): Router {
         encabezadoTabla()
 
         items.forEach((p, i) => {
-          asegurarEspacio(altoFila, nombreCat)
+          asegurarEspacioFila(altoFila, nombreCat)
           const bajo = p.stockMinimo != null && p.stock <= p.stockMinimo
           const y = doc.y
 
