@@ -18,6 +18,20 @@
 // hoy `cantidadDisponible` siempre es igual a `cantidad`, así que esto no
 // puede resultar en un valor negativo en la práctica; igual se valida por
 // si se edita un lote que ya tuvo alguna salida de stock en el futuro.
+//
+// Agregado el 20/10/2026: DELETE /:id, para corregir un lote cargado con el
+// producto equivocado (no alcanza con "editar": el producto de un lote no es
+// un campo editable, ver PATCH más arriba — cambiarlo a mano dejaría el
+// stock del producto viejo y del nuevo desincronizados). Se descuenta del
+// Producto la `cantidadDisponible` del lote (no la `cantidad` original): son
+// iguales hoy porque Ventas no existe todavía, pero `cantidadDisponible` es
+// la que efectivamente integra el `stock` agregado (ver entidades-dominio.md,
+// sección 14, y el comentario de `stock` en schema.ts). Si en Sprint 2 ya
+// hay Ítems de Venta que referencian este lote (`compra_id`), el borrado
+// debe rechazarse en vez de dejar ventas "huérfanas" sin su lote de origen;
+// se resuelve igual que en categorias.ts: se intenta el DELETE y se detecta
+// la violación de clave foránea (23503) en vez de consultar antes "¿tiene
+// ventas asociadas?" (evita una condición de carrera entre ambas consultas).
 
 import { Router } from 'express'
 import { eq, sql } from 'drizzle-orm'
@@ -33,6 +47,20 @@ interface ProductoNuevoInput {
 }
 
 class ErrorValidacion extends Error {}
+
+interface PgError {
+  code?: string
+  cause?: { code?: string }
+}
+
+// Mismo criterio que en routes/categorias.ts: Drizzle envuelve el error real
+// de Postgres/PGlite en un DrizzleQueryError, y el código (ej. "23503" =
+// violación de FK) queda en `err.cause.code`, no en `err.code` directamente.
+function esViolacionFk(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) return false
+  const e = err as PgError
+  return e.code === '23503' || e.cause?.code === '23503'
+}
 
 export function comprasRouter(db: Db): Router {
   const router = Router()
@@ -201,6 +229,36 @@ export function comprasRouter(db: Db): Router {
     })
 
     sendOk(res, lote)
+  })
+
+  router.delete('/:id', async (req, res) => {
+    const id = Number(req.params.id)
+
+    const [compraActual] = await db.select().from(schema.compras).where(eq(schema.compras.id, id))
+    if (!compraActual) {
+      sendNotFound(res, 'Lote de compra no encontrado.')
+      return
+    }
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx.delete(schema.compras).where(eq(schema.compras.id, id))
+        await tx
+          .update(schema.productos)
+          .set({ stock: sql`${schema.productos.stock} - ${compraActual.cantidadDisponible}` })
+          .where(eq(schema.productos.id, compraActual.productoId))
+      })
+      sendOk(res, { id })
+    } catch (err) {
+      if (esViolacionFk(err)) {
+        sendBadRequest(
+          res,
+          'No se puede eliminar: ya se registraron ventas o servicios que descontaron stock de este lote.'
+        )
+        return
+      }
+      throw err
+    }
   })
 
   return router

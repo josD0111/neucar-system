@@ -13,5 +13,9 @@ export interface CompraEdicionInput {
 
 export const comprasApi = {
   registrar: (input: CompraInput): Promise<Compra> => api.post('/compras', input),
-  editar: (id: number, cambios: CompraEdicionInput): Promise<Compra> => api.patch(`/compras/${id}`, cambios)
+  editar: (id: number, cambios: CompraEdicionInput): Promise<Compra> => api.patch(`/compras/${id}`, cambios),
+  // Para corregir un lote cargado con el producto equivocado: no alcanza con
+  // editar (el producto de un lote no es un campo editable), hay que
+  // eliminarlo y cargarlo de nuevo con el producto correcto.
+  eliminar: (id: number): Promise<{ id: number }> => api.delete(`/compras/${id}`)
 }

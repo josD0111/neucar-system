@@ -90,6 +90,16 @@ const estiloBotonSecundario: React.CSSProperties = {
   background: 'var(--color-surface)'
 }
 
+// Mismo criterio visual que en CategoriaScreen.tsx (botón "Eliminar").
+const estiloBotonPeligro: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 12,
+  border: '1px solid var(--color-alert)',
+  borderRadius: 'var(--radius)',
+  background: 'var(--color-alert-bg)',
+  color: 'var(--color-alert)'
+}
+
 function MensajeError({ mensaje }: { mensaje: string | null }) {
   if (!mensaje) return null
   return (
@@ -1080,17 +1090,51 @@ function DetalleLotes({
   productoId,
   proveedores,
   onProveedorCreado,
-  onCambioStock
+  onCambioStock,
+  recargaExterna
 }: {
   productoId: number
   proveedores: Proveedor[]
   onProveedorCreado: () => void
   onCambioStock: () => void
+  // Bug detectado el 20/10/2026: si la fila de un producto ya está
+  // desplegada y se registra una compra nueva desde "+ Registrar compra"
+  // (FormularioCompra, afuera de este componente), el detalle de lotes no
+  // se actualizaba — el `recarga` de acá abajo solo cambia por acciones dentro
+  // de este propio componente (editar/eliminar un lote). `recargaExterna` es
+  // un contador que el padre (StockScreen) incrementa cada vez que se
+  // registra una compra, para que este efecto también vuelva a pedir el
+  // detalle en ese caso, sin que haga falta cerrar y volver a abrir la fila.
+  recargaExterna: number
 }) {
   const [lotes, setLotes] = useState<Compra[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [recarga, setRecarga] = useState(0)
   const [edicionLoteAbierta, setEdicionLoteAbierta] = useState<number | null>(null)
+  // Confirmación de borrado (ej. lote cargado con el producto equivocado):
+  // separado de `edicionLoteAbierta` porque son dos acciones mutuamente
+  // excluyentes por fila, no un mismo panel. `errorAccion` es independiente
+  // del `error` de arriba porque ese gatea el render de toda la tabla (ver
+  // más abajo); un error al eliminar un lote puntual no debería tapar el
+  // resto de las filas.
+  const [confirmandoBajaId, setConfirmandoBajaId] = useState<number | null>(null)
+  const [eliminando, setEliminando] = useState(false)
+  const [errorAccion, setErrorAccion] = useState<string | null>(null)
+
+  const eliminarLote = async (id: number) => {
+    setEliminando(true)
+    setErrorAccion(null)
+    try {
+      await comprasApi.eliminar(id)
+      setConfirmandoBajaId(null)
+      setRecarga((n) => n + 1)
+      onCambioStock()
+    } catch (err) {
+      setErrorAccion(err instanceof ApiClientError ? err.message : 'No se pudo eliminar el lote.')
+    } finally {
+      setEliminando(false)
+    }
+  }
 
   useEffect(() => {
     let cancelado = false
@@ -1105,7 +1149,7 @@ function DetalleLotes({
     return () => {
       cancelado = true
     }
-  }, [productoId, recarga])
+  }, [productoId, recarga, recargaExterna])
 
   const nombreProveedor = (id: number) => proveedores.find((p) => p.id === id)?.nombre ?? `#${id}`
 
@@ -1153,16 +1197,62 @@ function DetalleLotes({
               </td>
               <td style={{ padding: 4 }}>{lote.factura ?? '—'}</td>
               <td style={{ padding: 4, textAlign: 'right' }}>
-                <button
-                  onClick={() =>
-                    setEdicionLoteAbierta(edicionLoteAbierta === lote.id ? null : lote.id)
-                  }
-                  style={{ ...estiloBotonSecundario, padding: '2px 8px', fontSize: 11 }}
-                >
-                  Editar
-                </button>
+                {confirmandoBajaId === lote.id ? (
+                  <div
+                    style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', alignItems: 'center' }}
+                  >
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      ¿Eliminar este lote?
+                    </span>
+                    <button
+                      onClick={() => eliminarLote(lote.id)}
+                      disabled={eliminando}
+                      style={estiloBotonPeligro}
+                    >
+                      Sí, eliminar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmandoBajaId(null)
+                        setErrorAccion(null)
+                      }}
+                      style={{ ...estiloBotonSecundario, padding: '2px 8px', fontSize: 11 }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => {
+                        setEdicionLoteAbierta(edicionLoteAbierta === lote.id ? null : lote.id)
+                        setConfirmandoBajaId(null)
+                      }}
+                      style={{ ...estiloBotonSecundario, padding: '2px 8px', fontSize: 11 }}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setConfirmandoBajaId(lote.id)
+                        setEdicionLoteAbierta(null)
+                        setErrorAccion(null)
+                      }}
+                      style={estiloBotonPeligro}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                )}
               </td>
             </tr>
+            {confirmandoBajaId === lote.id && errorAccion && (
+              <tr>
+                <td colSpan={7} style={{ padding: '0 0 4px 0' }}>
+                  <MensajeError mensaje={errorAccion} />
+                </td>
+              </tr>
+            )}
             {edicionLoteAbierta === lote.id && (
               <FormularioEdicionLote
                 lote={lote}
@@ -1257,6 +1347,10 @@ export function StockScreen() {
   const [formularioCompraAbierto, setFormularioCompraAbierto] = useState<number | null>(null)
   const [edicionAbierta, setEdicionAbierta] = useState<number | null>(null)
   const [altaAbierta, setAltaAbierta] = useState(false)
+  // Ver el comentario de `recargaExterna` en DetalleLotes: se incrementa al
+  // registrar una compra desde el formulario de la fila, para que el
+  // detalle de lotes ya desplegado se refresque sin cerrar/volver a abrir.
+  const [recargaLotes, setRecargaLotes] = useState(0)
 
   const categorias = useCategorias()
   const proveedores = useProveedores()
@@ -1307,6 +1401,13 @@ export function StockScreen() {
 
   const refrescarListado = () => {
     listado.refrescar()
+  }
+
+  // Ver DetalleLotes: además de refrescar el listado, avisa al detalle de
+  // lotes ya desplegado (si lo hay) que vuelva a pedir sus datos.
+  const refrescarListadoYLotes = () => {
+    refrescarListado()
+    setRecargaLotes((n) => n + 1)
   }
 
   const nombreCategoria = (id: number) => categorias.datos.find((c) => c.id === id)?.nombre ?? '—'
@@ -1566,7 +1667,7 @@ export function StockScreen() {
                         proveedores={proveedores.datos}
                         onProveedorCreado={proveedores.refrescar}
                         onCerrar={() => setFormularioCompraAbierto(null)}
-                        onGuardado={refrescarListado}
+                        onGuardado={refrescarListadoYLotes}
                       />
                     )}
 
@@ -1578,6 +1679,7 @@ export function StockScreen() {
                             proveedores={proveedores.datos}
                             onProveedorCreado={proveedores.refrescar}
                             onCambioStock={refrescarListado}
+                            recargaExterna={recargaLotes}
                           />
                         </td>
                       </tr>
