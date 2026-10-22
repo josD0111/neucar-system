@@ -43,6 +43,7 @@ erDiagram
         string cedula
         string celular
         string ruc
+        boolean activo
     }
 
     PROVEEDOR {
@@ -148,6 +149,8 @@ erDiagram
 - **ITEM_VENTA/ORDEN_SERVICIO–PAGO** son relaciones excluyentes: un Pago referencia a uno de los dos, nunca ambos. Esto permite manejar crédito por producto individual (no por venta completa) y por orden de servicio completa, con pagos parciales acumulables en el tiempo — ver el caso de validación en `entidades-dominio.md`, sección 12.
 - **Diferencia clave:** en Venta, `tipo_pago` vive en `ITEM_VENTA` (crédito por producto). En Orden de Servicio, `tipo_pago` vive en `ORDEN_SERVICIO` (crédito por visita completa, no por Servicio individual), reflejando cómo el dueño maneja el crédito en la práctica — ver `entidades-dominio.md`, sección 13.
 - **COMPRA–ITEM_VENTA** (`compra_id`, **obligatorio**) traza de qué lote de compra proviene cada unidad vendida. No es opcional: dado que `PRODUCTO.stock` se calcula como la suma de `COMPRA.cantidad_disponible`, toda venta debe descontar de algún lote puntual — ver el problema y la corrección detallados en `entidades-dominio.md`, sección 14. Si la cantidad vendida de un producto supera lo disponible en un solo lote, el sistema genera automáticamente varios Ítems de Venta (uno por lote consumido) dentro de la misma Venta.
+- **COMPRA.garantia_proveedor** se expresa en **meses** (confirmado durante la implementación del Sprint 1; quedaba sin unidad definida en versiones anteriores de este documento y de `entidades-dominio.md`, sección 6).
+- **CLIENTE.activo** es la baja lógica del cliente (nunca se borra, se deshabilita) — ver `entidades-dominio.md`, sección 2, y `desiciones-alcance.md`, sección 2.2.
 
 ## Pendiente de confirmar
 

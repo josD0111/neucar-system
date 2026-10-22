@@ -31,6 +31,7 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 | cédula | Documento de identidad |
 | celular | Teléfono de contacto |
 | RUC | Opcional, para factura electrónica |
+| activo | Booleano, por defecto `true`. Ver nota de baja lógica más abajo |
 | saldo_pendiente | Calculado: suma de `saldo_pendiente` de todos sus Ítems de Venta a crédito, más el saldo pendiente de sus Órdenes de Servicio a crédito (monto_total − Pagos asociados) |
 
 **Relaciones:**
@@ -39,6 +40,8 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 - Un Cliente puede tener muchos Vehículos asociados (ver entidad Vehículo).
 
 *Nota: un cliente "casual" (sin registrar) puede realizar una Venta sin estar asociado a esta entidad, salvo que la operación sea a crédito (ver HU-10), donde el registro es obligatorio.*
+
+*Nota — baja lógica (`activo`, agregada durante la implementación del Sprint 1, sin HU propia): un Cliente nunca se borra físicamente, porque eso rompería el historial de Ventas y Órdenes de Servicio que lo referencian. En cambio, se marca como `activo = false` ("deshabilitado"): deja de aparecer en los listados normales, pero conserva su historial completo y puede volver a habilitarse. Deshabilitar/habilitar queda restringido al rol Administrador (ver `src/main/api/routes/clientes.ts`); el resto del CRUD de Cliente (HU-09) está disponible para ambos roles. Este campo no estaba contemplado en el análisis original (`historias-usuario.md`/`desiciones-alcance.md`) — conviene sumarle una historia de usuario explícita si todavía no la tiene, para dejar registrada la regla de negocio en vez de que solo viva en el código.*
 
 ## 3. Proveedor
 
@@ -94,7 +97,7 @@ Registra la adquisición de uno o más unidades de un Producto a un Proveedor, e
 | cantidad | Cantidad de unidades compradas originalmente en este lote |
 | cantidad_disponible | Unidades de este lote que aún no fueron vendidas (se descuenta con cada venta que provenga de este lote) |
 | precio_compra | Precio pagado al proveedor (unitario) |
-| garantía_proveedor | Duración de la garantía ofrecida por el proveedor para las unidades de este lote (relevante sobre todo en baterías) |
+| garantía_proveedor | Duración de la garantía ofrecida por el proveedor para las unidades de este lote, **en meses** (relevante sobre todo en baterías). Opcional: queda vacío en productos sin garantía aplicable (ej. un filtro) |
 | factura | Referencia a la factura de compra |
 
 **Relaciones:**

@@ -30,6 +30,7 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 
 - Registro de clientes: nombre, cédula, celular, RUC (opcional, para factura electrónica).
 - Distinción entre cliente "casual" y cliente registrado con historial.
+- Baja lógica de clientes: un cliente nunca se elimina (para no perder su historial de ventas/servicios), solo se deshabilita/habilita, acción restringida al Administrador. *(Decisión tomada durante la implementación del Sprint 1, sin pasar antes por una historia de usuario explícita — ver `entidades-dominio.md`, sección 2, nota sobre `activo`.)*
 - Registro de ventas/servicios a crédito o cuota, con saldo pendiente por cliente.
 - Registro de la fecha en la que el cliente debería pagar su próxima cuota, con un valor sugerido por defecto (créditos de hasta 2 meses, normalmente en 2 cuotas) pero sin bloquear al Administrador si quiere definir otra fecha *(agregado tras entrevista 10/09/2026 — ver HU-10.2)*.
 - Aviso/listado de créditos vencidos (ítems de venta u órdenes de servicio con `fecha_pago_prevista` ya pasada y saldo pendiente), para que el Administrador le avise al dueño *(agregado tras entrevista 10/09/2026 — ver HU-10.2)*.
