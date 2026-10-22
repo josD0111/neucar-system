@@ -5,11 +5,14 @@ control de stock por lotes de compra, clientes, proveedores, ventas,
 órdenes de servicio y crédito/pagos. Reemplaza el cuaderno en papel que
 se usaba hasta ahora.
 
-> **Estado actual (22/10/2026):** rama `dev/sprint01`, Sprint 1 en curso.
+> **Estado actual (22/10/2026):** Sprint 1 cerrado — ver
+> [`docs/03-gestion-proyecto/sprint-1-backlog.md`](docs/03-gestion-proyecto/sprint-1-backlog.md).
 > Login, Categorías, Productos/Stock, Proveedores, Compras y Clientes ya
-> están conectados a la base de datos real. Ventas y Órdenes de Servicio
-> (Sprint 2) todavía corren sobre datos de ejemplo en memoria. Ver el
-> detalle en [`docs/03-gestion-proyecto/sprint-1-backlog.md`](docs/03-gestion-proyecto/sprint-1-backlog.md).
+> están conectados a la base de datos real. Sprint 2 (Ventas, Órdenes de
+> Servicio, Vehículos y crédito/pagos) está en preparación — ver
+> [`docs/03-gestion-proyecto/sprint-2-backlog.md`](docs/03-gestion-proyecto/sprint-2-backlog.md).
+> Mientras tanto, `VentaScreen.tsx` y `OrdenServicioScreen.tsx` siguen
+> siendo el prototipo clickeable sobre datos de ejemplo en memoria.
 
 ## Estructura del repositorio
 
@@ -60,6 +63,6 @@ justificada en `docs/02-desing/stack-tecnologico.md`.
 ## Flujo de trabajo
 
 Equipo de 2 personas, metodología Scrum simplificada (ver
-`docs/03-gestion-proyecto/plan-gestion-proyecto.md`). La rama de
-desarrollo activa es `dev/sprint01`; el reparto de tareas del sprint
-actual y su estado de avance están en `sprint-1-backlog.md`.
+`docs/03-gestion-proyecto/plan-gestion-proyecto.md`). El backlog de cada
+sprint (tareas técnicas, reparto y estado de avance) vive en
+`docs/03-gestion-proyecto/sprint-0N-backlog.md`.
