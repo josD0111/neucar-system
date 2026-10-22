@@ -16,6 +16,7 @@ import {
   integer,
   numeric,
   date,
+  boolean,
   timestamp,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -36,6 +37,9 @@ export const clientes = pgTable("clientes", {
   cedula: varchar("cedula", { length: 30 }),
   celular: varchar("celular", { length: 30 }),
   ruc: varchar("ruc", { length: 30 }),
+    // false = cliente deshabilitado: no aparece en los listados normales, pero
+  // conserva su historial (ventas, órdenes, pagos). Nunca se borra.
+  activo: boolean("activo").notNull().default(true),
 });
 
 // 3. Proveedor

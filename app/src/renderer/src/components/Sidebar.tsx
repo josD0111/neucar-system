@@ -2,6 +2,10 @@
 //
 // Navegación lateral. "Stock" va primero: es la funcionalidad que el dueño
 // identificó como más importante del sistema.
+// En la parte inferior muestra quién está logueado y el botón para cerrar sesión
+// (reemplaza al selector "Ver como" del prototipo).
+
+import { useAuth } from '../data/AuthContext'
 
 export type Pantalla = 'stock' | 'categorias' | 'proveedores' | 'venta' | 'servicio' | 'cliente'
 export type Rol = 'Administrador' | 'Empleado'
@@ -9,8 +13,6 @@ export type Rol = 'Administrador' | 'Empleado'
 interface SidebarProps {
   pantallaActiva: Pantalla
   onCambiarPantalla: (p: Pantalla) => void
-  rol: Rol
-  onCambiarRol: (r: Rol) => void
 }
 
 const items: { id: Pantalla; label: string }[] = [
@@ -22,7 +24,10 @@ const items: { id: Pantalla; label: string }[] = [
   { id: 'cliente', label: 'Ficha de cliente' }
 ]
 
-export function Sidebar({ pantallaActiva, onCambiarPantalla, rol, onCambiarRol }: SidebarProps) {
+export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps) {
+  // Datos del usuario logueado y la acción de cerrar sesión.
+  const { usuario, cerrarSesion } = useAuth()
+
   return (
     <aside
       className="no-print"
@@ -79,40 +84,26 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla, rol, onCambiarRol }
         ))}
       </nav>
 
+      {/* Zona inferior: usuario actual y cierre de sesión */}
       <div style={{ marginTop: 'auto', padding: '0 var(--space-4)' }}>
-        <div
-          style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 'var(--space-1)' }}
-        >
-          Ver como
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Sesión iniciada como</div>
+        <div style={{ fontWeight: 600 }}>{usuario?.nombre}</div>
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)' }}>
+          {usuario?.rol}
         </div>
-        <div
+        <button
+          onClick={() => cerrarSesion()}
           style={{
-            display: 'flex',
+            width: '100%',
+            padding: 'var(--space-2)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius)',
-            overflow: 'hidden'
+            background: 'transparent',
+            color: 'var(--color-text)'
           }}
         >
-          {(['Administrador', 'Empleado'] as Rol[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => onCambiarRol(r)}
-              style={{
-                flex: 1,
-                padding: 'var(--space-2)',
-                border: 'none',
-                fontSize: 12,
-                background: rol === r ? 'var(--color-accent)' : 'transparent',
-                color: rol === r ? '#fff' : 'var(--color-text)'
-              }}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 'var(--space-2)' }}>
-          Para validar con el dueño si esto cubre lo que necesita para Rey.
-        </p>
+          Cerrar sesión
+        </button>
       </div>
     </aside>
   )
