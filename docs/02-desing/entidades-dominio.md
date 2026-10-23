@@ -22,6 +22,8 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 
 *Nota: la esposa no es una entidad/rol separado — usa el mismo registro de Usuario que el dueño (rol Administrador), según lo definido en `desiciones-alcance.md`.*
 
+*Nota (23/10/2026): el campo `usuario_id` de Venta no distingue roles a nivel de modelo, pero la regla de negocio (ver `desiciones-alcance.md`, sección 1 y 8.4) es que solo un Usuario con rol Administrador puede registrar una Venta; un Empleado solo puede calcular el total sin persistirlo — ver HU-17/HU-17.1 en `historias-usuario.md`. Esta restricción se valida en la capa de servicio/API, no en el modelo de datos.*
+
 ## 2. Cliente
 
 | Atributo | Descripción |
@@ -145,7 +147,7 @@ Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Pro
 - Un Ítem de Venta **referencia** un Producto.
 - Un Ítem de Venta **referencia** una Compra (obligatorio: el lote específico de origen de la unidad vendida).
 
-*Nota — reparto entre lotes: si la cantidad solicitada de un Producto en una Venta supera la `cantidad_disponible` del lote más antiguo (regla PEPS/FIFO por defecto — pendiente de confirmar con el dueño, ver sección 14), el sistema genera automáticamente **más de un Ítem de Venta** para ese mismo Producto dentro de la misma Venta, uno por cada lote del cual efectivamente se descontó stock, cada uno con su propio `compra_id` y la porción de `cantidad` correspondiente a ese lote. Esto es una operación interna del sistema al registrar la venta, no algo que el Administrador tenga que armar manualmente ítem por ítem.*
+*Nota — reparto entre lotes (actualizada 23/10/2026, ver resolución en sección 14): si la cantidad solicitada de un Producto en una Venta supera la `cantidad_disponible` de un solo lote, hacen falta **más de un Ítem de Venta** para ese mismo Producto dentro de la misma Venta, uno por cada lote del cual efectivamente se descontó stock, cada uno con su propio `compra_id` y la porción de `cantidad` correspondiente a ese lote. Se resolvió que esto **no es automático**: el equipo decidió selección manual de lote (no PEPS/FIFO), así que es el Administrador quien arma, ítem por ítem, de qué Compra sale cada porción — viendo en pantalla las Compras disponibles con su `cantidad_disponible` y `garantía_proveedor`.*
 - Un Ítem de Venta (cuando es a crédito) tiene muchos **Pagos**.
 
 ## 7.2 Pago
@@ -339,12 +341,7 @@ Se incorporó el concepto de **lote de stock**, usando la propia entidad Compra 
 3. El `stock` del Producto pasa a ser un valor agregado (suma de `cantidad_disponible` de todas sus Compras), en lugar de un contador aislado sin relación con los lotes de origen.
 4. La `garantía_ofrecida` al cliente en el Ítem de Venta queda validada contra la `garantía_proveedor` del lote específico (`compra_id`), no contra un valor genérico del Producto — esto también ajusta el criterio de aceptación de HU-06.
 
-**Pregunta operativa pendiente de confirmar con el dueño:** este modelo asume que, al vender, el sistema puede elegir automáticamente de qué lote descontar stock, típicamente con una regla **PEPS/FIFO** (se vende primero lo que se compró primero). Sin embargo, esto depende de cómo el dueño maneja físicamente el stock en el taller:
-
-- Si los productos de distintas compras están mezclados físicamente en el estante (por ejemplo, cubiertas sin ningún dato visible que indique de qué compra provienen), el sistema puede aplicar FIFO automáticamente sin que el dueño tenga que hacer nada, aunque en la práctica podría no coincidir exactamente con la unidad física que efectivamente se entrega.
-- Si el producto tiene algún dato identificable físicamente (por ejemplo, baterías con fecha de fabricación o número de serie visible), podría ser preferible que el sistema le muestre al dueño las compras disponibles con su garantía, y sea él quien elija manualmente cuál está entregando.
-
-Esta pregunta se agrega al guion de la próxima reunión (ver `guion-reunion-dueno.md`).
+**Resuelto por el equipo (23/10/2026) — selección manual de lote:** se decidió que el Administrador elige manualmente de qué Compra (lote) sale cada unidad vendida, en vez de que el sistema aplique PEPS/FIFO automático. Al registrar un Ítem de Venta, la interfaz muestra las Compras disponibles de ese Producto (con su `cantidad_disponible` y `garantía_proveedor`) para que el Administrador elija el `compra_id` correspondiente. Si la cantidad a vender de un Producto debe repartirse entre más de un lote, esto **no es automático**: el Administrador agrega manualmente un Ítem de Venta por cada lote del que efectivamente sale stock, cada uno con su propio `compra_id` y su porción de `cantidad` — ver tarea correspondiente en `sprint-2-backlog.md`, punto 1. Esto reemplaza la nota de "reparto automático entre lotes" que tenía antes la sección 7.1 (Ítem de Venta).
 
 **Nota de diseño — por qué `producto_id` se mantiene en Ítem de Venta a pesar de existir `compra_id`:** dado que toda Compra ya referencia un `producto_id`, `producto_id` en Ítem de Venta es técnicamente derivable a través de `compra_id → Compra.producto_id`, y podría eliminarse sin perder información. Se decide mantenerlo de todas formas como una **denormalización deliberada**: permite consultar y filtrar ventas por producto sin necesidad de un `JOIN` contra Compra en cada consulta (por ejemplo, para HU-07, historial de compra/venta de un producto). La capa de lógica de negocio debe garantizar, al registrar cada Ítem de Venta, que `producto_id` coincida siempre con el `producto_id` de la Compra referenciada en `compra_id`, para que ambos campos nunca queden desincronizados.
 

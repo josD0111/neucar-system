@@ -1,6 +1,6 @@
 # Historias de Usuario
 
-*Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas) y con las decisiones del equipo del 12/10/2026 (HU-01.1 agregada; HU-08 reclasificada de post-MVP a MVP).*
+*Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas), con las decisiones del equipo del 12/10/2026 (HU-01.1 agregada; HU-08 reclasificada de post-MVP a MVP) y con el feedback del dueño al cierre del Sprint 1 (23/10/2026 — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y `desiciones-alcance.md`, sección 8): HU-17 corregida y HU-17.1 agregada (el Empleado ya no registra la venta, solo la calcula), y adenda a HU-05 (filtro en la impresión de existencias).
 
 Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
@@ -27,6 +27,12 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **HU-05**
 > Como Administrador, quiero imprimir el listado de existencias, para verificar físicamente el stock en el depósito.
+
+**Adenda 23/10/2026** *(feedback del dueño al cierre del Sprint 1 — no es una historia nueva, amplía HU-05)*
+> Al imprimir el listado, quiero poder filtrar qué productos se incluyen, ya sea por una categoría puntual o mostrando solo los que tienen stock bajo, para no tener que revisar/tachar productos que no necesito en esa impresión.
+
+**Criterio de aceptación agregado:**
+- El listado en pantalla ya admite filtrar por categoría (`categoriaId`) y por stock bajo (`soloStockBajo`) desde Sprint 1. La generación del PDF (`GET /api/productos/listado-pdf`) debe aceptar los mismos filtros y aplicarlos al contenido impreso, no solo al listado en pantalla.
 
 **HU-06**
 > Como Administrador, quiero registrar la garantía de un producto (por ejemplo, la fecha de garantía del proveedor para baterías), para poder calcular la garantía que ofrezco al cliente al momento de la venta.
@@ -71,7 +77,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado un ítem de venta (o una orden de servicio) a crédito con saldo pendiente mayor a cero, cuando registro un pago por un monto menor o igual al saldo, entonces el sistema resta ese monto del saldo pendiente de ese ítem/orden específico, sin afectar el saldo de otros ítems u órdenes del mismo cliente.
 - Dado un ítem de venta a crédito, cuando la suma de sus pagos registrados iguala su monto original, entonces el sistema lo considera saldado (saldo pendiente = 0) y deja de contarlo en el saldo total del cliente.
 - Dado que un cliente tiene dos productos a crédito de una misma venta, cuando paga por completo uno de ellos, entonces el otro producto conserva su saldo pendiente sin modificaciones, y sus futuros pagos se siguen registrando de forma independiente.
-- Dado un intento de registrar un pago por un monto mayor al saldo pendiente del ítem/orden, el sistema debe advertir o rechazar la operación (a definir en diseño si se permite dejar saldo a favor).
+- Dado un intento de registrar un pago por un monto mayor al saldo pendiente del ítem/orden, el sistema **no rechaza la operación ni genera saldo a favor** (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): el `monto` del Pago que se guarda queda limitado al saldo pendiente exacto, dejando el ítem/orden en `saldo_pendiente = 0`. Si el cliente entrega un monto mayor, la diferencia se calcula y muestra en pantalla como "vuelto" al momento de cobrar, pero no se persiste.
 
 **HU-11**
 > Como Administrador, quiero ver el saldo pendiente de un cliente y el detalle de qué productos o servicios específicos lo componen (con su saldo individual), para gestionar los cobros.
@@ -109,13 +115,22 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 ## 4. Ventas de productos
 
-**HU-17**
-> Como Empleado, quiero registrar una venta de producto al precio base, para atender a un cliente sin necesidad de intervención del dueño.
+**HU-17** *(corregida 23/10/2026 — ver `desiciones-alcance.md`, sección 8.4)*
+> Como Empleado, quiero calcular el precio total de una posible venta a precio base (sin descuentos), para informar al cliente mientras espero a que el Administrador la registre.
 
 **Criterios de aceptación:**
-- Dado que un usuario con rol Empleado registra una venta, cuando ingresa el/los producto(s), entonces el sistema usa siempre el precio base del producto, sin mostrar ni habilitar ningún campo para modificarlo.
-- Dado que un Empleado intenta modificar el precio de un producto en una venta (por ejemplo, mediante manipulación directa de un formulario o API), cuando el sistema procesa la operación, entonces debe rechazarla o forzar el precio base, ya que la restricción de permisos se valida también del lado del servidor y no solo en la interfaz.
-- Dado que un Empleado completa una venta al precio base, cuando la confirma, entonces el sistema descuenta el stock correspondiente (ver HU-20), sin requerir aprobación del Administrador.
+- Dado que un usuario con rol Empleado abre la sección de Ventas, cuando arma un carrito con uno o más productos y cantidades, entonces el sistema calcula y muestra el total a precio base, sin ningún campo para modificar el precio.
+- Dado un carrito armado por un Empleado, el sistema no ofrece ninguna acción para confirmar/registrar la venta: esa acción solo está disponible para el rol Administrador (ver HU-17.1).
+- Dado que un Empleado intenta registrar una venta de forma directa (por ejemplo, manipulando el formulario o llamando a la API), cuando el sistema procesa la petición, entonces la rechaza, ya que el endpoint de registro de venta exige rol Administrador — no alcanza con ocultar el botón de confirmar en la interfaz.
+- **Nota de corrección:** la versión original de esta historia (30/06/2026) asumía que el Empleado también registraba la venta completa al precio base, sin intervención del dueño. El dueño aclaró, al cierre del Sprint 1 (23/10/2026), que la sección de Ventas debe ser simple y que el Empleado la usa solo para calcular/informar — el registro final siempre lo hace el Administrador.
+
+**HU-17.1** *(nueva, 23/10/2026 — completa el flujo de HU-17)*
+> Como Administrador, quiero registrar la venta (armada por mí o calculada previamente por un Empleado), para confirmarla, descontar el stock correspondiente y generar el comprobante.
+
+**Criterios de aceptación:**
+- Dado un carrito de venta con uno o más productos (armado por un Empleado como calculadora, o directamente por el Administrador), cuando el Administrador lo confirma, entonces el sistema registra la Venta, descuenta el stock de los lotes correspondientes (ver HU-20) y queda disponible para emitir el comprobante (ver HU-21).
+- El endpoint de registro de venta exige rol Administrador (`requireRole('Administrador')`); un Empleado no puede invocarlo aunque conozca su URL/forma.
+- Esta historia no reemplaza a HU-18 (aplicar descuento): el Administrador puede registrar la venta al precio base tal cual la calculó el Empleado, o modificar el precio antes de confirmar.
 
 **HU-18**
 > Como Administrador, quiero aplicar un descuento sobre el precio de un producto al registrar una venta, para poder negociar con el cliente cuando lo considere conveniente.
@@ -133,7 +148,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **Criterios de aceptación:**
 - Dado un producto con stock disponible, cuando se confirma una venta que lo incluye, entonces el sistema descuenta automáticamente la cantidad vendida del stock, sin requerir una acción manual adicional del usuario.
-- Dado un producto sin stock suficiente para cubrir la cantidad solicitada, cuando se intenta registrar la venta, entonces el sistema debe advertir la falta de stock antes de confirmar la operación (a definir en diseño si bloquea la venta o solo advierte, dado que el dueño no mencionó una regla estricta al respecto).
+- Dado un producto sin stock suficiente para cubrir la cantidad solicitada, cuando se intenta registrar la venta, entonces el sistema **bloquea** la operación (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): no se permite confirmar una venta cuya cantidad supere el stock disponible.
 - Dado que un Empleado no tiene permiso para "descontar mercaderías" manualmente (según la entrevista), cuando registra una venta normal, entonces el descuento automático de stock por venta sí debe ocurrir igual, ya que la restricción del Empleado aplica a ajustes manuales de inventario, no al descuento derivado de una venta legítima.
 - Dado que se anula o cancela una venta ya confirmada, cuando se realiza la anulación, entonces el sistema debe reponer el stock descontado (a confirmar si la anulación de ventas es parte del MVP).
 
@@ -157,6 +172,9 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **HU-24**
 > Como Administrador, quiero informar el costo estimado de un servicio antes de realizarlo, para que el cliente lo conozca de antemano.
+
+**Criterio de aceptación agregado (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3):**
+- La cotización **no es un estado persistido de la Orden de Servicio** (no existe un estado "Cotizada" en el modelo). Es un cálculo en pantalla: el Administrador arma la lista de servicios con sus montos y ve el total estimado, de forma similar a la calculadora de Ventas del Empleado (HU-17), sin que se cree ningún registro en la base de datos hasta que el trabajo se confirma y se registra la Orden de Servicio real.
 
 **HU-25** *(descartada — ver nota)*
 > ~~Como Administrador, quiero registrar opcionalmente una garantía (en días) sobre el trabajo completo realizado en una visita, para poder verificarla si el cliente vuelve por un reclamo.~~
@@ -199,12 +217,13 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Las historias marcadas como *(futuro)* corresponden a funcionalidades post-MVP, según lo definido en `desiciones-alcance.md`.
 - HU-25 fue descartada (ver nota en la historia); no forma parte del MVP ni de ninguna etapa futura.
 - HU-08 se incorporó al MVP el 12/10/2026 (ver nota en la historia); ya no está marcada como futura.
-- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1) y la agregada el 12/10/2026 (HU-01.1).
+- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1), la agregada el 12/10/2026 (HU-01.1) y la agregada el 23/10/2026 (HU-17.1).
+- HU-17 fue corregida el 23/10/2026 (ver nota en la historia): el Empleado deja de registrar la venta y pasa a solo calcularla; el registro queda en la nueva HU-17.1. HU-05 recibió una adenda la misma fecha (filtro en la impresión de existencias).
 - Falta definir el orden de implementación (sprints/iteraciones) de las historias del MVP; se recomienda abordarlo en `docs/03-gestion-proyecto/`.
 
 ### Notas sobre criterios de aceptación
 
-Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-18, HU-20, HU-22.1 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo).
+Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-05 (adenda), HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-17.1, HU-18, HU-20, HU-22.1, HU-24 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo).
 
 *HU-10.1 se agregó a partir de la revisión del modelo de datos (ver `entidades-dominio.md`, sección 12), al detectar que faltaba una historia explícita para el registro de pagos/cuotas parciales sobre un ítem a crédito.*
 

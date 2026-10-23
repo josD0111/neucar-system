@@ -1,6 +1,6 @@
 # Decisiones de Alcance
 
-*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md`.*
+*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md` — y con el feedback recibido al cierre del Sprint 1 (23/10/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y sección 8.*
 
 Este documento define qué funcionalidades formarán parte del sistema en su primera versión (MVP), cuáles quedan planificadas para etapas futuras, y cuáles quedan explícitamente fuera de alcance. El objetivo es acotar el trabajo de desarrollo y evitar ambigüedades sobre qué se va a construir.
 
@@ -10,9 +10,11 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 | --- | --- | --- |
 | **Dueño** | Administrador del sistema | Acceso total: ventas, descuentos, gestión de stock, clientes, proveedores, reportes, configuración |
 | **Esposa del dueño** | Usa las mismas credenciales que el dueño | Mismo nivel de acceso que el dueño (no se maneja como rol separado en el MVP) |
-| **Empleado (Rey)** | Vendedor / operador básico | Solo funciones básicas: consultar precios y stock, registrar ventas a precio base. **No puede**: aplicar descuentos, descontar stock manualmente, ni acceder a reportes o configuración |
+| **Empleado (Rey)** | Vendedor / operador básico | Solo funciones básicas: consultar precios y stock, y usar la sección de Ventas como **calculadora** a precio base para informar al cliente. **No puede**: registrar/confirmar una venta (la registra el Administrador — corregido 23/10/2026, ver nota abajo), aplicar descuentos, descontar stock manualmente, ni acceder a reportes o configuración |
 
 **Decisión:** se implementan dos roles a nivel de sistema: `Administrador` y `Empleado`. La esposa no requiere un rol propio, ya que opera con las credenciales del dueño.
+
+**Corrección 23/10/2026** (feedback del dueño al cierre del Sprint 1 — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md`): se aclaró que la sección de Ventas debe ser fácil de usar y sin complicaciones, y que el Empleado accede a ella **únicamente para calcular precios** (arma el carrito, ve el total a precio base), pero **no registra la venta** — eso lo hace el Administrador después. Esto corrige la definición original (30/06/2026), que asumía que el Empleado también registraba la operación completa al precio base sin intervención del dueño. Ver `historias-usuario.md`, HU-17 (corregida) y HU-17.1 (nueva), y sección 8 más abajo.
 
 ## 2. Alcance funcional — MVP (primera versión)
 
@@ -44,7 +46,7 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 
 ### 2.4 Ventas de productos
 
-- Registro de venta con descuento de stock automático (solo rol Administrador puede aplicar descuentos de precio).
+- Registro de venta con descuento de stock automático. **Solo el rol Administrador registra/confirma la venta** *(corregido 23/10/2026 — ver sección 1 y sección 8)*; el Empleado puede armar el carrito y calcular el total a precio base para informar al cliente, pero no confirmar la operación. El Administrador es además el único rol que puede aplicar descuentos de precio.
 - Métodos de pago: efectivo, tarjeta, transferencia bancaria, QR.
 - Preparación para emisión de factura electrónica y factura común (impresión física).
 
@@ -119,5 +121,34 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 ### 7.2 Siguen abiertas / nuevas tras la entrevista del 10/09/2026
 
 - ¿Qué datos exactos requiere la factura electrónica en Paraguay para la integración futura (timbrado, punto de expedición, etc.)? El local ya cuenta con RUC, pero todavía no tiene firma digital — dato relevante para la sección 6, pendiente de confirmar el resto.
-- Trazabilidad de garantía por lote de compra (ver `entidades-dominio.md`, sección 14): cuando el dueño repone stock del mismo producto con una garantía de proveedor distinta, ¿puede distinguir físicamente las unidades de cada compra (ej. fecha de fabricación visible), o quedan mezcladas en el depósito? Define si el sistema puede aplicar FIFO automático al descontar stock o si el dueño debe elegir el lote manualmente en cada venta. No se tocó en esta entrevista.
 - **[Nueva]** Alcance exacto del campo `detalle`/"partes afectadas" en Servicio (ver `entidades-dominio.md`, sección 9.1): el dueño mencionó el caso de alineación/balanceo (cantidad de ruedas), pero no se definió si aplica a otros tipos de servicio ni con qué estructura (texto libre vs. campo numérico).
+- Anulación de venta (ver `sprint-2-backlog.md`, punto 1): sigue sin cerrarse si entra en el alcance de este sprint o se pospone. A diferencia de las cuatro preguntas resueltas en 7.3, esta todavía requiere que el equipo la defina antes de implementar ese ítem puntual.
+
+### 7.3 Resueltas por el equipo, sin pasar por el dueño (23/10/2026)
+
+*Estas cuatro preguntas quedaban abiertas en `sprint-2-backlog.md` como decisiones de diseño técnico (no reglas de negocio del taller en sí), y el equipo las cerró directamente para poder avanzar con la implementación del Sprint 2:*
+
+- **Selección del lote al vender (ver `entidades-dominio.md`, sección 14):** se descarta PEPS/FIFO automático. El Administrador elige manualmente de qué Compra (lote) sale cada Ítem de Venta, viendo en pantalla las Compras disponibles del producto con su `cantidad_disponible` y `garantía_proveedor`. Si una venta debe repartirse entre varios lotes, el Administrador agrega manualmente un Ítem de Venta por lote.
+- **Stock insuficiente al vender (HU-20):** el sistema **bloquea** la venta si la cantidad solicitada supera el stock disponible (sumando lo disponible en los lotes elegibles); no se permite continuar con una advertencia solamente.
+- **Pago que supera el saldo pendiente (HU-10.1):** no se rechaza, pero tampoco se genera saldo a favor del cliente. El monto de Pago que se guarda en el sistema queda limitado al saldo pendiente exacto (el ítem/orden queda en `saldo_pendiente = 0`); si el cliente entrega más efectivo que eso, la diferencia es un "vuelto" que se calcula y muestra en pantalla al momento de cobrar, pero no se persiste como un pago ni como saldo a favor para compras futuras.
+- **Cotización previa de un servicio (HU-24):** no se modela como un estado de la Orden de Servicio. Es un cálculo en pantalla (sumar servicios y montos, mostrar el total estimado) similar a la "calculadora" de Ventas del Empleado (HU-17) — no se crea ningún registro en la base de datos hasta que el trabajo se confirma y se registra la Orden de Servicio real.
+
+## 8. Feedback del dueño — cierre de Sprint 1 (23/10/2026)
+
+*Resumen trasladado de `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md`, con el detalle de en qué documento quedó reflejado cada punto.*
+
+### 8.1 Interfaz
+
+- El dueño pidió letra más grande y más clara en toda la aplicación. Queda registrado como tarea de usabilidad en `docs/03-gestion-proyecto/sprint-2-backlog.md`, sección "Feedback de usabilidad" — aplica tanto a las pantallas nuevas de Sprint 2 como, si el ajuste se hace a nivel de tokens de diseño, a las ya construidas en Sprint 1.
+
+### 8.2 Flujo de carga en formularios
+
+- En los formularios de alta de Producto y de Compra (Sprint 1), el dueño pidió que el cursor arranque ya posicionado en el primer campo, y que la tecla Enter mueva el foco al siguiente campo en vez de intentar enviar el formulario. Se toma como criterio general a aplicar también en los formularios nuevos de Sprint 2 (Venta, Orden de Servicio, Vehículo, Pago) — ver tarea en `sprint-2-backlog.md`.
+
+### 8.3 Impresión de existencias (amplía HU-05)
+
+- El dueño pidió poder filtrar qué productos se incluyen en la impresión del listado de existencias (HU-05, ya implementada en Sprint 1), ya sea por categoría puntual o mostrando solo los de stock bajo. No es una historia nueva, sino una adenda a HU-05 — ver `historias-usuario.md` y la tarea correspondiente en `sprint-2-backlog.md`.
+
+### 8.4 Rol Empleado en Ventas — corrección (ver también sección 1)
+
+- El dueño aclaró que la sección de Ventas debe ser simple, y que el Empleado accede a ella solo para calcular precios y así poder informar al cliente — **no para registrar la venta**, operación que queda exclusivamente a cargo del Administrador. Esto corrige el supuesto original (30/06/2026) de que el Empleado también registraba la venta completa al precio base. Impacta: la tabla de roles (sección 1), el alcance de Ventas (sección 2.4), HU-17 (corregida) y HU-17.1 (nueva) en `historias-usuario.md`, y el punto 1 (Ventas) de `sprint-2-backlog.md`.
