@@ -27,7 +27,7 @@ export function LoginScreen(): React.JSX.Element {
   return (
     <div
       style={{
-        height: '100vh',
+        height: 'calc(100vh / var(--zoom-ui))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center'

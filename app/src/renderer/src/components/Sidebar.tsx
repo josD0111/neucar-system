@@ -35,7 +35,7 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps) {
         position: 'fixed',
         top: 0,
         left: 0,
-        height: '100vh',
+        height: 'calc(100vh / var(--zoom-ui))',
         width: 'var(--sidebar-width)',
         background: 'var(--color-surface)',
         borderRight: '1px solid var(--color-border)',
