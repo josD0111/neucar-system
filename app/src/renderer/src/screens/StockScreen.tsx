@@ -37,7 +37,7 @@ import { productosApi } from '../api/productos'
 import { comprasApi } from '../api/compras'
 import { urlPdfListadoStock, ApiClientError } from '../api/client'
 import type { Compra, Proveedor, Producto } from '../api/types'
-
+import { useNavegacionConEnter } from './useNavegacionConEnter'
 function Panel({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <div
@@ -329,6 +329,17 @@ function SelectorBuscable<T extends ItemConNombre>({
             autoFocus
             value={nombreNuevo}
             onChange={(e) => setNombreNuevo(e.target.value)}
+            // Enter agrega el nombre nuevo (y se frena acá con preventDefault
+            // para que useNavegacionConEnter no lo tome como "ir al campo
+            // siguiente"); Escape cancela el alta rápida.
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (!guardando) void crear()
+              } else if (e.key === 'Escape') {
+                setAlta(false)
+              }
+            }}
             placeholder={placeholderNuevo}
             style={estiloInput}
           />
@@ -517,10 +528,17 @@ function FormularioCompra({
     }
   }
 
+    // Foco inicial en el primer campo y Enter para avanzar al siguiente; en
+  // el último campo, Enter guarda (ver useNavegacionConEnter.ts).
+  const nav = useNavegacionConEnter(() => {
+    if (!guardando) void guardar()
+  })
+
   return (
     <tr style={{ background: 'var(--color-bg)' }}>
       <td colSpan={6} style={{ padding: 'var(--space-3)' }}>
         <div
+          {...nav}
           style={{
             display: 'flex',
             gap: 'var(--space-2)',
@@ -643,10 +661,17 @@ function FormularioEdicion({
     }
   }
 
+    // Foco inicial en el primer campo y Enter para avanzar al siguiente; en
+  // el último campo, Enter guarda (ver useNavegacionConEnter.ts).
+  const nav = useNavegacionConEnter(() => {
+    if (!guardando) void guardar()
+  })
+
   return (
     <tr style={{ background: 'var(--color-bg)' }}>
       <td colSpan={6} style={{ padding: 'var(--space-3)' }}>
         <div
+          {...nav}
           style={{
             display: 'flex',
             gap: 'var(--space-2)',
@@ -786,8 +811,16 @@ function FormularioProductoNuevo({
     }
   }
 
+    // Foco inicial en "Nombre del producto" y Enter para avanzar al campo
+  // siguiente; en el último campo, Enter guarda. El contenedor `nav` envuelve
+  // todo el contenido del Panel (ver useNavegacionConEnter.ts).
+  const nav = useNavegacionConEnter(() => {
+    if (!guardando) void guardar()
+  })
+
   return (
     <Panel title="Nuevo producto (con su primer lote de compra)">
+      <div {...nav}>
       <div
         style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'flex-end', flexWrap: 'wrap' }}
       >
@@ -942,7 +975,8 @@ function FormularioProductoNuevo({
         </button>
       </div>
       <MensajeError mensaje={error} />
-    </Panel>
+    </div>
+    </Panel >
   )
 }
 
@@ -999,10 +1033,17 @@ function FormularioEdicionLote({
     }
   }
 
+  // Foco inicial en el primer campo y Enter para avanzar al siguiente; en
+  // el último campo, Enter guarda (ver useNavegacionConEnter.ts).
+  const nav = useNavegacionConEnter(() => {
+    if (!guardando) void guardar()
+  })
+
   return (
     <tr style={{ background: 'var(--color-bg)' }}>
       <td colSpan={7} style={{ padding: 'var(--space-3)' }}>
         <div
+          {...nav}
           style={{
             display: 'flex',
             gap: 'var(--space-2)',
@@ -1444,12 +1485,18 @@ export function StockScreen() {
             abajo para que la barra de filtros no quede mezclada con ellas. */}
         <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
           <a
-            href={urlPdfListadoStock()}
+            href={urlPdfListadoStock({
+              categoriaId: categoriaId || undefined,
+              q,
+              soloConStock,
+              soloStockBajo: verStockBajo
+            })}
             target="_blank"
             rel="noreferrer"
             style={{ ...estiloBotonSecundario, textDecoration: 'none' }}
           >
-            Descargar listado (PDF)
+            {/* El texto avisa que el PDF respeta los filtros activos. */}
+            {hayFiltrosActivos ? 'Descargar listado filtrado (PDF)' : 'Descargar listado (PDF)'}
           </a>
           {/* El botón mantiene siempre el mismo texto y sigue funcionando
               como toggle (un segundo clic cierra el formulario): el cierre
