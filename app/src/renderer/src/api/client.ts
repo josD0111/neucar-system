@@ -98,8 +98,32 @@ export const api = {
   delete: <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' })
 }
 
-export function urlPdfListadoStock(): string {
-  return `${API_BASE}/productos/listado-pdf`
+// Filtros que acepta el PDF del listado de stock: son los mismos que tiene
+// la pantalla de Stock (ver routes/productos.ts, GET /listado-pdf).
+export interface FiltrosPdfStock {
+  categoriaId?: number
+  q?: string
+  soloConStock?: boolean
+  soloStockBajo?: boolean
+}
+
+// Arma la URL del PDF del listado de existencias con los filtros activos
+// (Sprint 2, punto 6, adenda a HU-05). Solo se envían los filtros que
+// tienen valor, para no ensuciar la URL con parámetros vacíos; sin filtros
+// la URL queda igual que antes y el PDF trae el stock completo.
+export function urlPdfListadoStock(filtros: FiltrosPdfStock = {}): string {
+  const params = new URLSearchParams()
+  // El backend exige un entero positivo: un 0 o un valor vacío no se envía.
+  if (filtros.categoriaId && filtros.categoriaId > 0) {
+    params.set('categoriaId', String(filtros.categoriaId))
+  }
+  if (filtros.q?.trim()) params.set('q', filtros.q.trim())
+  // Los booleanos se envían como el texto 'true' (el backend solo acepta
+  // 'true' o 'false'); si están apagados simplemente no se mandan.
+  if (filtros.soloConStock) params.set('soloConStock', 'true')
+  if (filtros.soloStockBajo) params.set('soloStockBajo', 'true')
+  const qs = params.toString()
+  return `${API_BASE}/productos/listado-pdf${qs ? `?${qs}` : ''}`
 }
 
 // --- Cliente con sesión (auth, clientes) ---

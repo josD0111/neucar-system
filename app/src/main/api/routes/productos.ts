@@ -5,38 +5,109 @@
 // registro de su primera Compra (ver routes/compras.ts). Acá solo se edita
 // un producto ya existente.
 
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import { and, asc, eq, ilike, sql, type SQL } from 'drizzle-orm'
 import PDFDocument from 'pdfkit'
 import * as schema from '../../db/schema'
 import type { Db } from '../server'
 import { sendOk, sendBadRequest, sendNotFound } from '../response'
 
+// --- Filtros compartidos entre el listado paginado y el PDF ----------------
+//
+// Agregado el 25/10/2026 (Sprint 2, punto 6, adenda a HU-05): el PDF del
+// listado de existencias ahora respeta los mismos filtros que la pantalla
+// de Stock. Para que ambos listados nunca difieran en qué muestran, la
+// lectura/validación de los parámetros y la construcción de la condición
+// SQL viven acá, una sola vez, y las usan tanto GET / como GET /listado-pdf.
+
+// Filtros ya validados y tipados.
+interface FiltrosListado {
+  categoriaId?: number
+  q?: string
+  soloConStock: boolean
+  soloStockBajo: boolean
+}
+
+type ResultadoFiltros = { ok: true; filtros: FiltrosListado } | { ok: false; error: string }
+
+// Lee un parámetro booleano de la query string. Ausente = false; solo se
+// aceptan los textos 'true' y 'false'. Cualquier otro valor devuelve null
+// (inválido) en vez de interpretarse como true/false por casualidad.
+function leerBooleano(valor: unknown): boolean | null {
+  if (valor === undefined) return false
+  if (valor === 'true') return true
+  if (valor === 'false') return false
+  return null
+}
+
+// Valida y convierte los parámetros de filtro de la query string.
+function leerFiltros(query: Request['query']): ResultadoFiltros {
+  const { categoriaId, q, soloConStock, soloStockBajo } = query
+
+  // categoriaId: opcional; si viene, debe ser un entero positivo.
+  let categoria: number | undefined
+  if (categoriaId !== undefined && categoriaId !== '') {
+    const n = typeof categoriaId === 'string' ? Number(categoriaId) : NaN
+    if (!Number.isInteger(n) || n <= 0) {
+      return { ok: false, error: 'categoriaId debe ser un número entero positivo.' }
+    }
+    categoria = n
+  }
+
+  // q: opcional; debe ser texto (no un array ni un objeto).
+  if (q !== undefined && typeof q !== 'string') {
+    return { ok: false, error: 'q debe ser un texto.' }
+  }
+
+  const conStock = leerBooleano(soloConStock)
+  if (conStock === null) {
+    return { ok: false, error: "soloConStock debe ser 'true' o 'false'." }
+  }
+  const stockBajo = leerBooleano(soloStockBajo)
+  if (stockBajo === null) {
+    return { ok: false, error: "soloStockBajo debe ser 'true' o 'false'." }
+  }
+
+  return {
+    ok: true,
+    filtros: {
+      categoriaId: categoria,
+      q: q?.trim() || undefined,
+      soloConStock: conStock,
+      soloStockBajo: stockBajo
+    }
+  }
+}
+
+// Arma la condición SQL (WHERE) a partir de los filtros ya validados.
+// Devuelve undefined si no hay ninguno (= sin WHERE).
+function condicionDeFiltros(f: FiltrosListado): SQL | undefined {
+  const condiciones: SQL[] = []
+  if (f.categoriaId !== undefined) condiciones.push(eq(schema.productos.categoriaId, f.categoriaId))
+  if (f.q) condiciones.push(ilike(schema.productos.nombre, `%${f.q}%`))
+  if (f.soloConStock) condiciones.push(sql`${schema.productos.stock} > 0`)
+  // "Stock bajo" como filtro combinable con los demás (corrección
+  // 20/10/2026): misma condición que usa GET /stock-bajo más abajo.
+  if (f.soloStockBajo)
+    condiciones.push(
+      sql`${schema.productos.stockMinimo} IS NOT NULL AND ${schema.productos.stock} <= ${schema.productos.stockMinimo}`
+    )
+  return condiciones.length ? and(...condiciones) : undefined
+}
+
 export function productosRouter(db: Db): Router {
   const router = Router()
 
   router.get('/', async (req, res) => {
-    const { categoriaId, q, soloConStock, soloStockBajo, pagina, porPagina } = req.query
-    // Anotación explícita: sin ella, un array vacío se infiere como
-    // `never[]` y cada `.push(...)` de abajo queda marcado como error de
-    // tipos (bug preexistente, detectado al correr `npm run typecheck`
-    // junto con el cambio de paginación del 20/10/2026).
-    const condiciones: SQL[] = []
-    if (categoriaId) condiciones.push(eq(schema.productos.categoriaId, Number(categoriaId)))
-    if (typeof q === 'string' && q.trim())
-      condiciones.push(ilike(schema.productos.nombre, `%${q.trim()}%`))
-    if (soloConStock === 'true') condiciones.push(sql`${schema.productos.stock} > 0`)
-    // "Stock bajo" como filtro combinable con los demás (corrección
-    // 20/10/2026): antes vivía únicamente en GET /stock-bajo, un endpoint
-    // aparte sin los otros filtros, así que activar "Solo stock bajo" en la
-    // pantalla ignoraba la categoría/búsqueda/solo-existencias ya elegidos.
-    // Misma condición que usaba ese endpoint (ver más abajo, que se
-    // mantiene sin cambios por si algo más lo necesita standalone).
-    if (soloStockBajo === 'true')
-      condiciones.push(
-        sql`${schema.productos.stockMinimo} IS NOT NULL AND ${schema.productos.stock} <= ${schema.productos.stockMinimo}`
-      )
-    const condicion = condiciones.length ? and(...condiciones) : undefined
+    // Los filtros se validan y arman igual que en /listado-pdf (ver helpers
+    // arriba), para que ambos listados nunca difieran en qué muestran.
+    const { pagina, porPagina } = req.query
+    const leidos = leerFiltros(req.query)
+    if (!leidos.ok) {
+      sendBadRequest(res, leidos.error)
+      return
+    }
+    const condicion = condicionDeFiltros(leidos.filtros)
 
     // Paginación procesada en el backend (pedido explícito, 20/10/2026): el
     // listado de productos puede crecer bastante con el tiempo, y traer todo
@@ -90,13 +161,39 @@ export function productosRouter(db: Db): Router {
   // columnas alineadas, y stock bajo resaltado igual que en StockScreen
   // (mismo color de alerta), para que se note de un vistazo sin tener que
   // leer cada línea.
-  router.get('/listado-pdf', async (_req, res) => {
+  //
+  // Filtros (25/10/2026, Sprint 2 punto 6): acepta los mismos parámetros que
+  // GET / (categoriaId, q, soloConStock, soloStockBajo) y los aplica al
+  // contenido del PDF. Sin parámetros, imprime el stock completo como antes.
+  router.get('/listado-pdf', async (req, res) => {
+    // Validar ANTES de armar el PDF: si hay un parámetro inválido hay que
+    // poder responder un 400 normal (JSON), y eso ya no es posible una vez
+    // que se empezó a escribir el PDF en la respuesta.
+    const leidos = leerFiltros(req.query)
+    if (!leidos.ok) {
+      sendBadRequest(res, leidos.error)
+      return
+    }
+    const filtros = leidos.filtros
+
     const productos = await db
       .select()
       .from(schema.productos)
+      .where(condicionDeFiltros(filtros))
       .orderBy(asc(sql`lower(${schema.productos.nombre})`))
     const categorias = await db.select().from(schema.categorias)
     const nombreCategoria = new Map(categorias.map((c) => [c.id, c.nombre]))
+
+    // Texto de los filtros aplicados, para que quien lea la hoja impresa
+    // sepa que es un listado parcial y no el stock completo.
+    const filtrosAplicados: string[] = []
+    if (filtros.categoriaId !== undefined)
+      filtrosAplicados.push(
+        `Categoría: ${nombreCategoria.get(filtros.categoriaId) ?? `#${filtros.categoriaId}`}`
+      )
+    if (filtros.q) filtrosAplicados.push(`Nombre contiene "${filtros.q}"`)
+    if (filtros.soloConStock) filtrosAplicados.push('Solo con existencias')
+    if (filtros.soloStockBajo) filtrosAplicados.push('Solo stock bajo')
 
     // Agrupar por nombre de categoría. Los productos ya vienen ordenados
     // alfabéticamente por nombre (ver ORDER BY arriba), así que alcanza con
@@ -201,10 +298,22 @@ export function productosRouter(db: Db): Router {
       .fontSize(9)
       .fillColor(COLOR_TEXTO_MUTED)
       .text(`Neucar — generado el ${new Date().toLocaleString('es-PY')}`)
+    // Línea de filtros (solo si hay alguno aplicado).
+    if (filtrosAplicados.length > 0) {
+      doc.text(`Filtros: ${filtrosAplicados.join(' · ')}`)
+    }
     doc.moveDown(1)
 
     if (productos.length === 0) {
-      doc.font('Helvetica').fontSize(11).fillColor(COLOR_TEXTO).text('No hay productos cargados.')
+      doc
+        .font('Helvetica')
+        .fontSize(11)
+        .fillColor(COLOR_TEXTO)
+        .text(
+          filtrosAplicados.length > 0
+            ? 'No hay productos que coincidan con los filtros aplicados.'
+            : 'No hay productos cargados.'
+        )
     } else {
       for (const nombreCat of categoriasOrdenadas) {
         const items = porCategoria.get(nombreCat)!
