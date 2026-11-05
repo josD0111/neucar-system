@@ -30,12 +30,12 @@ function AppAutenticada(): React.JSX.Element {
 
   return (
     <AppDataProvider>
-      <div style={{ height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ height: 'calc(100vh / var(--zoom-ui))', overflow: 'hidden', position: 'relative' }}>
         <Sidebar pantallaActiva={pantalla} onCambiarPantalla={setPantalla} />
         <main
           style={{
             marginLeft: 'var(--sidebar-width)',
-            height: '100vh',
+            height: 'calc(100vh / var(--zoom-ui))',
             overflowY: 'auto',
             overflowX: 'auto',
             padding: 'var(--space-5)',
