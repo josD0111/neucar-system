@@ -7,7 +7,14 @@
 
 import { useAuth } from '../data/AuthContext'
 
-export type Pantalla = 'stock' | 'categorias' | 'proveedores' | 'venta' | 'servicio' | 'cliente'
+export type Pantalla =
+  | 'stock'
+  | 'categorias'
+  | 'proveedores'
+  | 'venta'
+  | 'ventas'
+  | 'servicio'
+  | 'cliente'
 export type Rol = 'Administrador' | 'Empleado'
 
 interface SidebarProps {
@@ -20,6 +27,7 @@ const items: { id: Pantalla; label: string }[] = [
   { id: 'categorias', label: 'Categorías' },
   { id: 'proveedores', label: 'Proveedores' },
   { id: 'venta', label: 'Nueva venta' },
+  { id: 'ventas', label: 'Historial de ventas' },
   { id: 'servicio', label: 'Orden de servicio' },
   { id: 'cliente', label: 'Ficha de cliente' }
 ]

@@ -166,7 +166,7 @@ Registra cada abono/cuota que un cliente realiza para saldar una deuda, ya sea d
 **Relaciones:**
 - Un Pago **pertenece** a (excluyentemente) un Ítem de Venta **o** una Orden de Servicio, nunca ambos ni ninguno.
 
-*Regla de negocio: un Pago solo debe existir si el ítem/orden al que referencia tiene `tipo_pago = Crédito`. Una compra al contado se considera "pagada" en el momento de la venta sin necesidad de un registro en Pago (o, alternativamente, se puede generar automáticamente un Pago por el monto total al momento de la venta contado, para mantener un único mecanismo — a definir en diseño técnico).*
+**Resuelto por el equipo (25/10/2026) — Pago automático en ítems al contado:** se optó por la segunda alternativa que dejaba abierta la nota original: un Ítem de Venta al contado genera automáticamente, dentro de la misma transacción de `registrarVenta`, un Pago por su monto total completo (ver `services/ventas.ts`). Motivo: con un único mecanismo, `saldo_pendiente` (= monto − suma de Pagos) se calcula exactamente igual para Contado y Crédito, sin que `services/pagos.ts` ni ninguna pantalla posterior (Fase 6, saldo de cliente) tenga que distinguir el `tipo_pago` del ítem como caso especial. La contrapartida (un Pago "de sistema" por cada venta al contado, no uno que el cliente entregó en mano en ese momento como abono) se consideró aceptable frente a la simplicidad de tener una sola fórmula de saldo.
 
 ## 8. Vehículo
 

@@ -122,7 +122,6 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 
 - ¿Qué datos exactos requiere la factura electrónica en Paraguay para la integración futura (timbrado, punto de expedición, etc.)? El local ya cuenta con RUC, pero todavía no tiene firma digital — dato relevante para la sección 6, pendiente de confirmar el resto.
 - **[Nueva]** Alcance exacto del campo `detalle`/"partes afectadas" en Servicio (ver `entidades-dominio.md`, sección 9.1): el dueño mencionó el caso de alineación/balanceo (cantidad de ruedas), pero no se definió si aplica a otros tipos de servicio ni con qué estructura (texto libre vs. campo numérico).
-- Anulación de venta (ver `sprint-2-backlog.md`, punto 1): sigue sin cerrarse si entra en el alcance de este sprint o se pospone. A diferencia de las cuatro preguntas resueltas en 7.3, esta todavía requiere que el equipo la defina antes de implementar ese ítem puntual.
 
 ### 7.3 Resueltas por el equipo, sin pasar por el dueño (23/10/2026)
 
@@ -132,6 +131,15 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 - **Stock insuficiente al vender (HU-20):** el sistema **bloquea** la venta si la cantidad solicitada supera el stock disponible (sumando lo disponible en los lotes elegibles); no se permite continuar con una advertencia solamente.
 - **Pago que supera el saldo pendiente (HU-10.1):** no se rechaza, pero tampoco se genera saldo a favor del cliente. El monto de Pago que se guarda en el sistema queda limitado al saldo pendiente exacto (el ítem/orden queda en `saldo_pendiente = 0`); si el cliente entrega más efectivo que eso, la diferencia es un "vuelto" que se calcula y muestra en pantalla al momento de cobrar, pero no se persiste como un pago ni como saldo a favor para compras futuras.
 - **Cotización previa de un servicio (HU-24):** no se modela como un estado de la Orden de Servicio. Es un cálculo en pantalla (sumar servicios y montos, mostrar el total estimado) similar a la "calculadora" de Ventas del Empleado (HU-17) — no se crea ningún registro en la base de datos hasta que el trabajo se confirma y se registra la Orden de Servicio real.
+
+### 7.4 Resueltas por el equipo (24/10/2026)
+
+- **Anulación de venta:** queda **fuera del alcance de este MVP** (decisión del equipo). El endpoint de registro de venta (`POST /api/ventas`) no tiene contraparte de anulación; si se carga una venta por error, no hay forma de revertirla desde el sistema por ahora. Si surge la necesidad más adelante, es una funcionalidad a programar aparte, no una corrección menor sobre lo ya construido.
+- **Comprobante de venta (HU-21):** se implementa **después** de tener registradas las bases del módulo de Ventas (servicio + endpoint + pantalla reconstruida), no en paralelo. Mismo criterio que el listado de stock (`pdfkit`) una vez que se llegue a esa tarea.
+
+### 7.5 Resueltas por el equipo (25/10/2026)
+
+- **Pago automático en ítems al contado (cierra la nota pendiente de `entidades-dominio.md`, sección 7.2):** un Ítem de Venta al contado genera automáticamente, en la misma transacción de registro de la venta, un Pago por su monto total. Así `saldo_pendiente` se calcula con la misma fórmula (`monto − suma(pagos)`) para Contado y Crédito, sin casos especiales en `services/pagos.ts` ni en el cálculo de saldo de cliente (Fase 6).
 
 ## 8. Feedback del dueño — cierre de Sprint 1 (23/10/2026)
 
