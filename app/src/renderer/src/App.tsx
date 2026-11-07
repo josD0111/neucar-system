@@ -19,12 +19,13 @@ import { StockScreen } from './screens/StockScreen'
 import { CategoriaScreen } from './screens/CategoriaScreen'
 import { ProveedorScreen } from './screens/ProveedorScreen'
 import { VentaScreen } from './screens/VentaScreen'
+import { VentasScreen } from './screens/VentasScreen'
 import { OrdenServicioScreen } from './screens/OrdenServicioScreen'
 import { ClienteScreen } from './screens/ClienteScreen'
 
 // Parte de la app que solo se ve con sesión iniciada. Al cerrar sesión este
 // componente se desmonta, así que la pantalla activa vuelve a "stock" sola.
-function AppAutenticada({ rol }: { rol: 'Administrador' | 'Empleado' }): React.JSX.Element {
+function AppAutenticada(): React.JSX.Element {
   const [pantalla, setPantalla] = useState<Pantalla>('stock')
 
   return (
@@ -44,7 +45,8 @@ function AppAutenticada({ rol }: { rol: 'Administrador' | 'Empleado' }): React.J
           {pantalla === 'stock' && <StockScreen />}
           {pantalla === 'categorias' && <CategoriaScreen />}
           {pantalla === 'proveedores' && <ProveedorScreen />}
-          {pantalla === 'venta' && <VentaScreen rol={rol} />}
+          {pantalla === 'venta' && <VentaScreen />}
+          {pantalla === 'ventas' && <VentasScreen />}
           {pantalla === 'servicio' && <OrdenServicioScreen />}
           {pantalla === 'cliente' && <ClienteScreen />}
         </main>
@@ -63,8 +65,10 @@ function Contenido(): React.JSX.Element {
   }
   // Sin usuario autenticado: pantalla de login.
   if (!usuario) return <LoginScreen />
-  // Con usuario: el sistema, usando el rol real.
-  return <AppAutenticada rol={usuario.rol} />
+  // Con usuario: el sistema. Cada pantalla que necesita el rol lo lee de
+  // useAuth() directamente (ver VentaScreen.tsx, ClienteScreen.tsx), así que
+  // ya no hace falta pasarlo como prop acá.
+  return <AppAutenticada />
 }
 
 function App(): React.JSX.Element {
