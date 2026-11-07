@@ -28,7 +28,8 @@ import { proveedoresRouter } from "./routes/proveedores";
 import { comprasRouter } from "./routes/compras";
 import { authRouter } from "./routes/auth";
 import { clientesRouter } from "./routes/clientes";
-
+import { vehiculosRouter } from "./routes/vehiculos";
+import { ordenesServicioRouter } from "./routes/ordenesServicio";
 // Puerto y dirección en los que escucha el servidor local.
 export const API_PORT = 4000;
 export const API_HOST = "127.0.0.1";
@@ -78,7 +79,9 @@ export function createServer(db: Db): Express {
   app.use("/api/auth", authRouter(db));
   // Rutas de clientes (HU-09), protegidas por sesión.
   app.use("/api/clientes", clientesRouter(db));
-
+  // Rutas de vehículos (soporte de órdenes de servicio), protegidas por sesión.
+  app.use("/api/vehiculos", vehiculosRouter(db));
+  app.use("/api/ordenes-servicio", ordenesServicioRouter(db));
   // Manejador de errores: cualquier handler que llame a next(err), o que
   // lance una excepción dentro de una ruta async envuelta correctamente,
   // termina acá en vez de hacer caer el proceso de Electron.
