@@ -175,3 +175,64 @@ export async function apiFetch<T>(
     }
   }
 }
+
+// Descarga un PDF que exige sesión (ej.: comprobante de saldo de cliente,
+// HU-12). A diferencia de urlPdfListadoStock (productos, sin sesión), acá no
+// alcanza con un <a href>: el navegador no manda el header Authorization en
+// una navegación simple, así que el servidor respondería 401. Se pide con
+// fetch() + token y el PDF resultante se manda al proceso principal por IPC
+// para que lo abra con el lector de PDF del sistema.
+//
+// Nota (bug encontrado 06/11/2026): la primera versión de esta función
+// abría el PDF con `window.open(URL.createObjectURL(blob))`, pero en
+// Electron una URL blob: vive solo en el proceso (webContents) que la creó.
+// window.open() abre otra ventana que no puede resolver esa URL, y el
+// setWindowOpenHandler de main/index.ts la termina pasando a
+// shell.openExternal(), que tampoco entiende el esquema blob: — de ahí el
+// error "No se ha podido abrir el URI" que se veía al apretar el botón. Se
+// reemplazó por window.api.abrirPdf() (ver preload/index.ts), que manda el
+// PDF como base64 al proceso principal, lo escribe a un archivo temporal
+// real y lo abre con shell.openPath (ver main/index.ts, ipcMain.handle
+// 'pdf:abrir').
+//
+// `nombreSugerido` es el nombre con el que se guarda el archivo temporal
+// (ej. "saldo-cliente-5.pdf"); lo arma el llamador porque ya conoce el
+// contexto (ver api/creditos.ts) — así se evita depender del header
+// Content-Disposition, que el fetch del renderer no puede leer salvo que el
+// servidor lo exponga explícitamente por CORS (Access-Control-Expose-Headers).
+export async function abrirPdfAutenticado(
+  path: string,
+  token: string | null,
+  nombreSugerido = 'comprobante.pdf'
+): Promise<{ ok: true } | { ok: false; mensaje: string }> {
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.includes('application/pdf')) {
+      // No vino el PDF: el cuerpo es el error de la API ({ ok:false, error }).
+      const body = (await res.json().catch(() => null)) as ApiFail | null
+      return { ok: false, mensaje: body?.error.message ?? `Error del servidor (${res.status}).` }
+    }
+    const buffer = await res.arrayBuffer()
+    await window.api.abrirPdf(arrayBufferABase64(buffer), nombreSugerido)
+    return { ok: true }
+  } catch {
+    return { ok: false, mensaje: 'No se pudo generar o abrir el PDF.' }
+  }
+}
+
+// Convierte un ArrayBuffer a base64 sin depender de Buffer (no disponible
+// en el renderer). Se arma en bloques de a 32 KB: pasar un array muy grande
+// de una sola vez a String.fromCharCode(...bytes) puede superar el límite
+// de argumentos del motor de JS en PDFs grandes.
+function arrayBufferABase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binario = ''
+  const tamanoBloque = 0x8000
+  for (let i = 0; i < bytes.length; i += tamanoBloque) {
+    binario += String.fromCharCode(...bytes.subarray(i, i + tamanoBloque))
+  }
+  return btoa(binario)
+}

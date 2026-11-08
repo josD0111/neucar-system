@@ -5,7 +5,7 @@
 // sprint-2-backlog.md, punto 5), así que usa `apiFetch` con token — mismo
 // cliente que `clientes`/`auth` (ver api/client.ts).
 
-import { apiFetch } from './client'
+import { abrirPdfAutenticado, apiFetch } from './client'
 import type { FiltrosVentas, PaginaVentas, VentaConItems, VentaDetalle, VentaInput } from './types'
 
 export const ventasApi = {
@@ -31,5 +31,10 @@ export const ventasApi = {
   // aunque este wrapper no distingue roles — la restricción real vive en el
   // middleware/servicio (ver routes/ventas.ts, services/ventas.ts).
   registrar: (token: string | null, input: VentaInput) =>
-    apiFetch<VentaConItems>('/api/ventas', { method: 'POST', body: input, token })
+    apiFetch<VentaConItems>('/api/ventas', { method: 'POST', body: input, token }),
+  // Abre el comprobante de venta en PDF con el lector del sistema (HU-21),
+  // mismo mecanismo que creditosApi.abrirComprobanteSaldo (ver
+  // api/client.ts, abrirPdfAutenticado, y api/creditos.ts).
+  abrirComprobante: (token: string | null, id: number) =>
+    abrirPdfAutenticado(`/api/ventas/${id}/comprobante-pdf`, token, `venta-${id}.pdf`)
 }

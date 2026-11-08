@@ -8,13 +8,7 @@
 import { useAuth } from '../data/AuthContext'
 
 export type Pantalla =
-  | 'stock'
-  | 'categorias'
-  | 'proveedores'
-  | 'venta'
-  | 'ventas'
-  | 'servicio'
-  | 'cliente'
+  'stock' | 'categorias' | 'proveedores' | 'venta' | 'ventas' | 'servicio' | 'cliente'
 export type Rol = 'Administrador' | 'Empleado'
 
 interface SidebarProps {
@@ -32,7 +26,7 @@ const items: { id: Pantalla; label: string }[] = [
   { id: 'cliente', label: 'Ficha de cliente' }
 ]
 
-export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps) {
+export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps): React.JSX.Element {
   // Datos del usuario logueado y la acción de cerrar sesión.
   const { usuario, cerrarSesion } = useAuth()
 
@@ -40,10 +34,15 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps) {
     <aside
       className="no-print"
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: 'calc(100vh / var(--zoom-ui))',
+        // Corrección 07-08/11/2026 (ver también App.tsx y main/index.ts):
+        // este <aside> usaba position: fixed y no tenía overflow-y, así que
+        // si su contenido no entraba en la altura disponible, la parte de
+        // abajo (el botón "Cerrar sesión") quedaba recortada sin forma de
+        // scrollearla. Ahora es un ítem flex normal, hermano de <main>, con
+        // su propio overflow-y: auto como red de seguridad si alguna vez el
+        // contenido no entra (logo + muchos ítems de menú en una ventana
+        // chica, por ejemplo).
+        height: '100%',
         width: 'var(--sidebar-width)',
         background: 'var(--color-surface)',
         borderRight: '1px solid var(--color-border)',
@@ -52,7 +51,8 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps) {
         padding: 'var(--space-4) 0',
         flexShrink: 0,
         boxSizing: 'border-box',
-        zIndex: 10
+        overflowY: 'auto',
+        overflowX: 'hidden'
       }}
     >
       <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-5)' }}>
@@ -96,7 +96,9 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps) {
       <div style={{ marginTop: 'auto', padding: '0 var(--space-4)' }}>
         <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Sesión iniciada como</div>
         <div style={{ fontWeight: 600 }}>{usuario?.nombre}</div>
-        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)' }}>
+        <div
+          style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)' }}
+        >
           {usuario?.rol}
         </div>
         <button

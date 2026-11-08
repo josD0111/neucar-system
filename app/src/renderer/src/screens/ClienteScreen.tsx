@@ -4,12 +4,16 @@
 // Permite buscar, crear, editar y deshabilitar/habilitar clientes.
 // Los clientes no se borran: se deshabilitan para conservar su historial.
 //
-// El saldo pendiente y el detalle de deudas (HU-10.1, HU-11, HU-12) quedan
-// pendientes hasta el Sprint 2, cuando existan las ventas y las órdenes de
-// servicio reales. Por eso esa sección muestra solo un aviso.
+// Saldo pendiente, detalle de deudas y créditos vencidos (HU-10.2, HU-11,
+// HU-12) ya están conectados a la API real (ver api/creditos.ts). El saldo
+// hoy solo puede venir de Ítems de Venta a crédito: las Órdenes de Servicio
+// se suman solas en cuanto exista el módulo de Servicios (ver
+// src/main/services/saldoClientes.ts).
 
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { apiFetch } from '../api/client'
+import { creditosApi } from '../api/creditos'
+import type { CreditoVencido, SaldoCliente } from '../api/types'
 import { useAuth } from '../data/AuthContext'
 
 // Forma de un cliente tal como lo devuelve la API.
@@ -76,6 +80,22 @@ export function ClienteScreen(): React.JSX.Element {
   const [errorForm, setErrorForm] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
+  // --- Saldo del cliente seleccionado (HU-11) ---
+  const [saldo, setSaldo] = useState<SaldoCliente | null>(null)
+  const [errorSaldo, setErrorSaldo] = useState<string | null>(null)
+  const [generandoComprobante, setGenerandoComprobante] = useState(false)
+  // "Cargando" se deriva en vez de guardarse aparte: evita tener que pisar
+  // el flag a mano al empezar/terminar cada pedido (ver efecto más abajo) y
+  // de paso resuelve solo el caso de cambiar de cliente mientras el saldo
+  // anterior seguía en pantalla (saldo.clienteId ya no coincide con el
+  // seleccionado → sigue "cargando" hasta que llegue el nuevo).
+  const cargandoSaldo =
+    seleccionado !== null && errorSaldo === null && (saldo === null || saldo.clienteId !== seleccionado.id)
+
+  // --- Créditos vencidos, listado global (HU-10.2) ---
+  const [creditosVencidos, setCreditosVencidos] = useState<CreditoVencido[]>([])
+  const [cargandoCreditos, setCargandoCreditos] = useState(true)
+
   // Pide la lista a la API aplicando búsqueda y filtro de deshabilitados.
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -98,6 +118,71 @@ export function ClienteScreen(): React.JSX.Element {
     const espera = setTimeout(cargar, 300)
     return () => clearTimeout(espera)
   }, [cargar])
+
+  // Créditos vencidos (HU-10.2): se cargan una vez al entrar a la pantalla,
+  // independientemente de qué cliente esté seleccionado — es un aviso
+  // general, no algo que dependa de la ficha abierta. `cargandoCreditos`
+  // arranca en `true` (ver useState arriba) y solo se apaga acá, dentro del
+  // .then — nunca se prende a mano de nuevo (no hace falta: esta carga es
+  // una sola vez por visita a la pantalla, no repetible desde la UI).
+  useEffect(() => {
+    let cancelado = false
+    creditosApi.creditosVencidos(token).then((r) => {
+      if (cancelado) return
+      if (r.ok) setCreditosVencidos(r.data)
+      setCargandoCreditos(false)
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [token])
+
+  // Saldo del cliente seleccionado (HU-11): se pide cada vez que cambia la
+  // ficha abierta. No hace falta "limpiar" el saldo al cerrar la ficha: el
+  // panel que lo muestra ya está condicionado a `seleccionado` (ver el
+  // render más abajo), así que un saldo viejo en el estado no se llega a
+  // ver. Al abrir OTRO cliente, `cargandoSaldo` (derivado arriba) ya queda
+  // en true solo porque `saldo.clienteId` no coincide con el nuevo
+  // seleccionado, sin necesidad de un setState sincrónico acá.
+  useEffect(() => {
+    if (!seleccionado) return
+    let cancelado = false
+    creditosApi.saldoCliente(token, seleccionado.id).then((r) => {
+      if (cancelado) return
+      if (r.ok) {
+        setSaldo(r.data)
+        setErrorSaldo(null)
+      } else {
+        setErrorSaldo(r.error.message)
+      }
+    })
+    // Evita pisar el estado con la respuesta de un cliente que ya se dejó
+    // de ver (ej.: clic rápido en dos filas distintas).
+    return () => {
+      cancelado = true
+    }
+  }, [seleccionado, token])
+
+  // Descarga/abre el comprobante de saldo en PDF (HU-12).
+  const descargarComprobante = async (): Promise<void> => {
+    if (!seleccionado) return
+    setGenerandoComprobante(true)
+    const r = await creditosApi.abrirComprobanteSaldo(token, seleccionado.id)
+    setGenerandoComprobante(false)
+    if (!r.ok) setErrorSaldo(r.mensaje)
+  }
+
+  // Abre la ficha del cliente indicado por id (usado al hacer clic en una
+  // fila del aviso de créditos vencidos). Si todavía no está en la lista
+  // cargada (ej.: quedó fuera de la página/búsqueda actual), arma una ficha
+  // mínima a partir de lo que ya sabemos por el propio aviso.
+  const abrirClientePorCredito = (c: CreditoVencido): void => {
+    const existente = clientes.find((cl) => cl.id === c.clienteId)
+    setSeleccionado(
+      existente ?? { id: c.clienteId, nombre: c.clienteNombre, cedula: null, celular: null, ruc: null, activo: true }
+    )
+    setEditando(null)
+  }
 
   // Abre el formulario vacío para dar de alta un cliente.
   const abrirNuevo = (): void => {
@@ -165,6 +250,53 @@ export function ClienteScreen(): React.JSX.Element {
   return (
     <div>
       <h2 style={{ marginTop: 0 }}>Clientes</h2>
+
+      {/* Aviso de créditos vencidos (HU-10.2): ítems de venta y órdenes de
+          servicio a crédito cuya fecha de pago prevista ya pasó. Clic en una
+          fila abre la ficha de ese cliente. */}
+      {!cargandoCreditos && creditosVencidos.length > 0 && (
+        <Panel title={`Créditos vencidos (${creditosVencidos.length})`}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: 'var(--color-text-muted)', fontSize: 12 }}>
+                <th style={{ paddingBottom: 8 }}>Cliente</th>
+                <th style={{ paddingBottom: 8 }}>Origen</th>
+                <th style={{ paddingBottom: 8 }}>Pago previsto</th>
+                <th style={{ paddingBottom: 8 }}>Días vencido</th>
+                <th style={{ paddingBottom: 8 }}>Saldo (Gs.)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {creditosVencidos.map((c) => (
+                <tr
+                  key={`${c.tipo}-${c.id}`}
+                  onClick={() => abrirClientePorCredito(c)}
+                  style={{ borderTop: '1px solid var(--color-border)', cursor: 'pointer' }}
+                >
+                  <td style={{ padding: 8 }}>{c.clienteNombre}</td>
+                  <td style={{ padding: 8 }}>{c.tipo === 'venta' ? `Venta` : `Orden de servicio`} #{c.id}</td>
+                  <td className="font-data" style={{ padding: 8 }}>{c.fechaPagoPrevista}</td>
+                  <td style={{ padding: 8 }}>
+                    <span
+                      style={{
+                        background: 'var(--color-alert-bg)',
+                        color: 'var(--color-alert)',
+                        borderRadius: 'var(--radius)',
+                        padding: '2px 8px',
+                        fontWeight: 600,
+                        fontSize: 12
+                      }}
+                    >
+                      {c.diasVencido} {c.diasVencido === 1 ? 'día' : 'días'}
+                    </span>
+                  </td>
+                  <td className="font-data" style={{ padding: 8 }}>{c.saldoPendiente.toLocaleString('es-PY')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+      )}
 
       {/* Lista con búsqueda */}
       <Panel>
@@ -353,12 +485,82 @@ export function ClienteScreen(): React.JSX.Element {
             </div>
           </Panel>
 
-          {/* Pendiente de Sprint 2: no mostramos saldos inventados. */}
           <Panel title="Saldo pendiente">
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
-              El saldo y el detalle de deudas estarán disponibles cuando se implementen las ventas y
-              las órdenes de servicio reales (Sprint 2).
-            </p>
+            {cargandoSaldo ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>Cargando…</p>
+            ) : errorSaldo ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-alert)' }}>{errorSaldo}</p>
+            ) : !saldo || saldo.deudas.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                Este cliente no tiene saldo pendiente.
+              </p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 'var(--space-3)'
+                  }}
+                >
+                  <div>
+                    <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Saldo total</div>
+                    <div className="font-data" style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-alert)' }}>
+                      Gs. {saldo.saldoTotal.toLocaleString('es-PY')}
+                    </div>
+                  </div>
+                  <button
+                    onClick={descargarComprobante}
+                    disabled={generandoComprobante}
+                    style={{
+                      padding: 'var(--space-2) var(--space-3)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius)',
+                      background: 'var(--color-bg)',
+                      opacity: generandoComprobante ? 0.6 : 1
+                    }}
+                  >
+                    {generandoComprobante ? 'Generando…' : 'Comprobante de saldo (PDF)'}
+                  </button>
+                </div>
+
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', color: 'var(--color-text-muted)', fontSize: 12 }}>
+                      <th style={{ paddingBottom: 8 }}>Origen</th>
+                      <th style={{ paddingBottom: 8 }}>Fecha</th>
+                      <th style={{ paddingBottom: 8 }}>Pago previsto</th>
+                      <th style={{ paddingBottom: 8 }}>Saldo (Gs.)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {saldo.deudas.map((d) => {
+                      const vencido =
+                        d.fechaPagoPrevista !== null && d.fechaPagoPrevista < new Date().toISOString().slice(0, 10)
+                      return (
+                        <tr
+                          key={`${d.tipo}-${d.tipo === 'venta' ? d.itemVentaId : d.ordenServicioId}`}
+                          style={{ borderTop: '1px solid var(--color-border)' }}
+                        >
+                          <td style={{ padding: 8 }}>
+                            {d.tipo === 'venta' ? `Venta #${d.ventaId} — ${d.productoNombre}` : `Orden de servicio #${d.ordenServicioId}`}
+                          </td>
+                          <td className="font-data" style={{ padding: 8 }}>{d.fecha.slice(0, 10)}</td>
+                          <td
+                            className="font-data"
+                            style={{ padding: 8, color: vencido ? 'var(--color-alert)' : undefined, fontWeight: vencido ? 600 : undefined }}
+                          >
+                            {d.fechaPagoPrevista ?? '—'}
+                          </td>
+                          <td className="font-data" style={{ padding: 8 }}>{d.saldoPendiente.toLocaleString('es-PY')}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </>
+            )}
           </Panel>
         </>
       )}

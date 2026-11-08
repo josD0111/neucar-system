@@ -54,7 +54,7 @@ Estos cuatro puntos no se pueden resolver en soledad, aunque las tareas de códi
 14. [x] `src/main/api/routes/pagos.ts`, montado en `/api/pagos` (no anidado bajo `ventas.ts`, para poder sumarle después `/api/pagos/orden/:id` en la Fase 5 sin mezclarlo con las rutas de Venta): `GET /api/pagos/item/:itemVentaId` y `POST /api/pagos/item/:itemVentaId`. `requireAuth`.
 15. [x] Cerrar y documentar la nota de diseño pendiente de `entidades-dominio.md` (sección 7.2): ¿una venta Contado genera automáticamente un Pago por el monto total, o se considera "pagada" sin registro en Pago? → **Resuelto 25/10/2026: sí, se genera automáticamente** (ver `entidades-dominio.md` sección 7.2 y `desiciones-alcance.md` sección 7.5), para que `saldo_pendiente` use una única fórmula en Contado y Crédito.
 
-*Pendiente de esta fase (no bloquea el resto): todavía no hay pantalla para cobrar una cuota ni para ver el historial de pagos de un ítem — no estaba en el alcance original de esta fase (la Fase 2 solo cubría el armado/registro de la venta) y no lo pidió el dueño todavía. Se puede probar por ahora solo contra la API.*
+*Actualización 06/11/2026: la pantalla para cobrar una cuota y ver el historial de pagos de un ítem ya se construyó, dentro de `VentasScreen.tsx` (componente `CobroItem`, en el detalle expandido de cada venta) — no quedó nada pendiente de esta fase.*
 
 ## Fase 4 — Punto de sincronización con el compañero
 
@@ -69,10 +69,12 @@ Estos cuatro puntos no se pueden resolver en soledad, aunque las tareas de códi
 
 ## Fase 6 — Crédito a nivel de Cliente (HU-11, HU-10.2, HU-12)
 
-21. [ ] Saldo total de un Cliente: suma de `saldo_pendiente` de sus Ítems de Venta y Órdenes de Servicio a crédito, con el detalle de qué lo compone (producto/tipo de servicio, fecha, monto original, saldo individual) — solo los que tienen saldo > 0.
-22. [ ] Listado/aviso de créditos vencidos: ítems y órdenes con `fecha_pago_prevista` anterior a hoy y `saldo_pendiente > 0`. Definir dónde se muestra (sección de inicio, listado aparte, o aviso por cliente — ver `entidades-dominio.md`, sección 12.1).
-23. [ ] Conectar la sección de saldo pendiente de `ClienteScreen.tsx` (hoy muestra "sin datos hasta Sprint 2") a estos endpoints.
-24. [ ] Comprobante de saldo de cliente para firma (HU-12): PDF con el detalle de deuda, mismo mecanismo que el listado de stock (`pdfkit`).
+*Completada el 06/11/2026. Nota: esta fase, según `tareas-ventas-creditopagos-deudatecnica.md` más abajo ("Notas sobre el orden"), dependía de que existieran Fases 3 y 5 (Pagos sobre Ítems de Venta y sobre Órdenes de Servicio) — en la práctica se avanzó solo con el lado de Ventas (Fase 3), ya que la Fase 5 sigue del lado del compañero. `services/saldoClientes.ts` ya consulta `ordenesServicio`/`pagos.ordenServicioId`, así que apenas existan filas de Órdenes de Servicio, el saldo de cliente y el listado de vencidos las van a sumar solas, sin tocar este código.*
+
+21. [x] Saldo total de un Cliente: suma de `saldo_pendiente` de sus Ítems de Venta y Órdenes de Servicio a crédito, con el detalle de qué lo compone (producto/tipo de servicio, fecha, monto original, saldo individual) — solo los que tienen saldo > 0. → `services/saldoClientes.ts` (`calcularSaldoCliente`), `GET /api/clientes/:id/saldo`.
+22. [x] Listado/aviso de créditos vencidos: ítems y órdenes con `fecha_pago_prevista` anterior a hoy y `saldo_pendiente > 0`. Definir dónde se muestra (sección de inicio, listado aparte, o aviso por cliente — ver `entidades-dominio.md`, sección 12.1). → `services/saldoClientes.ts` (`listarCreditosVencidos`), `GET /api/clientes/creditos-vencidos`; se muestra como aviso dentro de la ficha del cliente (`ClienteScreen.tsx`).
+23. [x] Conectar la sección de saldo pendiente de `ClienteScreen.tsx` (hoy muestra "sin datos hasta Sprint 2") a estos endpoints. → conectado vía `api/creditos.ts`.
+24. [x] Comprobante de saldo de cliente para firma (HU-12): PDF con el detalle de deuda, mismo mecanismo que el listado de stock (`pdfkit`). → `GET /api/clientes/:id/saldo-pdf`.
 
 ## Fase 7 — Deuda técnica (coordinada, no en paralelo)
 
