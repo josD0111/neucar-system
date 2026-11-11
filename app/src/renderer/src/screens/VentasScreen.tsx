@@ -63,6 +63,25 @@ const estiloInput: React.CSSProperties = {
   borderRadius: 'var(--radius)'
 }
 
+// Feedback de usabilidad del dueño (reunion-sprint01--2026-10-23.md), mismo
+// criterio ya aplicado en VentaScreen.tsx: Enter mueve el foco al siguiente
+// campo del formulario en vez de intentar enviarlo — acá se usa en el
+// formulario de registro de pago (CobroItem), que ese pedido también
+// incluye explícitamente.
+function manejarEnterComoTab(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>): void {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  const form = e.currentTarget.form
+  if (!form) return
+  const focosables = Array.from(
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+      'input:not([disabled]), select:not([disabled])'
+    )
+  )
+  const idx = focosables.indexOf(e.currentTarget)
+  if (idx >= 0 && idx < focosables.length - 1) focosables[idx + 1].focus()
+}
+
 const estiloLabel: React.CSSProperties = {
   display: 'block',
   fontSize: 13,
@@ -271,7 +290,8 @@ function CobroItem({
             Cobrar
           </button>
         ) : (
-          <div
+          <form
+            onSubmit={(e) => e.preventDefault()}
             style={{
               display: 'flex',
               flexWrap: 'wrap',
@@ -290,6 +310,8 @@ function CobroItem({
                 min={1}
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
+                onKeyDown={manejarEnterComoTab}
+                autoFocus
                 className="font-data"
                 style={{ ...estiloInput, width: 120 }}
               />
@@ -300,6 +322,7 @@ function CobroItem({
               <select
                 value={metodoPago}
                 onChange={(e) => setMetodoPago(e.target.value as (typeof METODOS_PAGO)[number])}
+                onKeyDown={manejarEnterComoTab}
                 style={estiloInput}
               >
                 {METODOS_PAGO.map((m) => (
@@ -317,6 +340,7 @@ function CobroItem({
                   type="date"
                   value={fechaPagoPrevista}
                   onChange={(e) => setFechaPagoPrevista(e.target.value)}
+                  onKeyDown={manejarEnterComoTab}
                   className="font-data"
                   style={estiloInput}
                 />
@@ -369,7 +393,7 @@ function CobroItem({
                 {errorForm}
               </div>
             )}
-          </div>
+          </form>
         ))}
     </div>
   )

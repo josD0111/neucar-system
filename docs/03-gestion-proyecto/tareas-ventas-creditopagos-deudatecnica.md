@@ -29,7 +29,7 @@ Estos cuatro puntos no se pueden resolver en soledad, aunque las tareas de códi
    - `requireAuth` en todos los endpoints.
    - `requireRole('Administrador')` en el endpoint de registro/confirmación de venta (HU-17.1) — el Empleado no debe poder registrarla ni manipulando el formulario/API.
    - `requireRole('Administrador')` también donde se edite el precio (HU-18).
-8. [ ] Comprobante de venta (HU-21): factura común, dejando `tipo_comprobante`/RUC preparados para factura electrónica futura. **Diferido**: según lo acordado el 24/10/2026, se hace después de tener las bases del módulo (servicio + endpoint + pantalla) terminadas — ver sección 7.4. No bloquea el resto de las fases.
+8. [x] Comprobante de venta (HU-21): factura común, dejando `tipo_comprobante`/RUC preparados para factura electrónica futura. **Diferido**: según lo acordado el 24/10/2026, se hace después de tener las bases del módulo (servicio + endpoint + pantalla) terminadas — ver sección 7.4. No bloquea el resto de las fases. *(08/11/2026: implementado — `GET /api/ventas/:id/comprobante-pdf`, con botón desde `VentaScreen.tsx` y `VentasScreen.tsx`.)*
 
 ## Fase 2 — `VentaScreen.tsx`
 
