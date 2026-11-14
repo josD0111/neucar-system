@@ -218,6 +218,9 @@ export async function listarCreditosVencidos(db: Db): Promise<CreditoVencido[]> 
   const filasOrdenes = await db
     .select({
       orden: ordenesServicio,
+      // Viene del innerJoin con `clientes`: es siempre un number (las órdenes
+      // de cliente casual, con cliente_id null, quedan fuera de este listado).
+      clienteId: clientes.id,
       clienteNombre: clientes.nombre
     })
     .from(ordenesServicio)
@@ -230,13 +233,13 @@ export async function listarCreditosVencidos(db: Db): Promise<CreditoVencido[]> 
       )
     )
 
-  for (const { orden, clienteNombre } of filasOrdenes) {
+  for (const { orden, clienteId, clienteNombre } of filasOrdenes) {
     const saldo = await calcularSaldoPendienteOrden(db, orden)
     if (saldo <= 0) continue
     resultado.push({
       tipo: 'orden',
       id: orden.id,
-      clienteId: orden.clienteId,
+      clienteId,
       clienteNombre,
       fechaPagoPrevista: orden.fechaPagoPrevista as string,
       saldoPendiente: saldo,
