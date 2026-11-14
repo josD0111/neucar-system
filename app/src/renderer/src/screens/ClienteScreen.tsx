@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../data/AuthContext'
-
+import { HistorialOrdenes } from '../components/HistorialOrdenes'
 // Forma de un cliente tal como lo devuelve la API.
 interface Cliente {
   id: number
@@ -352,7 +352,10 @@ export function ClienteScreen(): React.JSX.Element {
               </div>
             </div>
           </Panel>
-
+          <Panel title="Historial de servicios">
+            {/* key: al cambiar de cliente, el historial se monta de nuevo */}
+            <HistorialOrdenes key={seleccionado.id} clienteId={seleccionado.id} />
+          </Panel>
           {/* Pendiente de Sprint 2: no mostramos saldos inventados. */}
           <Panel title="Saldo pendiente">
             <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>

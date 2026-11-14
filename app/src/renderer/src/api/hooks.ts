@@ -18,8 +18,21 @@ import { useEffect, useState } from 'react'
 import { categoriasApi } from './categorias'
 import { proveedoresApi } from './proveedores'
 import { productosApi, type FiltrosProductos } from './productos'
-import { ApiClientError } from './client'
-import type { Categoria, ListadoPaginado, Proveedor, Producto } from './types'
+import { ApiClientError, apiFetch, type ApiFail, type ApiOk } from './client'
+import { vehiculosApi } from './vehiculos'
+import { ordenesServicioApi } from './ordenesServicio'
+import type {
+  Categoria,
+  FiltrosOrdenesServicio,
+  FiltrosVehiculos,
+  ListadoPaginado,
+  OrdenServicio,
+  Proveedor,
+  Producto,
+  Vehiculo,
+  Cliente
+} from './types'
+
 
 export interface RecursoAsync<T> {
   datos: T
@@ -99,4 +112,54 @@ export function useProductos(filtros: FiltrosProductos): RecursoAsync<ListadoPag
 
 export function useStockBajo(): RecursoAsync<Producto[]> {
   return useRecursoAsync<Producto[]>([], () => productosApi.stockBajo(), [])
+}
+// --- Recursos que exigen sesión (usan apiFetch, que nunca lanza) ---
+
+// useRecursoAsync espera una promesa que LANCE ApiClientError cuando algo
+// falla, pero apiFetch devuelve siempre { ok, ... }. Este adaptador convierte
+// el segundo formato en el primero. (Un fallo de red llega con code 'NETWORK'.)
+function desenvolver<T>(respuesta: ApiOk<T> | ApiFail): T {
+  if (!respuesta.ok) {
+    throw new ApiClientError(respuesta.error.message, undefined, respuesta.error.code)
+  }
+  return respuesta.data
+}
+
+// Si todavía no hay sesión (token null), no se pide nada y se devuelve la
+// lista vacía; al cambiar el token, el hook vuelve a pedir los datos.
+export function useVehiculos(
+  token: string | null,
+  filtros: FiltrosVehiculos = {}
+): RecursoAsync<Vehiculo[]> {
+  return useRecursoAsync<Vehiculo[]>(
+    [],
+    async () => (token ? desenvolver(await vehiculosApi.listar(token, filtros)) : []),
+    [token, filtros.clienteId, filtros.q]
+  )
+}
+
+// Historial de órdenes de servicio (HU-26). Con filtros por cliente y/o vehículo.
+export function useOrdenesServicio(
+  token: string | null,
+  filtros: FiltrosOrdenesServicio = {}
+): RecursoAsync<OrdenServicio[]> {
+  return useRecursoAsync<OrdenServicio[]>(
+    [],
+    async () => (token ? desenvolver(await ordenesServicioApi.listar(token, filtros)) : []),
+    [token, filtros.clienteId, filtros.vehiculoId, filtros.limite]
+  )
+}
+// Búsqueda de clientes activos por nombre, cédula o celular (para elegir el
+// cliente de una orden). Sin sesión no se pide nada.
+export function useClientes(token: string | null, busqueda = ''): RecursoAsync<Cliente[]> {
+  return useRecursoAsync<Cliente[]>(
+    [],
+    async () => {
+      if (!token) return []
+      const q = busqueda.trim()
+      const qs = q ? `?q=${encodeURIComponent(q)}` : ''
+      return desenvolver(await apiFetch<Cliente[]>(`/api/clientes${qs}`, { token }))
+    },
+    [token, busqueda]
+  )
 }

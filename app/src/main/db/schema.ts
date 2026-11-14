@@ -90,7 +90,8 @@ export const compras = pgTable('compras', {
 // 7. Venta
 export const ventas = pgTable('ventas', {
   id: serial('id').primaryKey(),
-  clienteId: integer('cliente_id').references(() => clientes.id), // opcional (cliente casual)
+  clienteId: integer('cliente_id')
+  .references(() => clientes.id), 
   usuarioId: integer('usuario_id')
     .notNull()
     .references(() => usuarios.id),
@@ -179,9 +180,11 @@ export const ordenesServicio = pgTable('ordenes_servicio', {
   vehiculoId: integer('vehiculo_id')
     .notNull()
     .references(() => vehiculos.id),
+  // Nullable: un cliente casual no se registra. Solo es
+  // obligatorio si la orden es a crédito (HU-27); esa regla se valida en
+  // services/ordenesServicio.ts, no en la base.
   clienteId: integer('cliente_id')
-    .notNull()
-    .references(() => clientes.id),
+  .references(() => clientes.id),
   usuarioId: integer('usuario_id')
     .notNull()
     .references(() => usuarios.id),

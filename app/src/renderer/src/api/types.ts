@@ -188,3 +188,97 @@ export interface PagoInput {
   // omite, el servidor no la toca.
   fechaPagoPrevista?: string | null
 }
+// --- Vehículos y Órdenes de Servicio (Sprint 2, HU-22 a HU-27, sin HU-25) ---
+// Igual que arriba, los montos (`monto`, `montoTotal`) llegan como string
+// desde la API (columnas `numeric` de Drizzle), y las fechas llegan como
+// texto ISO (JSON no tiene tipo Date).
+
+// Vehículo con el nombre del dueño ya resuelto (ver services/vehiculos.ts).
+// clienteId / clienteNombre = null: vehículo de cliente casual.
+export interface Vehiculo {
+  id: number
+  clienteId: number | null
+  marca: string | null
+  chapa: string | null
+  color: string | null
+  clienteNombre: string | null
+}
+
+// Lo que se envía al crear o editar un vehículo. Hace falta al menos la
+// marca o la chapa (lo valida el servidor). La chapa se normaliza allá.
+export interface VehiculoInput {
+  clienteId?: number | null
+  marca?: string | null
+  chapa?: string | null
+  color?: string | null
+}
+
+export interface FiltrosVehiculos {
+  clienteId?: number
+  q?: string
+}
+
+export interface ServicioDetalle {
+  id: number
+  ordenId: number
+  tipoServicio: string
+  monto: string
+  detalle: string | null
+}
+
+// Orden con cliente, vehículo y usuario ya resueltos (ver
+// services/ordenesServicio.ts, OrdenServicio). clienteId / clienteNombre =
+// null: orden de cliente casual (solo posible si la orden es al contado).
+export interface OrdenServicio {
+  id: number
+  fecha: string
+  clienteId: number | null
+  clienteNombre: string | null
+  vehiculoId: number
+  vehiculoMarca: string | null
+  vehiculoChapa: string | null
+  vehiculoColor: string | null
+  usuarioId: number
+  usuarioNombre: string
+  tipoPago: TipoPago
+  montoTotal: string
+  fechaPagoPrevista: string | null
+  tipoComprobante: string | null
+  servicios: ServicioDetalle[]
+}
+
+export interface ServicioInput {
+  tipoServicio: string
+  monto: number
+  detalle?: string | null
+}
+
+// Lo que se envía al registrar una orden. El monto total NO se manda: lo
+// calcula el servidor como la suma de los servicios.
+export interface OrdenServicioInput {
+  // Opcional: si se omite, el servidor usa el dueño del vehículo (si tiene).
+  // Una orden a Crédito exige cliente (HU-27).
+  clienteId?: number | null
+  vehiculoId: number
+  tipoPago: TipoPago
+  // Solo se conserva si tipoPago = 'Crédito'.
+  fechaPagoPrevista?: string | null
+  tipoComprobante?: string | null
+  servicios: ServicioInput[]
+}
+
+// Filtros de GET /api/ordenes-servicio (HU-26).
+export interface FiltrosOrdenesServicio {
+  clienteId?: number
+  vehiculoId?: number
+  limite?: number
+}
+// Cliente tal como lo devuelve GET /api/clientes (ver services/clientes.ts).
+export interface Cliente {
+  id: number
+  nombre: string
+  cedula: string | null
+  celular: string | null
+  ruc: string | null
+  activo: boolean
+}

@@ -38,8 +38,8 @@ export interface ServicioDetalle {
 export interface OrdenServicio {
   id: number;
   fecha: Date;
-  clienteId: number;
-  clienteNombre: string;
+  clienteId: number | null;  
+   clienteNombre: string | null;
   vehiculoId: number;
   vehiculoMarca: string | null;
   vehiculoChapa: string | null;
@@ -63,7 +63,7 @@ interface DatosServicio {
 
 // Datos ya validados de una orden nueva.
 export interface DatosOrden {
-  clienteId: number;
+  clienteId: number | null; 
   vehiculoId: number;
   tipoPago: TipoPago;
   fechaPagoPrevista: string | null;
@@ -119,16 +119,21 @@ function centavosATexto(centavos: number): string {
 }
 
 // Valida y limpia el cuerpo recibido para crear una orden. Reglas:
-//   - clienteId y vehiculoId: obligatorios (enteros positivos).
+//   - vehiculoId: obligatorios (enteros positivos).
 //   - tipoPago: "Contado" o "Crédito" (se acepta "Credito" sin tilde).
 //   - fechaPagoPrevista: solo se conserva si la orden es a crédito; formato AAAA-MM-DD.
 //   - servicios: al menos uno; cada uno con tipo (obligatorio), monto > 0 y detalle opcional.
 //     El monto TOTAL no se recibe: se calcula acá como la suma de los servicios.
+// El cliente es opcional (cliente casual). Si viene, tiene que ser un id válido.
 export function validarDatosOrden(body: unknown): Resultado<DatosOrden> {
   const b = (body ?? {}) as Record<string, unknown>;
 
-  const clienteId = enteroPositivo(b.clienteId);
-  if (clienteId === null) return { ok: false, status: 400, mensaje: "Indicá el cliente de la orden" };
+
+  let clienteId: number | null = null;
+  if (b.clienteId !== undefined && b.clienteId !== null) {
+    clienteId = enteroPositivo(b.clienteId);
+    if (clienteId === null) return { ok: false, status: 400, mensaje: "El cliente indicado no es válido" };
+  }
 
   const vehiculoId = enteroPositivo(b.vehiculoId);
   if (vehiculoId === null) return { ok: false, status: 400, mensaje: "Indicá el vehículo de la orden" };
@@ -217,11 +222,13 @@ const columnas = {
 
 // Carga órdenes (las más recientes primero) junto con sus servicios, usando solo
 // dos consultas sin importar cuántas órdenes se pidan.
+// leftJoin: una orden de cliente casual no tiene cliente, y con innerJoin
+// desaparecería del historial.
 async function cargarOrdenes(db: Db, condicion: SQL | undefined, limite: number): Promise<OrdenServicio[]> {
   const filas = await db
     .select(columnas)
     .from(ordenesServicio)
-    .innerJoin(clientes, eq(ordenesServicio.clienteId, clientes.id))
+    .leftJoin(clientes, eq(ordenesServicio.clienteId, clientes.id))   
     .innerJoin(vehiculos, eq(ordenesServicio.vehiculoId, vehiculos.id))
     .innerJoin(usuarios, eq(ordenesServicio.usuarioId, usuarios.id))
     .where(condicion)
@@ -273,25 +280,38 @@ export async function crearOrden(db: Db, usuarioId: number, body: unknown): Prom
   if (!v.ok) return v;
   const datos = v.data;
 
-  // El cliente debe existir y estar activo (un cliente deshabilitado no recibe órdenes nuevas).
-  const [cliente] = await db
-    .select({ id: clientes.id, activo: clientes.activo })
-    .from(clientes)
-    .where(eq(clientes.id, datos.clienteId))
-    .limit(1);
-  if (!cliente) return { ok: false, status: 400, mensaje: "El cliente indicado no existe" };
-  if (!cliente.activo) return { ok: false, status: 400, mensaje: "El cliente indicado está deshabilitado" };
-
-  // El vehículo debe existir y no pertenecer a OTRO cliente. Un vehículo de
-  // cliente casual (sin dueño registrado) sí puede usarse con cualquier cliente.
+  // 1) El vehículo debe existir.
   const [vehiculo] = await db
     .select({ id: vehiculos.id, clienteId: vehiculos.clienteId })
     .from(vehiculos)
     .where(eq(vehiculos.id, datos.vehiculoId))
     .limit(1);
   if (!vehiculo) return { ok: false, status: 400, mensaje: "El vehículo indicado no existe" };
-  if (vehiculo.clienteId !== null && vehiculo.clienteId !== datos.clienteId) {
+
+  // 2) Cliente efectivo de la orden:
+  //    - sin cliente en la petición → hereda el dueño del vehículo (puede ser null = casual);
+  //    - con cliente → no puede contradecir al dueño registrado del vehículo.
+  let clienteId = datos.clienteId;
+  if (clienteId === null) {
+    clienteId = vehiculo.clienteId;
+  } else if (vehiculo.clienteId !== null && vehiculo.clienteId !== clienteId) {
     return { ok: false, status: 400, mensaje: "El vehículo pertenece a otro cliente" };
+  }
+
+  // 3) HU-27: una orden a crédito exige un cliente registrado (sin cliente no hay a quién cargarle la deuda).
+  if (datos.tipoPago === "Crédito" && clienteId === null) {
+    return { ok: false, status: 400, mensaje: "Una orden a crédito requiere un cliente registrado" };
+  }
+
+  // 4) Si hay cliente, debe existir y estar activo.
+  if (clienteId !== null) {
+    const [cliente] = await db
+      .select({ id: clientes.id, activo: clientes.activo })
+      .from(clientes)
+      .where(eq(clientes.id, clienteId))
+      .limit(1);
+    if (!cliente) return { ok: false, status: 400, mensaje: "El cliente indicado no existe" };
+    if (!cliente.activo) return { ok: false, status: 400, mensaje: "El cliente indicado está deshabilitado" };
   }
 
   // monto_total = suma de los servicios, calculado acá (no se confía en la pantalla).
@@ -304,7 +324,7 @@ export async function crearOrden(db: Db, usuarioId: number, body: unknown): Prom
       .insert(ordenesServicio)
       .values({
         vehiculoId: datos.vehiculoId,
-        clienteId: datos.clienteId,
+        clienteId,
         usuarioId,
         tipoPago: datos.tipoPago,
         montoTotal: centavosATexto(totalCentavos),

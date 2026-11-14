@@ -14,6 +14,7 @@ export type Pantalla =
   | 'venta'
   | 'ventas'
   | 'servicio'
+  | 'historialServicios'
   | 'cliente'
 export type Rol = 'Administrador' | 'Empleado'
 
@@ -29,6 +30,7 @@ const items: { id: Pantalla; label: string }[] = [
   { id: 'venta', label: 'Nueva venta' },
   { id: 'ventas', label: 'Historial de ventas' },
   { id: 'servicio', label: 'Orden de servicio' },
+  { id: 'historialServicios', label: 'Historial de servicios' },
   { id: 'cliente', label: 'Ficha de cliente' }
 ]
 

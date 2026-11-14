@@ -85,6 +85,7 @@ export function ordenesServicioRouter(db: Db): Router {
     } catch (err) {
       next(err);
     }
+    
   });
 
   return router;
