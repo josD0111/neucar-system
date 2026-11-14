@@ -32,7 +32,6 @@
   --space-3: 16px;
   --space-4: 24px;
   --space-5: 32px;
-  --zoom-ui: 1.15; /* Zoom global de la interfaz (se aplica en body). */
 }
 
 * {
@@ -46,8 +45,35 @@ body {
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.5;
-  zoom: var(--zoom-ui);
 }
+
+/* Corrección 07/11/2026 (bug reportado: con la ventana no maximizada, el
+ * scroll de las pantallas largas —ej. Ficha de cliente, Historial de
+ * ventas— se cortaba antes de llegar al final, imposible ver las últimas
+ * filas por más que se scrolleara).
+ *
+ * Causa: acá había `zoom: 1.15` (la forma en que se había resuelto el
+ * pedido del dueño de agrandar la letra de toda la interfaz — ver
+ * sprint-2-backlog.md, punto 6). La propiedad CSS `zoom` en un ancestro no
+ * es lo mismo que un `transform: scale()` ni que el zoom nativo del
+ * navegador: cambia el tamaño de caja (layout) de todo el subárbol, y
+ * combinada con los `overflow: hidden` anidados que tiene el layout
+ * (App.tsx) y con elementos hijos con `overflow-y: auto` (el `main` de
+ * App.tsx), Chromium calcula mal el scroll máximo disponible cuando el
+ * contenido es más alto que la ventana — el contenedor se queda corto y
+ * recorta las últimas filas antes de que el scroll llegue a ellas. Esto
+ * solo se notaba con la ventana achicada porque ahí es cuando el contenido
+ * empieza a superar la altura visible.
+ *
+ * La solución fue sacar el zoom de acá y aplicarlo en el proceso principal
+ * con `webContents.setZoomFactor()` (ver main/index.ts) — el zoom nativo de
+ * Electron/Chromium, el mismo mecanismo que usa Ctrl+/Ctrl- en cualquier
+ * navegador. Ese zoom escala la página ya resuelta (post-layout), así que
+ * `100vh` adentro de la app sigue significando "toda la ventana visible" y
+ * el scroll se calcula sobre el contenido real, sin esta clase de
+ * problemas. Por eso además se sacó el `calc(100vh / var(--zoom-ui))` que
+ * había en App.tsx, Sidebar.tsx y LoginScreen.tsx — ya no hace falta
+ * compensar nada a mano, un simple `100vh` alcanza. */
 
 button {
   font-family: inherit;

@@ -218,6 +218,62 @@ function Panel({
   )
 }
 
+// --- Comprobante de venta (HU-21) ---------------------------------------
+//
+// Botón autosuficiente (fetch + estado propio) para poder usarlo acá, justo
+// después de confirmar una venta, sin acoplar esta pantalla al estado del
+// Historial (VentasScreen.tsx tiene su propia copia de esta misma lógica,
+// dentro de DetalleVenta, porque ahí el PDF se pide sobre una venta vieja
+// ya cargada en el historial — no vale la pena compartir un componente tan
+// chico entre dos pantallas por esto).
+//
+// Importante: el botón se deshabilita mientras se arma el PDF (fetch +
+// conversión a base64 + viaje por IPC), no mientras el usuario lo tiene
+// abierto en su lector — ver la nota larga en main/index.ts
+// (ipcMain.handle('pdf:abrir')) sobre por qué no hay que esperar a que se
+// cierre el visor para esto.
+function BotonComprobante({
+  ventaId,
+  token
+}: {
+  ventaId: number
+  token: string | null
+}): React.JSX.Element {
+  const [generando, setGenerando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const abrir = async (): Promise<void> => {
+    setGenerando(true)
+    setError(null)
+    const r = await ventasApi.abrirComprobante(token, ventaId)
+    setGenerando(false)
+    if (!r.ok) setError(r.mensaje)
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={abrir}
+        disabled={generando}
+        style={{
+          padding: 'var(--space-2) var(--space-4)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius)',
+          background: 'var(--color-surface)',
+          fontWeight: 600,
+          opacity: generando ? 0.6 : 1
+        }}
+      >
+        {generando ? 'Generando…' : 'Comprobante (PDF)'}
+      </button>
+      {error && (
+        <div style={{ fontSize: 12, color: 'var(--color-alert)', marginTop: 4 }}>{error}</div>
+      )}
+    </div>
+  )
+}
+
 // --- Buscador de Cliente -----------------------------------------------
 //
 // Combo con lista flotante, mismo patrón que SelectorBuscable en
@@ -1011,20 +1067,26 @@ export function VentaScreen(): React.JSX.Element {
             ✓ Venta #{ventaRegistrada.id} registrada por Gs.{' '}
             {Number(ventaRegistrada.montoTotal).toLocaleString('es-PY')}
           </p>
-          <button
-            autoFocus
-            onClick={nuevaVenta}
-            style={{
-              padding: 'var(--space-2) var(--space-4)',
-              border: 'none',
-              borderRadius: 'var(--radius)',
-              background: 'var(--color-accent)',
-              color: '#fff',
-              fontWeight: 600
-            }}
-          >
-            Registrar otra venta
-          </button>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button
+              autoFocus
+              onClick={nuevaVenta}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                border: 'none',
+                borderRadius: 'var(--radius)',
+                background: 'var(--color-accent)',
+                color: '#fff',
+                fontWeight: 600
+              }}
+            >
+              Registrar otra venta
+            </button>
+            {/* Comprobante de venta en PDF (HU-21): el momento más natural
+                para imprimirlo es justo después de confirmar la venta, acá
+                mismo — sin tener que ir al Historial a buscarla. */}
+            <BotonComprobante ventaId={ventaRegistrada.id} token={token} />
+          </div>
         </Panel>
       </div>
     )

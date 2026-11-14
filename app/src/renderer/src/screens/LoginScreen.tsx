@@ -8,7 +8,7 @@ import { useAuth } from '../data/AuthContext'
 
 export function LoginScreen(): React.JSX.Element {
   const { iniciarSesion } = useAuth()
-  const [usuarioLogin, setUsuarioLogin ] = useState('')
+  const [usuarioLogin, setUsuarioLogin] = useState('')
   const [contrasena, setContrasena] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false) // evita enviar dos veces el formulario
@@ -27,7 +27,9 @@ export function LoginScreen(): React.JSX.Element {
   return (
     <div
       style={{
-        height: 'calc(100vh / var(--zoom-ui))',
+        // Dentro de <EscalaApp> (App.tsx): 100% del contenedor ya
+        // compensado, no 100vh real (ver la nota de ZOOM en App.tsx).
+        height: '100%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center'

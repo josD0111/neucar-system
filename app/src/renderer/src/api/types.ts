@@ -282,3 +282,48 @@ export interface Cliente {
   ruc: string | null
   activo: boolean
 }
+
+
+// --- Saldo de cliente y créditos vencidos (HU-10.2, HU-11, HU-12) ---
+// Ver src/main/services/saldoClientes.ts.
+
+export interface DeudaItemVenta {
+  tipo: 'venta'
+  itemVentaId: number
+  ventaId: number
+  productoNombre: string
+  fecha: string
+  montoItem: number
+  saldoPendiente: number
+  fechaPagoPrevista: string | null
+}
+
+export interface DeudaOrdenServicio {
+  tipo: 'orden'
+  ordenServicioId: number
+  fecha: string
+  montoTotal: number
+  saldoPendiente: number
+  fechaPagoPrevista: string | null
+}
+
+export type DeudaPendiente = DeudaItemVenta | DeudaOrdenServicio
+
+// GET /api/clientes/:id/saldo
+export interface SaldoCliente {
+  clienteId: number
+  clienteNombre: string
+  saldoTotal: number
+  deudas: DeudaPendiente[]
+}
+
+// Una fila de GET /api/clientes/creditos-vencidos.
+export interface CreditoVencido {
+  tipo: 'venta' | 'orden'
+  id: number
+  clienteId: number
+  clienteNombre: string
+  fechaPagoPrevista: string
+  saldoPendiente: number
+  diasVencido: number
+}

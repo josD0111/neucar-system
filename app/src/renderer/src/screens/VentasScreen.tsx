@@ -63,6 +63,25 @@ const estiloInput: React.CSSProperties = {
   borderRadius: 'var(--radius)'
 }
 
+// Feedback de usabilidad del dueño (reunion-sprint01--2026-10-23.md), mismo
+// criterio ya aplicado en VentaScreen.tsx: Enter mueve el foco al siguiente
+// campo del formulario en vez de intentar enviarlo — acá se usa en el
+// formulario de registro de pago (CobroItem), que ese pedido también
+// incluye explícitamente.
+function manejarEnterComoTab(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>): void {
+  if (e.key !== 'Enter') return
+  e.preventDefault()
+  const form = e.currentTarget.form
+  if (!form) return
+  const focosables = Array.from(
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+      'input:not([disabled]), select:not([disabled])'
+    )
+  )
+  const idx = focosables.indexOf(e.currentTarget)
+  if (idx >= 0 && idx < focosables.length - 1) focosables[idx + 1].focus()
+}
+
 const estiloLabel: React.CSSProperties = {
   display: 'block',
   fontSize: 13,
@@ -271,7 +290,8 @@ function CobroItem({
             Cobrar
           </button>
         ) : (
-          <div
+          <form
+            onSubmit={(e) => e.preventDefault()}
             style={{
               display: 'flex',
               flexWrap: 'wrap',
@@ -290,6 +310,8 @@ function CobroItem({
                 min={1}
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
+                onKeyDown={manejarEnterComoTab}
+                autoFocus
                 className="font-data"
                 style={{ ...estiloInput, width: 120 }}
               />
@@ -300,6 +322,7 @@ function CobroItem({
               <select
                 value={metodoPago}
                 onChange={(e) => setMetodoPago(e.target.value as (typeof METODOS_PAGO)[number])}
+                onKeyDown={manejarEnterComoTab}
                 style={estiloInput}
               >
                 {METODOS_PAGO.map((m) => (
@@ -317,6 +340,7 @@ function CobroItem({
                   type="date"
                   value={fechaPagoPrevista}
                   onChange={(e) => setFechaPagoPrevista(e.target.value)}
+                  onKeyDown={manejarEnterComoTab}
                   className="font-data"
                   style={estiloInput}
                 />
@@ -369,7 +393,7 @@ function CobroItem({
                 {errorForm}
               </div>
             )}
-          </div>
+          </form>
         ))}
     </div>
   )
@@ -488,13 +512,57 @@ function DetalleVenta({
   token: string | null
   onPagoRegistrado: () => void
 }): React.JSX.Element {
+  // Comprobante de venta en PDF (HU-21). Mismo patrón que
+  // ClienteScreen.tsx/descargarComprobante: deshabilitar el botón mientras
+  // se arma el PDF (fetch + conversión a base64 + viaje por IPC), no
+  // mientras el usuario lo tiene abierto en su lector — ver la nota larga
+  // en main/index.ts (ipcMain.handle('pdf:abrir')) sobre por qué no hay que
+  // esperar a que el usuario cierre el visor para esto.
+  const [generandoComprobante, setGenerandoComprobante] = useState(false)
+  const [errorComprobante, setErrorComprobante] = useState<string | null>(null)
+
+  const abrirComprobante = async (): Promise<void> => {
+    setGenerandoComprobante(true)
+    setErrorComprobante(null)
+    const r = await ventasApi.abrirComprobante(token, venta.id)
+    setGenerandoComprobante(false)
+    if (!r.ok) setErrorComprobante(r.mensaje)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-      <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-        Registrada por{' '}
-        <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{venta.usuarioNombre}</span>
-        {venta.tipoComprobante && ` · ${venta.tipoComprobante}`}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 'var(--space-2)'
+        }}
+      >
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+          Registrada por{' '}
+          <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{venta.usuarioNombre}</span>
+          {venta.tipoComprobante && ` · ${venta.tipoComprobante}`}
+        </div>
+        <button
+          type="button"
+          onClick={abrirComprobante}
+          disabled={generandoComprobante}
+          style={{
+            ...estiloBotonSecundario,
+            fontSize: 13,
+            fontWeight: 600,
+            opacity: generandoComprobante ? 0.6 : 1
+          }}
+        >
+          {generandoComprobante ? 'Generando…' : 'Comprobante (PDF)'}
+        </button>
       </div>
+
+      {errorComprobante && (
+        <div style={{ fontSize: 13, color: 'var(--color-alert)' }}>{errorComprobante}</div>
+      )}
 
       {venta.items.map((item) => (
         <ItemDetalle key={item.id} item={item} token={token} onPagoRegistrado={onPagoRegistrado} />
