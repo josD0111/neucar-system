@@ -32,6 +32,7 @@ import { ventasRouter } from './routes/ventas'
 import { pagosRouter } from './routes/pagos'
 import { vehiculosRouter } from './routes/vehiculos'
 import { ordenesServicioRouter } from './routes/ordenesServicio'
+import { tiposServicioRouter } from './routes/tiposServicio'
 // Puerto y dirección en los que escucha el servidor local.
 export const API_PORT = 4000
 export const API_HOST = '127.0.0.1'
@@ -92,6 +93,8 @@ export function createServer(db: Db): Express {
   app.use('/api/vehiculos', vehiculosRouter(db))
   // Rutas de órdenes de servicio (HU-22 a HU-27), protegidas por sesión.
   app.use('/api/ordenes-servicio', ordenesServicioRouter(db))
+    // Catálogo de tipos de servicio (monto base y ruedas), protegido por sesión.
+  app.use('/api/tipos-servicio', tiposServicioRouter(db))
   // Manejador de errores: cualquier handler que llame a next(err), o que
   // lance una excepción dentro de una ruta async envuelta correctamente,
   // termina acá en vez de hacer caer el proceso de Electron.

@@ -5,7 +5,7 @@ import type { Server } from 'node:http'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDb } from './db/client'
 import { startServer } from './api/server'
-import { seedUsuarios } from './db/seed'
+import { seedTiposServicio, seedUsuarios } from './db/seed'
 let apiServer: Server | null = null
 
 // Abre un PDF generado por el renderer (ej. comprobante de saldo de
@@ -160,6 +160,7 @@ app.whenReady().then(async () => {
   const db = await initDb()
   // TEMPORAL de diagnóstico: muestra la causa real del error del seed.
   await seedUsuarios(db)
+  await seedTiposServicio(db)
   // --- Servidor local (Express) que expone la lógica de negocio ---
   // Ver src/main/api/server.ts y stack-tecnologico.md, sección 3.
   apiServer = startServer(db)

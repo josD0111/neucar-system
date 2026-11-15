@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { count } from "drizzle-orm";
 import type { Db } from "../api/server";
 import { hashContrasena, type Rol } from "../services/auth";
-import { usuarios } from "./schema";
+import { tiposServicio, usuarios } from "./schema";
 
 const USUARIOS_INICIALES: { nombre: string; usuarioLogin: string; rol: Rol }[] = [
   { nombre: "Administrador", usuarioLogin: "admin", rol: "Administrador" },
@@ -17,7 +17,6 @@ const USUARIOS_INICIALES: { nombre: string; usuarioLogin: string; rol: Rol }[] =
 
 export async function seedUsuarios(db: Db): Promise<void> {
   const [{ total }] = await db.select({ total: count() }).from(usuarios);
-
 
   if (total > 0) return;
 
@@ -35,4 +34,25 @@ export async function seedUsuarios(db: Db): Promise<void> {
   for (const g of generadas) {
     console.log(`[seed]   ${g.usuarioLogin} / ${g.contrasena}`);
   }
+}
+
+// Catálogo inicial de tipos de servicio, solo si la tabla está vacía. Sin precios:
+// se completan desde la pantalla de tipos de servicio. Solo Balanceo pide ruedas
+// (el ejemplo que dio el dueño); el resto se ajusta desde la pantalla.
+const TIPOS_SERVICIO_INICIALES = [
+  { nombre: "Alineación", requiereRuedas: false },
+  { nombre: "Balanceo", requiereRuedas: true },
+  { nombre: "Corrección de pisada", requiereRuedas: false },
+  { nombre: "Mantenimiento", requiereRuedas: false },
+  { nombre: "Montaje", requiereRuedas: false },
+  { nombre: "Cambio de pico", requiereRuedas: false },
+  { nombre: "Gomería", requiereRuedas: false },
+];
+
+export async function seedTiposServicio(db: Db): Promise<void> {
+  const [{ total }] = await db.select({ total: count() }).from(tiposServicio);
+  if (total > 0) return;
+
+  await db.insert(tiposServicio).values(TIPOS_SERVICIO_INICIALES);
+  console.log("[seed] Catálogo base de tipos de servicio creado (sin precios).");
 }

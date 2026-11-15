@@ -13,7 +13,7 @@ import { Router, type Response } from "express";
 import type { Db } from "../server";
 import { requireAuth } from "../middleware/auth";
 import { sendBadRequest, sendError, sendOk, sendUnauthorized } from "../response";
-import { crearOrden, listarOrdenes, obtenerOrden } from "../../services/ordenesServicio";
+import { crearOrden, historialOrdenes, listarOrdenes, obtenerOrden } from "../../services/ordenesServicio";
 import type { Resultado } from "../../services/clientes";
 
 // Convierte un id recibido por URL en número entero positivo (o null si no es válido).
@@ -63,7 +63,37 @@ export function ordenesServicioRouter(db: Db): Router {
       next(err);
     }
   });
+  // Historial paginado por días (pantalla Historial de servicios). Va ANTES de
+  // "/:id": si no, Express interpretaría "historial" como un id.
+  // Parámetros opcionales: clienteId, vehiculoId, tipoPago (Contado | Crédito),
+  // fechaDesde / fechaHasta (AAAA-MM-DD locales), soloConSaldoPendiente=true,
+  // antesDe (cursor que devolvió la página anterior) y dias (días por página, 1 a 31).
+  // La validación de cada parámetro la hace el servicio (responde 400 si no es válido).
+  router.get("/historial", async (req, res, next) => {
+    try {
+      const leerTexto = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+      const leerNumero = (v: unknown): number | undefined => {
+        const t = leerTexto(v);
+        return t === undefined ? undefined : Number(t); // si no es número da NaN y el servicio lo rechaza
+      };
 
+      responder(
+        res,
+        await historialOrdenes(db, {
+          clienteId: leerNumero(req.query.clienteId),
+          vehiculoId: leerNumero(req.query.vehiculoId),
+          tipoPago: leerTexto(req.query.tipoPago),
+          fechaDesde: leerTexto(req.query.fechaDesde),
+          fechaHasta: leerTexto(req.query.fechaHasta),
+          soloConSaldoPendiente: req.query.soloConSaldoPendiente === "true",
+          antesDe: leerTexto(req.query.antesDe),
+          dias: leerNumero(req.query.dias),
+        }),
+      );
+    } catch (err) {
+      next(err);
+    }
+  });
   // Una orden por id, con sus servicios.
   router.get("/:id", async (req, res, next) => {
     try {
@@ -81,8 +111,8 @@ export function ordenesServicioRouter(db: Db): Router {
     try {
       // requireAuth ya garantiza el usuario; esta comprobación es para TypeScript.
       if (!req.usuario) return sendUnauthorized(res, "Sesión no válida o vencida");
-      responder(res, await crearOrden(db, req.usuario.id /* ← campo asumido */, req.body), 201);
-    } catch (err) {
+      responder(res, await crearOrden(db, req.usuario.id, req.usuario.rol, req.body), 201);
+        } catch (err) {
       next(err);
     }
     

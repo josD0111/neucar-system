@@ -202,7 +202,20 @@ export const ordenesServicio = pgTable('ordenes_servicio', {
   // necesario registrar garantía sobre servicios — ver entidades-dominio.md,
   // sección 9, e historia HU-25 (descartada).
 })
-
+// 9.2 Tipo de servicio (catálogo). Se deshabilita (activo = false), nunca se
+// borra, para no romper las órdenes que ya lo usaron.
+export const tiposServicio = pgTable('tipos_servicio', {
+  id: serial('id').primaryKey(),
+  nombre: varchar('nombre', { length: 100 }).notNull().unique(),
+  // Precio de referencia. Si requiereRuedas = true es el precio POR RUEDA;
+  // si no, es el precio del servicio completo. null = sin precio fijo (se
+  // escribe a mano en cada orden).
+  montoBase: numeric('monto_base', { precision: 12, scale: 2 }),
+  // true = al cargar este servicio en una orden es obligatorio indicar la
+  // cantidad de ruedas (ej. balanceo). false = no se pide (ej. mantenimiento).
+  requiereRuedas: boolean('requiere_ruedas').notNull().default(false),
+  activo: boolean('activo').notNull().default(true)
+})
 // 9.1 Servicio (detalle)
 export const servicios = pgTable('servicios', {
   id: serial('id').primaryKey(),
@@ -214,5 +227,15 @@ export const servicios = pgTable('servicios', {
   // Texto libre opcional para la parte afectada (ej. "4 ruedas" en alineación
   // o balanceo). No aplica a todos los tipos de servicio — ver
   // entidades-dominio.md, sección 9.1, e historia HU-22.1.
+    // Tipo elegido del catálogo. null en las órdenes anteriores al catálogo
+  // (esas conservan solo el texto de tipoServicio).
+  tipoServicioId: integer('tipo_servicio_id').references(() => tiposServicio.id),
+  // Solo si el tipo requiere ruedas.
+  cantidadRuedas: integer('cantidad_ruedas'),
+  // Precio de referencia al momento de la orden (snapshot, ya multiplicado por
+  // las ruedas). Sirve para ver después qué descuento se aplicó; si el catálogo
+  // cambia, las órdenes ya hechas no se alteran. null = el tipo no tenía precio fijo.
+  montoBase: numeric('monto_base', { precision: 12, scale: 2 }),
   detalle: varchar('detalle', { length: 255 })
+  
 })
