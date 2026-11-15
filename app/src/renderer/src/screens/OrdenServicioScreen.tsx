@@ -15,35 +15,38 @@
 
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../api/client'
-import { useClientes, useVehiculos } from '../api/hooks'
+import { useClientes, useTiposServicio, useVehiculos } from '../api/hooks'
 import { ordenesServicioApi } from '../api/ordenesServicio'
 import { vehiculosApi } from '../api/vehiculos'
-import type { Cliente, OrdenServicio, TipoPago, Vehiculo } from '../api/types'
+import type { Cliente, OrdenServicio, TipoPago, TipoServicio, Vehiculo } from '../api/types'
 import { useAuth } from '../data/AuthContext'
 import { useNavegacionConEnter } from './useNavegacionConEnter'
-
-// Sugerencias para el campo "Tarea" (el campo admite también texto libre).
-const TIPOS_SERVICIO = [
-  'Alineación',
-  'Balanceo',
-  'Corrección de pisada',
-  'Mantenimiento',
-  'Montaje',
-  'Cambio de pico',
-  'Gomería'
-]
+import { InputLimpiable } from '../components/InputLimpiable'
 
 // Máximo de resultados que se muestran al buscar (para no llenar la pantalla).
 const MAX_RESULTADOS = 6
 
-// Una tarea de la orden. El monto es texto mientras se escribe y se convierte
-// a número recién al enviar.
+// Máximo de ruedas por servicio (el servidor aplica el mismo límite).
+const MAX_RUEDAS = 20
+
+// Una tarea de la orden.
 interface LineaServicio {
   id: number
-  tipoServicio: string
-  monto: string
+  tipoServicioId: number | null // tipo elegido del catálogo
+  cantidadRuedas: string // texto mientras se escribe; solo cuenta si el tipo requiere ruedas
+  // null = se cobra el precio de referencia; texto = precio cambiado a mano (solo Administrador
+  // si el tipo tiene precio fijo; libre si no tiene).
+  montoManual: string | null
   detalle: string
 }
+
+const lineaVacia = (id: number): LineaServicio => ({
+  id,
+  tipoServicioId: null,
+  cantidadRuedas: '',
+  montoManual: null,
+  detalle: ''
+})
 
 const estiloInput = {
   padding: 'var(--space-2)',
@@ -117,6 +120,31 @@ function montoValido(texto: string): boolean {
   return Number.isFinite(n) && n > 0 && Math.abs(n * 100 - Math.round(n * 100)) < 1e-6
 }
 
+// ¿Es una cantidad de ruedas válida? (entero entre 1 y MAX_RUEDAS)
+function ruedasValidas(texto: string): boolean {
+  const n = Number(texto)
+  return texto.trim() !== '' && Number.isInteger(n) && n >= 1 && n <= MAX_RUEDAS
+}
+
+// Precio de referencia de una tarea, en guaraníes, o null si no se puede calcular:
+// el tipo no tiene precio fijo, o requiere ruedas y todavía falta la cantidad.
+// Mismo cálculo que hace el servidor: base × ruedas si requiere ruedas, o la base sola.
+function precioReferencia(tipo: TipoServicio | undefined, ruedas: string): number | null {
+  if (!tipo || tipo.montoBase === null) return null
+  const base = Number(tipo.montoBase)
+  if (!tipo.requiereRuedas) return base
+  if (!ruedasValidas(ruedas)) return null
+  return Math.round(base * Number(ruedas) * 100) / 100
+}
+
+// Monto que se cobra por una tarea: el editado a mano o, si no hay, el de
+// referencia ('' si no hay ninguno de los dos).
+function montoDeLinea(l: LineaServicio, tipo: TipoServicio | undefined): string {
+  if (l.montoManual !== null) return l.montoManual
+  const ref = precioReferencia(tipo, l.cantidadRuedas)
+  return ref === null ? '' : String(ref)
+}
+
 // Devuelve el valor con un retraso: evita pedir datos al servidor por cada
 // letra que se escribe en un buscador.
 function useRetardo<T>(valor: T, ms: number): T {
@@ -139,7 +167,8 @@ function textoVehiculo(v: Vehiculo): string {
 // Se separa de la pantalla para que, al registrar otra orden, el formulario se
 // monte de nuevo y useNavegacionConEnter vuelva a poner el cursor en el primer campo.
 function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) => void }): React.JSX.Element {
-  const { token } = useAuth()
+  const { token, usuario } = useAuth()
+  const esAdmin = usuario?.rol === 'Administrador'
 
   // Vehículo: uno existente (vehiculo), o uno nuevo que se crea al registrar.
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null)
@@ -155,9 +184,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
   const [errorCliente, setErrorCliente] = useState<string | null>(null)
 
   // Tareas y pago.
-  const [lineas, setLineas] = useState<LineaServicio[]>([
-    { id: 1, tipoServicio: '', monto: '', detalle: '' }
-  ])
+  const [lineas, setLineas] = useState<LineaServicio[]>([lineaVacia(1)])
   const [tipoPago, setTipoPago] = useState<TipoPago>('Contado')
   const [fechaPago, setFechaPago] = useState(hoyMasUnMes) // sugerida, editable
 
@@ -170,6 +197,11 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
   const { datos: vehiculosEncontrados } = useVehiculos(token, { q: qVeh })
   const { datos: clientesEncontrados } = useClientes(token, qCli)
 
+  // Catálogo de tipos de servicio (solo los activos).
+  const { datos: tipos } = useTiposServicio(token)
+  const tipoDe = (l: LineaServicio): TipoServicio | undefined =>
+    tipos.find((t) => t.id === l.tipoServicioId)
+
   // Cliente efectivo de la orden: el dueño del vehículo si lo tiene; si no, el elegido.
   const duenoVehiculo =
     vehiculo && vehiculo.clienteId !== null
@@ -180,21 +212,51 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
   // --- Tareas ---
   const agregarLinea = (): void => {
     const siguiente = lineas.length ? Math.max(...lineas.map((l) => l.id)) + 1 : 1
-    setLineas([...lineas, { id: siguiente, tipoServicio: '', monto: '', detalle: '' }])
+    setLineas([...lineas, lineaVacia(siguiente)])
   }
   const actualizarLinea = (id: number, cambios: Partial<LineaServicio>): void =>
     setLineas((prev) => prev.map((l) => (l.id === id ? { ...l, ...cambios } : l)))
   const quitarLinea = (id: number): void => setLineas((prev) => prev.filter((l) => l.id !== id))
 
+  // Al cambiar el tipo se descartan las ruedas y el monto editado de esa tarea.
+  const elegirTipo = (id: number, valor: string): void =>
+    actualizarLinea(id, {
+      tipoServicioId: valor === '' ? null : Number(valor),
+      cantidadRuedas: '',
+      montoManual: null
+    })
+
+  // Al cambiar las ruedas de un tipo con precio fijo, el precio se vuelve a calcular
+  // (un descuento puesto a mano para otra cantidad ya no aplica). Si el tipo no
+  // tiene precio fijo, el monto escrito se conserva.
+  const cambiarRuedas = (l: LineaServicio, valor: string): void => {
+    const tipo = tipoDe(l)
+    actualizarLinea(l.id, {
+      cantidadRuedas: valor,
+      ...(tipo && tipo.montoBase !== null ? { montoManual: null } : {})
+    })
+  }
+
   // Cotización (HU-24): suma de las tareas con monto válido. Es solo informativa.
-  const lineasCotizables = lineas.filter((l) => l.tipoServicio.trim() !== '' && montoValido(l.monto))
-  const total = lineasCotizables.reduce((suma, l) => suma + Number(l.monto), 0)
+  const lineasCotizables = lineas.filter(
+    (l) => l.tipoServicioId !== null && montoValido(montoDeLinea(l, tipoDe(l)))
+  )
+  const total = lineasCotizables.reduce(
+    (suma, l) => suma + Number(montoDeLinea(l, tipoDe(l))),
+    0
+  )
 
   // --- Validaciones de pantalla (el servidor vuelve a validar todo) ---
   const vehiculoListo =
     vehiculo !== null || (creandoVehiculo && (nuevoVeh.marca.trim() !== '' || nuevoVeh.chapa.trim() !== ''))
   const lineasValidas =
-    lineas.length > 0 && lineas.every((l) => l.tipoServicio.trim() !== '' && montoValido(l.monto))
+    lineas.length > 0 &&
+    lineas.every((l) => {
+      const tipo = tipoDe(l)
+      if (!tipo) return false
+      if (tipo.requiereRuedas && !ruedasValidas(l.cantidadRuedas)) return false
+      return montoValido(montoDeLinea(l, tipo))
+    })
   const faltaClienteCredito = tipoPago === 'Crédito' && cliente === null
   const puedeRegistrar = vehiculoListo && lineasValidas && !faltaClienteCredito && !guardando
 
@@ -250,11 +312,15 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
       ...(cliente ? { clienteId: cliente.id } : {}),
       tipoPago,
       fechaPagoPrevista: tipoPago === 'Crédito' ? fechaPago || null : null,
-      servicios: lineas.map((l) => ({
-        tipoServicio: l.tipoServicio.trim(),
-        monto: Number(l.monto),
-        detalle: l.detalle.trim() || null
-      }))
+      servicios: lineas.map((l) => {
+        const tipo = tipoDe(l)
+        return {
+          tipoServicioId: l.tipoServicioId as number, // lineasValidas garantiza que hay tipo
+          cantidadRuedas: tipo?.requiereRuedas ? Number(l.cantidadRuedas) : null,
+          monto: Number(montoDeLinea(l, tipo)),
+          detalle: l.detalle.trim() || null
+        }
+      })
     })
     setGuardando(false)
     if (!ro.ok) {
@@ -294,9 +360,9 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
             <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
               <div>
                 <label style={estiloEtiqueta}>Marca</label>
-                <input
+                <InputLimpiable
                   value={nuevoVeh.marca}
-                  onChange={(e) => setNuevoVeh({ ...nuevoVeh, marca: e.target.value })}
+                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, marca: v })}
                   placeholder="Ej. Toyota"
                   maxLength={80}
                   style={estiloInput}
@@ -304,9 +370,9 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
               </div>
               <div>
                 <label style={estiloEtiqueta}>Chapa</label>
-                <input
+                <InputLimpiable
                   value={nuevoVeh.chapa}
-                  onChange={(e) => setNuevoVeh({ ...nuevoVeh, chapa: e.target.value.toUpperCase() })}
+                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, chapa: v.toUpperCase() })}
                   placeholder="Ej. ABC 123"
                   maxLength={30}
                   className="font-data"
@@ -315,9 +381,9 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
               </div>
               <div>
                 <label style={estiloEtiqueta}>Color</label>
-                <input
+                <InputLimpiable
                   value={nuevoVeh.color}
-                  onChange={(e) => setNuevoVeh({ ...nuevoVeh, color: e.target.value })}
+                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, color: v })}
                   placeholder="Ej. Rojo"
                   maxLength={40}
                   style={estiloInput}
@@ -333,9 +399,9 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
           </div>
         ) : (
           <div>
-            <input
+            <InputLimpiable
               value={busquedaVeh}
-              onChange={(e) => setBusquedaVeh(e.target.value)}
+              onChange={setBusquedaVeh}
               placeholder="Buscar por chapa, marca o nombre del dueño"
               style={{ ...estiloInput, minWidth: 320 }}
             />
@@ -399,9 +465,9 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
             <p style={{ margin: '0 0 var(--space-2) 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
               Sin cliente = cliente casual. Para una orden a crédito hace falta un cliente registrado.
             </p>
-            <input
+            <InputLimpiable
               value={busquedaCli}
-              onChange={(e) => setBusquedaCli(e.target.value)}
+              onChange={setBusquedaCli}
               placeholder="Buscar cliente por nombre, cédula o celular"
               style={{ ...estiloInput, minWidth: 320 }}
             />
@@ -441,9 +507,9 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
             <div style={{ marginTop: 'var(--space-3)' }}>
               {creandoCliente ? (
                 <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
+                  <InputLimpiable
                     value={nombreNuevoCli}
-                    onChange={(e) => setNombreNuevoCli(e.target.value)}
+                    onChange={setNombreNuevoCli}
                     placeholder="Nombre del cliente nuevo"
                     maxLength={150}
                     style={estiloInput}
@@ -482,70 +548,104 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
 
       {/* ---------- Tareas ---------- */}
       <Panel title="Tareas realizadas">
-        <datalist id="tipos-servicio">
-          {TIPOS_SERVICIO.map((t) => (
-            <option key={t} value={t} />
-          ))}
-        </datalist>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: 'left', color: 'var(--color-text-muted)', fontSize: 12 }}>
               <th style={{ paddingBottom: 8 }}>Tarea</th>
+              <th style={{ paddingBottom: 8 }}>Ruedas</th>
               <th style={{ paddingBottom: 8 }}>Detalle (opcional)</th>
               <th style={{ paddingBottom: 8 }}>Monto (Gs.)</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {lineas.map((l) => (
-              <tr key={l.id} style={{ borderTop: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '8px 8px 8px 0' }}>
-                  <input
-                    list="tipos-servicio"
-                    value={l.tipoServicio}
-                    onChange={(e) => actualizarLinea(l.id, { tipoServicio: e.target.value })}
-                    placeholder="Ej. Alineación"
-                    maxLength={100}
-                    style={{ ...estiloInput, width: 200 }}
-                  />
-                </td>
-                <td style={{ padding: 8 }}>
-                  <input
-                    value={l.detalle}
-                    onChange={(e) => actualizarLinea(l.id, { detalle: e.target.value })}
-                    placeholder="Ej. 4 ruedas"
-                    maxLength={255}
-                    style={{ ...estiloInput, width: 220 }}
-                  />
-                </td>
-                <td style={{ padding: 8 }}>
-                  <input
-                    type="number"
-                    min={0}
-                    value={l.monto}
-                    onChange={(e) => actualizarLinea(l.id, { monto: e.target.value })}
-                    className="font-data"
-                    style={{ ...estiloInput, width: 130 }}
-                  />
-                </td>
-                <td style={{ padding: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => quitarLinea(l.id)}
-                    disabled={lineas.length === 1} // la orden necesita al menos una tarea
-                    aria-label="Quitar tarea"
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--color-alert)',
-                      opacity: lineas.length === 1 ? 0.3 : 1
-                    }}
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {lineas.map((l) => {
+              const tipo = tipoDe(l)
+              const tienePrecioFijo = tipo !== undefined && tipo.montoBase !== null
+              const puedeEditarMonto = !tienePrecioFijo || esAdmin
+              const valorMonto = montoDeLinea(l, tipo)
+
+              return (
+                <tr key={l.id} style={{ borderTop: '1px solid var(--color-border)' }}>
+                  <td style={{ padding: '8px 8px 8px 0' }}>
+                    <select
+                      value={l.tipoServicioId ?? ''}
+                      onChange={(e) => elegirTipo(l.id, e.target.value)}
+                      style={{ ...estiloInput, width: 210 }}
+                    >
+                      <option value="">Elegir tarea…</option>
+                      {tipos.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    {tipo?.requiereRuedas ? (
+                      <input
+                        type="number"
+                        min={1}
+                        max={MAX_RUEDAS}
+                        value={l.cantidadRuedas}
+                        onChange={(e) => cambiarRuedas(l, e.target.value)}
+                        placeholder="Cant."
+                        className="font-data"
+                        style={{ ...estiloInput, width: 80 }}
+                      />
+                    ) : (
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    <input
+                      value={l.detalle}
+                      onChange={(e) => actualizarLinea(l.id, { detalle: e.target.value })}
+                      placeholder="Ej. Tren delantero"
+                      maxLength={255}
+                      style={{ ...estiloInput, width: 210 }}
+                    />
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      value={valorMonto}
+                      disabled={!puedeEditarMonto}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        actualizarLinea(l.id, {
+                          montoManual: val === '' && tienePrecioFijo ? null : val
+                        })
+                      }}
+                      className="font-data"
+                      style={{
+                        ...estiloInput,
+                        width: 130,
+                        background: puedeEditarMonto ? undefined : 'var(--color-bg)',
+                        color: puedeEditarMonto ? undefined : 'var(--color-text-muted)'
+                      }}
+                    />
+                  </td>
+                  <td style={{ padding: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => quitarLinea(l.id)}
+                      disabled={lineas.length === 1} // la orden necesita al menos una tarea
+                      aria-label="Quitar tarea"
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: 'var(--color-alert)',
+                        opacity: lineas.length === 1 ? 0.3 : 1
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
         <button type="button" onClick={agregarLinea} style={{ ...estiloBotonSecundario, marginTop: 'var(--space-3)' }}>
@@ -561,15 +661,24 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
           </p>
         ) : (
           <div style={{ fontSize: 13 }}>
-            {lineasCotizables.map((l) => (
-              <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-                <span>
-                  {l.tipoServicio.trim()}
-                  {l.detalle.trim() ? ` (${l.detalle.trim()})` : ''}
-                </span>
-                <span className="font-data">Gs. {gs(Number(l.monto))}</span>
-              </div>
-            ))}
+            {lineasCotizables.map((l) => {
+              const tipo = tipoDe(l)
+              const monto = Number(montoDeLinea(l, tipo))
+              const extras = [
+                tipo?.requiereRuedas && l.cantidadRuedas ? `${l.cantidadRuedas} ruedas` : null,
+                l.detalle.trim() || null
+              ].filter(Boolean)
+
+              return (
+                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                  <span>
+                    {tipo?.nombre ?? 'Servicio'}
+                    {extras.length > 0 ? ` (${extras.join(' · ')})` : ''}
+                  </span>
+                  <span className="font-data">Gs. {gs(monto)}</span>
+                </div>
+              )
+            })}
             <div
               className="font-data"
               style={{ borderTop: '1px solid var(--color-border)', marginTop: 6, paddingTop: 6, fontSize: 18, textAlign: 'right' }}

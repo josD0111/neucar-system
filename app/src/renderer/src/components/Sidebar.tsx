@@ -15,6 +15,7 @@ export type Pantalla =
   | 'ventas'
   | 'servicio'
   | 'historialServicios'
+  | 'tiposServicio'
   | 'cliente'
 export type Rol = 'Administrador' | 'Empleado'
 
@@ -23,7 +24,7 @@ interface SidebarProps {
   onCambiarPantalla: (p: Pantalla) => void
 }
 
-const items: { id: Pantalla; label: string }[] = [
+const items: { id: Pantalla; label: string; soloAdmin?: boolean }[] = [
   { id: 'stock', label: 'Control de stock' },
   { id: 'categorias', label: 'Categorías' },
   { id: 'proveedores', label: 'Proveedores' },
@@ -31,6 +32,8 @@ const items: { id: Pantalla; label: string }[] = [
   { id: 'ventas', label: 'Historial de ventas' },
   { id: 'servicio', label: 'Orden de servicio' },
   { id: 'historialServicios', label: 'Historial de servicios' },
+  // Catálogo de tipos de servicio: lo gestiona solo el Administrador.
+  { id: 'tiposServicio', label: 'Tipos de servicio', soloAdmin: true },
   { id: 'cliente', label: 'Ficha de cliente' }
 ]
 
@@ -78,7 +81,9 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps): Re
       </div>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {items.map((item) => (
+                {items
+          .filter((item) => !item.soloAdmin || usuario?.rol === 'Administrador')
+          .map((item) => (
           <button
             key={item.id}
             onClick={() => onCambiarPantalla(item.id)}

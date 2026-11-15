@@ -21,6 +21,8 @@ import { productosApi, type FiltrosProductos } from './productos'
 import { ApiClientError, apiFetch, type ApiFail, type ApiOk } from './client'
 import { vehiculosApi } from './vehiculos'
 import { ordenesServicioApi } from './ordenesServicio'
+import { tiposServicioApi } from './tiposServicio'
+
 import type {
   Categoria,
   FiltrosOrdenesServicio,
@@ -30,7 +32,8 @@ import type {
   Proveedor,
   Producto,
   Vehiculo,
-  Cliente
+  Cliente,
+  TipoServicio
 } from './types'
 
 
@@ -161,5 +164,19 @@ export function useClientes(token: string | null, busqueda = ''): RecursoAsync<C
       return desenvolver(await apiFetch<Cliente[]>(`/api/clientes${qs}`, { token }))
     },
     [token, busqueda]
+  )
+}
+
+// Catálogo de tipos de servicio. Sin sesión no se pide nada. Los deshabilitados
+// (incluirInactivos) solo los devuelve el servidor al Administrador.
+export function useTiposServicio(
+  token: string | null,
+  incluirInactivos = false
+): RecursoAsync<TipoServicio[]> {
+  return useRecursoAsync<TipoServicio[]>(
+    [],
+    async () =>
+      token ? desenvolver(await tiposServicioApi.listar(token, incluirInactivos)) : [],
+    [token, incluirInactivos]
   )
 }

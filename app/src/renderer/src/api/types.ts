@@ -221,7 +221,12 @@ export interface FiltrosVehiculos {
 export interface ServicioDetalle {
   id: number
   ordenId: number
+  // null en las órdenes anteriores al catálogo de tipos de servicio.
+  tipoServicioId: number | null
   tipoServicio: string
+  cantidadRuedas: number | null
+  // Precio de referencia de ese momento (ya multiplicado por las ruedas).
+  montoBase: string | null
   monto: string
   detalle: string | null
 }
@@ -247,12 +252,32 @@ export interface OrdenServicio {
   servicios: ServicioDetalle[]
 }
 
+// Un servicio al registrar una orden. Si se omite `monto`, el servidor usa el
+// precio de referencia del tipo. Solo el Administrador puede enviar un monto
+// distinto al de referencia.
 export interface ServicioInput {
-  tipoServicio: string
-  monto: number
+  tipoServicioId: number
+  // Obligatoria si el tipo requiere ruedas; se ignora si no.
+  cantidadRuedas?: number | null
+  monto?: number | null
   detalle?: string | null
 }
+// Tipo de servicio del catálogo. montoBase llega como string (columna numeric);
+// null = sin precio fijo. Si requiereRuedas, el monto es POR RUEDA.
+export interface TipoServicio {
+  id: number
+  nombre: string
+  montoBase: string | null
+  requiereRuedas: boolean
+  activo: boolean
+}
 
+export interface TipoServicioInput {
+  nombre: string
+  montoBase?: number | null
+  requiereRuedas?: boolean
+  activo?: boolean
+}
 // Lo que se envía al registrar una orden. El monto total NO se manda: lo
 // calcula el servidor como la suma de los servicios.
 export interface OrdenServicioInput {
@@ -272,6 +297,32 @@ export interface FiltrosOrdenesServicio {
   clienteId?: number
   vehiculoId?: number
   limite?: number
+}
+// Una orden del historial paginado, con su saldo pendiente ya calculado por el
+// servidor (siempre 0 si es al contado). Ver services/ordenesServicio.ts.
+export interface OrdenListado extends OrdenServicio {
+  saldoPendiente: number
+}
+
+// Filtros de GET /api/ordenes-servicio/historial. Las fechas son 'AAAA-MM-DD'
+// locales, como las de un <input type="date">.
+export interface FiltrosHistorialOrdenes {
+  clienteId?: number
+  vehiculoId?: number
+  tipoPago?: string
+  fechaDesde?: string
+  fechaHasta?: string
+  soloConSaldoPendiente?: boolean
+  antesDe?: string
+  dias?: number
+}
+
+// Respuesta del historial: una PÁGINA de días calendario completos. Para la
+// siguiente página, pasar el `antesDe` que devolvió esta.
+export interface PaginaOrdenes {
+  items: OrdenListado[]
+  hayMas: boolean
+  antesDe: string | null
 }
 // Cliente tal como lo devuelve GET /api/clientes (ver services/clientes.ts).
 export interface Cliente {

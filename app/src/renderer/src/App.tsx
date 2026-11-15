@@ -34,6 +34,7 @@ import { VentasScreen } from './screens/VentasScreen'
 import { OrdenServicioScreen } from './screens/OrdenServicioScreen'
 import { ClienteScreen } from './screens/ClienteScreen'
 import { HistorialServiciosScreen } from './screens/HistorialServiciosScreen'
+import { TiposServicioScreen } from './screens/TiposServicioScreen'
 
 // Parte de la app que solo se ve con sesión iniciada. Al cerrar sesión este
 // componente se desmonta, así que la pantalla activa vuelve a "stock" sola.
@@ -70,6 +71,7 @@ function AppAutenticada(): React.JSX.Element {
           {pantalla === 'ventas' && <VentasScreen />}
           {pantalla === 'servicio' && <OrdenServicioScreen />}
           {pantalla === 'historialServicios' && <HistorialServiciosScreen />}
+          {pantalla === 'tiposServicio' && <TiposServicioScreen />}
           {pantalla === 'cliente' && <ClienteScreen />}
         </main>
       </div>
