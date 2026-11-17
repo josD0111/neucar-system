@@ -5,17 +5,23 @@
 // el Empleado también registra órdenes de servicio (HU-22), así que necesita
 // poder elegir o dar de alta el vehículo. No hay borrado (ver services/vehiculos.ts).
 //
-//   GET  /api/vehiculos?clienteId=3&q=texto   → lista (filtros opcionales)
-//   GET  /api/vehiculos/:id                   → un vehículo
-//   POST /api/vehiculos                       → crear
-//   PUT  /api/vehiculos/:id                   → editar
+// Cambio de dueño: asignar dueño a un vehículo que no tiene lo pueden hacer ambos
+// roles; cambiar o quitar un dueño ya registrado es solo del Administrador (lo
+// valida el servicio, tanto en PUT como en PATCH /:id/dueno).
+//
+//   GET   /api/vehiculos?clienteId=3&q=texto   → lista (filtros opcionales)
+//   GET   /api/vehiculos/:id                   → un vehículo
+//   POST  /api/vehiculos                       → crear
+//   PUT   /api/vehiculos/:id                   → editar
+//   PATCH /api/vehiculos/:id/dueno             → asignar dueño ({ clienteId })
 
 import { Router, type Response } from "express";
 import type { Db } from "../server";
 import { requireAuth } from "../middleware/auth";
-import { sendBadRequest, sendError, sendOk } from "../response";
+import { sendBadRequest, sendError, sendOk, sendUnauthorized } from "../response";
 import {
   actualizarVehiculo,
+  asignarDuenoVehiculo,
   crearVehiculo,
   listarVehiculos,
   obtenerVehiculo,
@@ -76,12 +82,25 @@ export function vehiculosRouter(db: Db): Router {
     }
   });
 
-  // Edición de un vehículo.
+  // Edición de un vehículo. El rol sale de la sesión, nunca del cuerpo de la petición.
   router.put("/:id", async (req, res, next) => {
     try {
       const id = leerId(req.params.id);
       if (id === null) return sendBadRequest(res, "Id de vehículo no válido");
-      responder(res, await actualizarVehiculo(db, id, req.body));
+      if (!req.usuario) return sendUnauthorized(res, "Sesión no válida o vencida");
+      responder(res, await actualizarVehiculo(db, id, req.usuario.rol, req.body));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Asignar (o, el Administrador, cambiar) el dueño de un vehículo.
+  router.patch("/:id/dueno", async (req, res, next) => {
+    try {
+      const id = leerId(req.params.id);
+      if (id === null) return sendBadRequest(res, "Id de vehículo no válido");
+      if (!req.usuario) return sendUnauthorized(res, "Sesión no válida o vencida");
+      responder(res, await asignarDuenoVehiculo(db, id, req.usuario.rol, req.body));
     } catch (err) {
       next(err);
     }

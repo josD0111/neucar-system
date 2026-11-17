@@ -21,5 +21,10 @@ export const vehiculosApi = {
   crear: (token: string | null, input: VehiculoInput) =>
     apiFetch<Vehiculo>('/api/vehiculos', { method: 'POST', body: input, token }),
   actualizar: (token: string | null, id: number, input: VehiculoInput) =>
-    apiFetch<Vehiculo>(`/api/vehiculos/${id}`, { method: 'PUT', body: input, token })
+    apiFetch<Vehiculo>(`/api/vehiculos/${id}`, { method: 'PUT', body: input, token }),
+  // Asigna el dueño de un vehículo. Asignarlo a uno que no tiene dueño lo puede
+  // hacer cualquier usuario; cambiar un dueño ya registrado es solo del
+  // Administrador (el servidor responde 403 si no).
+  asignarDueno: (token: string | null, id: number, clienteId: number) =>
+    apiFetch<Vehiculo>(`/api/vehiculos/${id}/dueno`, { method: 'PATCH', body: { clienteId }, token })
 }

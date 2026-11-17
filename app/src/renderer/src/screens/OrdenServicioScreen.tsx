@@ -3,15 +3,26 @@
 // Registro de órdenes de servicio (HU-22 a HU-27, sin HU-25), conectado a la
 // API real (/api/ordenes-servicio y /api/vehiculos).
 //
-// Una orden es la VISITA: se elige (o se da de alta) el vehículo, se indica el
-// cliente si corresponde, se cargan una o más tareas con su monto y se elige
+// Una orden es la VISITA: se elige el cliente (si corresponde), se elige o se da
+// de alta su vehículo, se cargan una o más tareas con su precio y se elige
 // contado o crédito. El monto total lo calcula el servidor; el que se ve acá
 // es solo una cotización informativa (HU-24) que no se guarda.
+//
+// Precio de cada tarea: el campo muestra el PRECIO BASE del tipo de servicio (por
+// rueda, si el tipo pide ruedas) y se puede editar ahí (descuento). El monto de la
+// línea es precio × cantidad de ruedas, y la cotización suma esos montos.
+//
+// Cliente y vehículo:
+//   - Un cliente puede tener varios vehículos: al elegir el cliente se ofrecen los suyos.
+//   - Un vehículo puede estar registrado sin dueño: si hay un cliente elegido, se puede
+//     dejar asignado como su dueño (para poder hacerle servicios a crédito).
+//   - Si el vehículo elegido tiene dueño, ese dueño es el cliente de la orden.
 //
 // Reglas que también valida el servidor (acá solo se anticipan para guiar):
 //   - Una orden a crédito exige un cliente registrado (HU-27).
 //   - Si el vehículo tiene dueño, la orden es de ese dueño.
 //   - Sin cliente = cliente casual (solo posible al contado).
+//   - Solo el Administrador puede cambiar el precio de un tipo con precio fijo.
 
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../api/client'
@@ -34,9 +45,10 @@ interface LineaServicio {
   id: number
   tipoServicioId: number | null // tipo elegido del catálogo
   cantidadRuedas: string // texto mientras se escribe; solo cuenta si el tipo requiere ruedas
-  // null = se cobra el precio de referencia; texto = precio cambiado a mano (solo Administrador
-  // si el tipo tiene precio fijo; libre si no tiene).
-  montoManual: string | null
+  // null = se usa el precio base del tipo; texto = precio editado a mano (por rueda, si el
+  // tipo pide ruedas). Solo el Administrador puede editarlo si el tipo tiene precio fijo;
+  // si no tiene precio fijo, es libre.
+  precioManual: string | null
   detalle: string
 }
 
@@ -44,7 +56,7 @@ const lineaVacia = (id: number): LineaServicio => ({
   id,
   tipoServicioId: null,
   cantidadRuedas: '',
-  montoManual: null,
+  precioManual: null,
   detalle: ''
 })
 
@@ -126,23 +138,34 @@ function ruedasValidas(texto: string): boolean {
   return texto.trim() !== '' && Number.isInteger(n) && n >= 1 && n <= MAX_RUEDAS
 }
 
-// Precio de referencia de una tarea, en guaraníes, o null si no se puede calcular:
-// el tipo no tiene precio fijo, o requiere ruedas y todavía falta la cantidad.
-// Mismo cálculo que hace el servidor: base × ruedas si requiere ruedas, o la base sola.
-function precioReferencia(tipo: TipoServicio | undefined, ruedas: string): number | null {
-  if (!tipo || tipo.montoBase === null) return null
-  const base = Number(tipo.montoBase)
-  if (!tipo.requiereRuedas) return base
-  if (!ruedasValidas(ruedas)) return null
-  return Math.round(base * Number(ruedas) * 100) / 100
+// Precio base del tipo (por rueda, si pide ruedas), o null si no tiene precio fijo.
+function precioBaseDelTipo(tipo: TipoServicio | undefined): number | null {
+  return tipo && tipo.montoBase !== null ? Number(tipo.montoBase) : null
 }
 
-// Monto que se cobra por una tarea: el editado a mano o, si no hay, el de
-// referencia ('' si no hay ninguno de los dos).
-function montoDeLinea(l: LineaServicio, tipo: TipoServicio | undefined): string {
-  if (l.montoManual !== null) return l.montoManual
-  const ref = precioReferencia(tipo, l.cantidadRuedas)
-  return ref === null ? '' : String(ref)
+// Precio de una tarea tal como se muestra en el campo: el editado a mano o, si no hay,
+// el precio base del tipo ('' si no hay ninguno de los dos).
+function precioDeLinea(l: LineaServicio, tipo: TipoServicio | undefined): string {
+  if (l.precioManual !== null) return l.precioManual
+  const base = precioBaseDelTipo(tipo)
+  return base === null ? '' : String(base)
+}
+
+// Cantidad por la que se multiplica el precio: las ruedas si el tipo las pide, o 1.
+// null si todavía falta un dato (tipo sin elegir, o ruedas sin completar).
+function cantidadDeLinea(l: LineaServicio, tipo: TipoServicio | undefined): number | null {
+  if (!tipo) return null
+  if (!tipo.requiereRuedas) return 1
+  return ruedasValidas(l.cantidadRuedas) ? Number(l.cantidadRuedas) : null
+}
+
+// Monto de la línea = precio × cantidad. Se calcula en centavos enteros para no
+// arrastrar errores de decimales. null si falta algún dato o el precio no es válido.
+function montoDeLinea(l: LineaServicio, tipo: TipoServicio | undefined): number | null {
+  const precio = precioDeLinea(l, tipo)
+  const cantidad = cantidadDeLinea(l, tipo)
+  if (!montoValido(precio) || cantidad === null) return null
+  return (Math.round(Number(precio) * 100) * cantidad) / 100
 }
 
 // Devuelve el valor con un retraso: evita pedir datos al servidor por cada
@@ -170,18 +193,21 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
   const { token, usuario } = useAuth()
   const esAdmin = usuario?.rol === 'Administrador'
 
+  // Cliente de la orden (opcional). Si se elige un vehículo con dueño, el cliente pasa a ser ese dueño.
+  const [cliente, setCliente] = useState<{ id: number; nombre: string } | null>(null)
+  const [busquedaCli, setBusquedaCli] = useState('')
+  const [creandoCliente, setCreandoCliente] = useState(false)
+  const [nombreNuevoCli, setNombreNuevoCli] = useState('')
+  const [errorCliente, setErrorCliente] = useState<string | null>(null)
+  const [avisoCliente, setAvisoCliente] = useState<string | null>(null)
+
   // Vehículo: uno existente (vehiculo), o uno nuevo que se crea al registrar.
   const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null)
   const [creandoVehiculo, setCreandoVehiculo] = useState(false)
   const [busquedaVeh, setBusquedaVeh] = useState('')
   const [nuevoVeh, setNuevoVeh] = useState({ marca: '', chapa: '', color: '' })
-
-  // Cliente elegido a mano (solo se usa si el vehículo no tiene dueño).
-  const [clienteElegido, setClienteElegido] = useState<{ id: number; nombre: string } | null>(null)
-  const [busquedaCli, setBusquedaCli] = useState('')
-  const [creandoCliente, setCreandoCliente] = useState(false)
-  const [nombreNuevoCli, setNombreNuevoCli] = useState('')
-  const [errorCliente, setErrorCliente] = useState<string | null>(null)
+  const [asignando, setAsignando] = useState(false)
+  const [errorDueno, setErrorDueno] = useState<string | null>(null)
 
   // Tareas y pago.
   const [lineas, setLineas] = useState<LineaServicio[]>([lineaVacia(1)])
@@ -196,18 +222,13 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
   const qCli = useRetardo(busquedaCli.trim(), 300)
   const { datos: vehiculosEncontrados } = useVehiculos(token, { q: qVeh })
   const { datos: clientesEncontrados } = useClientes(token, qCli)
+  // Vehículos del cliente elegido. Sin cliente no se pide nada (token null = lista vacía).
+  const { datos: vehiculosDelCliente } = useVehiculos(cliente ? token : null, { clienteId: cliente?.id })
 
   // Catálogo de tipos de servicio (solo los activos).
   const { datos: tipos } = useTiposServicio(token)
   const tipoDe = (l: LineaServicio): TipoServicio | undefined =>
     tipos.find((t) => t.id === l.tipoServicioId)
-
-  // Cliente efectivo de la orden: el dueño del vehículo si lo tiene; si no, el elegido.
-  const duenoVehiculo =
-    vehiculo && vehiculo.clienteId !== null
-      ? { id: vehiculo.clienteId, nombre: vehiculo.clienteNombre ?? 'Cliente registrado' }
-      : null
-  const cliente = duenoVehiculo ?? clienteElegido
 
   // --- Tareas ---
   const agregarLinea = (): void => {
@@ -218,54 +239,60 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
     setLineas((prev) => prev.map((l) => (l.id === id ? { ...l, ...cambios } : l)))
   const quitarLinea = (id: number): void => setLineas((prev) => prev.filter((l) => l.id !== id))
 
-  // Al cambiar el tipo se descartan las ruedas y el monto editado de esa tarea.
+  // Al cambiar el tipo se descartan las ruedas y el precio editado de esa tarea.
   const elegirTipo = (id: number, valor: string): void =>
     actualizarLinea(id, {
       tipoServicioId: valor === '' ? null : Number(valor),
       cantidadRuedas: '',
-      montoManual: null
+      precioManual: null
     })
 
-  // Al cambiar las ruedas de un tipo con precio fijo, el precio se vuelve a calcular
-  // (un descuento puesto a mano para otra cantidad ya no aplica). Si el tipo no
-  // tiene precio fijo, el monto escrito se conserva.
-  const cambiarRuedas = (l: LineaServicio, valor: string): void => {
+  // Cotización (HU-24): una fila por tarea con su monto ya calculado (precio × ruedas).
+  // Es solo informativa.
+  const filasCotizacion = lineas.flatMap((l) => {
     const tipo = tipoDe(l)
-    actualizarLinea(l.id, {
-      cantidadRuedas: valor,
-      ...(tipo && tipo.montoBase !== null ? { montoManual: null } : {})
-    })
-  }
-
-  // Cotización (HU-24): suma de las tareas con monto válido. Es solo informativa.
-  const lineasCotizables = lineas.filter(
-    (l) => l.tipoServicioId !== null && montoValido(montoDeLinea(l, tipoDe(l)))
-  )
-  const total = lineasCotizables.reduce(
-    (suma, l) => suma + Number(montoDeLinea(l, tipoDe(l))),
-    0
-  )
+    const monto = montoDeLinea(l, tipo)
+    return tipo && monto !== null ? [{ linea: l, tipo, monto }] : []
+  })
+  const total = filasCotizacion.reduce((suma, f) => suma + f.monto, 0)
 
   // --- Validaciones de pantalla (el servidor vuelve a validar todo) ---
   const vehiculoListo =
     vehiculo !== null || (creandoVehiculo && (nuevoVeh.marca.trim() !== '' || nuevoVeh.chapa.trim() !== ''))
-  const lineasValidas =
-    lineas.length > 0 &&
-    lineas.every((l) => {
-      const tipo = tipoDe(l)
-      if (!tipo) return false
-      if (tipo.requiereRuedas && !ruedasValidas(l.cantidadRuedas)) return false
-      return montoValido(montoDeLinea(l, tipo))
-    })
+  const lineasValidas = lineas.length > 0 && lineas.every((l) => montoDeLinea(l, tipoDe(l)) !== null)
   const faltaClienteCredito = tipoPago === 'Crédito' && cliente === null
   const puedeRegistrar = vehiculoListo && lineasValidas && !faltaClienteCredito && !guardando
 
-  // --- Acciones ---
+  // --- Acciones: cliente y vehículo ---
+  const elegirCliente = (c: { id: number; nombre: string }): void => {
+    setCliente(c)
+    setBusquedaCli('')
+    setAvisoCliente(null)
+  }
+
+  // Quitar el cliente. Si el vehículo elegido tiene dueño, también se quita el vehículo:
+  // una orden de un vehículo con dueño siempre es de ese dueño.
+  const quitarCliente = (): void => {
+    setCliente(null)
+    setAvisoCliente(null)
+    setErrorDueno(null)
+    if (vehiculo !== null && vehiculo.clienteId !== null) setVehiculo(null)
+  }
+
   const elegirVehiculo = (v: Vehiculo): void => {
     setVehiculo(v)
     setBusquedaVeh('')
-    // Si el vehículo tiene dueño, el cliente de la orden es ese dueño.
-    if (v.clienteId !== null) setClienteElegido(null)
+    setErrorDueno(null)
+    // Si el vehículo tiene dueño, ese dueño es el cliente de la orden.
+    if (v.clienteId !== null) {
+      const dueno = { id: v.clienteId, nombre: v.clienteNombre ?? 'Cliente registrado' }
+      setAvisoCliente(
+        cliente !== null && cliente.id !== dueno.id
+          ? `Este vehículo es de ${dueno.nombre}: se usó como cliente de la orden en lugar de ${cliente.nombre}.`
+          : null
+      )
+      setCliente(dueno)
+    }
   }
 
   const crearClienteRapido = async (): Promise<void> => {
@@ -277,9 +304,23 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
       setErrorCliente(r.error.message)
       return
     }
-    setClienteElegido({ id: r.data.id, nombre: r.data.nombre })
+    elegirCliente({ id: r.data.id, nombre: r.data.nombre })
     setCreandoCliente(false)
     setNombreNuevoCli('')
+  }
+
+  // Deja al cliente elegido como dueño del vehículo (que estaba sin dueño).
+  const asignarDueno = async (): Promise<void> => {
+    if (vehiculo === null || cliente === null) return
+    setAsignando(true)
+    setErrorDueno(null)
+    const r = await vehiculosApi.asignarDueno(token, vehiculo.id, cliente.id)
+    setAsignando(false)
+    if (!r.ok) {
+      setErrorDueno(r.error.message)
+      return
+    }
+    setVehiculo(r.data)
   }
 
   const registrar = async (): Promise<void> => {
@@ -306,7 +347,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
       vehiculoId = rv.data.id
     }
 
-    // 2) Se registra la orden. El total lo calcula el servidor.
+    // 2) Se registra la orden. El monto de cada tarea es precio × ruedas; el total lo calcula el servidor.
     const ro = await ordenesServicioApi.registrar(token, {
       vehiculoId,
       ...(cliente ? { clienteId: cliente.id } : {}),
@@ -317,7 +358,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
         return {
           tipoServicioId: l.tipoServicioId as number, // lineasValidas garantiza que hay tipo
           cantidadRuedas: tipo?.requiereRuedas ? Number(l.cantidadRuedas) : null,
-          monto: Number(montoDeLinea(l, tipo)),
+          monto: montoDeLinea(l, tipo) as number, // lineasValidas garantiza que hay monto
           detalle: l.detalle.trim() || null
         }
       })
@@ -340,125 +381,29 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
     <div ref={nav.ref} onKeyDown={nav.onKeyDown}>
       <h2 style={{ marginTop: 0 }}>Nueva orden de servicio</h2>
       <p style={{ color: 'var(--color-text-muted)', fontSize: 13, marginTop: -8 }}>
-        Los datos de la visita se completan una sola vez; cada tarea se agrega como una línea aparte.
+        Elegí el cliente (si corresponde) y su vehículo; cada tarea se agrega como una línea aparte.
       </p>
-
-      {/* ---------- Vehículo ---------- */}
-      <Panel title="Vehículo">
-        {vehiculo ? (
-          <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
-            <span className="font-data">{textoVehiculo(vehiculo)}</span>
-            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-              {vehiculo.clienteNombre ? `Dueño: ${vehiculo.clienteNombre}` : 'Sin dueño registrado'}
-            </span>
-            <button type="button" onClick={() => setVehiculo(null)} style={{ ...estiloBotonSecundario, marginLeft: 'auto' }}>
-              Cambiar vehículo
-            </button>
-          </div>
-        ) : creandoVehiculo ? (
-          <div>
-            <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-              <div>
-                <label style={estiloEtiqueta}>Marca</label>
-                <InputLimpiable
-                  value={nuevoVeh.marca}
-                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, marca: v })}
-                  placeholder="Ej. Toyota"
-                  maxLength={80}
-                  style={estiloInput}
-                />
-              </div>
-              <div>
-                <label style={estiloEtiqueta}>Chapa</label>
-                <InputLimpiable
-                  value={nuevoVeh.chapa}
-                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, chapa: v.toUpperCase() })}
-                  placeholder="Ej. ABC 123"
-                  maxLength={30}
-                  className="font-data"
-                  style={estiloInput}
-                />
-              </div>
-              <div>
-                <label style={estiloEtiqueta}>Color</label>
-                <InputLimpiable
-                  value={nuevoVeh.color}
-                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, color: v })}
-                  placeholder="Ej. Rojo"
-                  maxLength={40}
-                  style={estiloInput}
-                />
-              </div>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 'var(--space-2) 0' }}>
-              Hace falta al menos la marca o la chapa. El vehículo se registra al guardar la orden.
-            </p>
-            <button type="button" onClick={() => setCreandoVehiculo(false)} style={estiloBotonSecundario}>
-              Buscar uno ya registrado
-            </button>
-          </div>
-        ) : (
-          <div>
-            <InputLimpiable
-              value={busquedaVeh}
-              onChange={setBusquedaVeh}
-              placeholder="Buscar por chapa, marca o nombre del dueño"
-              style={{ ...estiloInput, minWidth: 320 }}
-            />
-            {busquedaVeh.trim() !== '' && (
-              <div style={{ marginTop: 'var(--space-2)' }}>
-                {vehiculosEncontrados.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    No hay vehículos que coincidan.
-                  </p>
-                ) : (
-                  <>
-                    {vehiculosEncontrados.slice(0, MAX_RESULTADOS).map((v) => (
-                      <button
-                        type="button"
-                        key={v.id}
-                        onClick={() => elegirVehiculo(v)}
-                        style={{ ...estiloBotonSecundario, display: 'block', width: '100%', textAlign: 'left', marginBottom: 4 }}
-                      >
-                        <span className="font-data">{textoVehiculo(v)}</span>
-                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-                          {v.clienteNombre ? `  —  ${v.clienteNombre}` : '  —  sin dueño'}
-                        </span>
-                      </button>
-                    ))}
-                    {vehiculosEncontrados.length > MAX_RESULTADOS && (
-                      <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                        Hay {vehiculosEncontrados.length - MAX_RESULTADOS} más: afiná la búsqueda.
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            <div style={{ marginTop: 'var(--space-3)' }}>
-              <button type="button" onClick={() => setCreandoVehiculo(true)} style={estiloBotonSecundario}>
-                + Registrar vehículo nuevo
-              </button>
-            </div>
-          </div>
-        )}
-      </Panel>
 
       {/* ---------- Cliente ---------- */}
       <Panel title="Cliente">
-        {duenoVehiculo ? (
-          <p style={{ margin: 0, fontSize: 13 }}>
-            Cliente: <strong>{duenoVehiculo.nombre}</strong>{' '}
-            <span style={{ color: 'var(--color-text-muted)' }}>(dueño del vehículo)</span>
-          </p>
-        ) : clienteElegido ? (
-          <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-            <span style={{ fontSize: 13 }}>
-              Cliente: <strong>{clienteElegido.nombre}</strong>
-            </span>
-            <button type="button" onClick={() => setClienteElegido(null)} style={estiloBotonSecundario}>
-              Quitar
-            </button>
+        {cliente ? (
+          <div>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13 }}>
+                Cliente: <strong>{cliente.nombre}</strong>
+                {vehiculo !== null && vehiculo.clienteId === cliente.id && (
+                  <span style={{ color: 'var(--color-text-muted)' }}> (dueño del vehículo)</span>
+                )}
+              </span>
+              <button type="button" onClick={quitarCliente} style={estiloBotonSecundario}>
+                Quitar
+              </button>
+            </div>
+            {avisoCliente && (
+              <p style={{ margin: 'var(--space-2) 0 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {avisoCliente}
+              </p>
+            )}
           </div>
         ) : (
           <div>
@@ -483,10 +428,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
                       <button
                         type="button"
                         key={c.id}
-                        onClick={() => {
-                          setClienteElegido({ id: c.id, nombre: c.nombre })
-                          setBusquedaCli('')
-                        }}
+                        onClick={() => elegirCliente({ id: c.id, nombre: c.nombre })}
                         style={{ ...estiloBotonSecundario, display: 'block', width: '100%', textAlign: 'left', marginBottom: 4 }}
                       >
                         {c.nombre}
@@ -546,6 +488,171 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
         )}
       </Panel>
 
+      {/* ---------- Vehículo ---------- */}
+      <Panel title="Vehículo">
+        {vehiculo ? (
+          <div>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span className="font-data">{textoVehiculo(vehiculo)}</span>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {vehiculo.clienteNombre ? `Dueño: ${vehiculo.clienteNombre}` : 'Sin dueño registrado'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setVehiculo(null)
+                  setErrorDueno(null)
+                }}
+                style={{ ...estiloBotonSecundario, marginLeft: 'auto' }}
+              >
+                Cambiar vehículo
+              </button>
+            </div>
+
+            {/* Vehículo sin dueño: con un cliente elegido se puede dejar registrado como su dueño. */}
+            {vehiculo.clienteId === null && (
+              <div style={{ marginTop: 'var(--space-3)' }}>
+                {cliente ? (
+                  <button
+                    type="button"
+                    onClick={() => void asignarDueno()}
+                    disabled={asignando}
+                    style={{ ...estiloBotonSecundario, opacity: asignando ? 0.6 : 1 }}
+                  >
+                    {asignando ? 'Asignando…' : `Asignar a ${cliente.nombre} como dueño`}
+                  </button>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                    Este vehículo no tiene dueño. Si elegís un cliente arriba, podés dejarlo registrado como su dueño.
+                  </p>
+                )}
+                {errorDueno && (
+                  <div style={{ color: 'var(--color-alert)', fontSize: 13, marginTop: 'var(--space-2)' }}>
+                    {errorDueno}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : creandoVehiculo ? (
+          <div>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+              <div>
+                <label style={estiloEtiqueta}>Marca</label>
+                <InputLimpiable
+                  value={nuevoVeh.marca}
+                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, marca: v })}
+                  placeholder="Ej. Toyota"
+                  maxLength={80}
+                  style={estiloInput}
+                />
+              </div>
+              <div>
+                <label style={estiloEtiqueta}>Chapa</label>
+                <InputLimpiable
+                  value={nuevoVeh.chapa}
+                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, chapa: v.toUpperCase() })}
+                  placeholder="Ej. ABC 123"
+                  maxLength={30}
+                  className="font-data"
+                  style={estiloInput}
+                />
+              </div>
+              <div>
+                <label style={estiloEtiqueta}>Color</label>
+                <InputLimpiable
+                  value={nuevoVeh.color}
+                  onChange={(v) => setNuevoVeh({ ...nuevoVeh, color: v })}
+                  placeholder="Ej. Rojo"
+                  maxLength={40}
+                  style={estiloInput}
+                />
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 'var(--space-2) 0' }}>
+              Hace falta al menos la marca o la chapa. El vehículo se registra al guardar la orden
+              {cliente ? `, a nombre de ${cliente.nombre}.` : ', sin dueño.'}
+            </p>
+            <button type="button" onClick={() => setCreandoVehiculo(false)} style={estiloBotonSecundario}>
+              Buscar uno ya registrado
+            </button>
+          </div>
+        ) : (
+          <div>
+            {/* Con un cliente elegido, se ofrecen directamente sus vehículos. */}
+            {cliente && (
+              <div style={{ marginBottom: 'var(--space-3)' }}>
+                <label style={estiloEtiqueta}>Vehículos de {cliente.nombre}</label>
+                {vehiculosDelCliente.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                    Todavía no tiene vehículos registrados.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                    {vehiculosDelCliente.map((v) => (
+                      <button
+                        type="button"
+                        key={v.id}
+                        onClick={() => elegirVehiculo(v)}
+                        className="font-data"
+                        style={estiloBotonSecundario}
+                      >
+                        {textoVehiculo(v)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <label style={estiloEtiqueta}>
+              {cliente ? 'Otro vehículo (incluye los que no tienen dueño)' : 'Buscar vehículo'}
+            </label>
+            <InputLimpiable
+              value={busquedaVeh}
+              onChange={setBusquedaVeh}
+              placeholder="Buscar por chapa, marca o nombre del dueño"
+              style={{ ...estiloInput, minWidth: 320 }}
+            />
+            {busquedaVeh.trim() !== '' && (
+              <div style={{ marginTop: 'var(--space-2)' }}>
+                {vehiculosEncontrados.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
+                    No hay vehículos que coincidan.
+                  </p>
+                ) : (
+                  <>
+                    {vehiculosEncontrados.slice(0, MAX_RESULTADOS).map((v) => (
+                      <button
+                        type="button"
+                        key={v.id}
+                        onClick={() => elegirVehiculo(v)}
+                        style={{ ...estiloBotonSecundario, display: 'block', width: '100%', textAlign: 'left', marginBottom: 4 }}
+                      >
+                        <span className="font-data">{textoVehiculo(v)}</span>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                          {v.clienteNombre ? `  —  ${v.clienteNombre}` : '  —  sin dueño'}
+                        </span>
+                      </button>
+                    ))}
+                    {vehiculosEncontrados.length > MAX_RESULTADOS && (
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        Hay {vehiculosEncontrados.length - MAX_RESULTADOS} más: afiná la búsqueda.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <button type="button" onClick={() => setCreandoVehiculo(true)} style={estiloBotonSecundario}>
+                + Registrar vehículo nuevo{cliente ? ` (de ${cliente.nombre})` : ''}
+              </button>
+            </div>
+          </div>
+        )}
+      </Panel>
+
       {/* ---------- Tareas ---------- */}
       <Panel title="Tareas realizadas">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -554,19 +661,28 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
               <th style={{ paddingBottom: 8 }}>Tarea</th>
               <th style={{ paddingBottom: 8 }}>Ruedas</th>
               <th style={{ paddingBottom: 8 }}>Detalle (opcional)</th>
-              <th style={{ paddingBottom: 8 }}>Monto (Gs.)</th>
+              <th style={{ paddingBottom: 8 }}>Precio base (Gs.)</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {lineas.map((l) => {
               const tipo = tipoDe(l)
-              const tienePrecioFijo = tipo !== undefined && tipo.montoBase !== null
-              const puedeEditarMonto = !tienePrecioFijo || esAdmin
-              const valorMonto = montoDeLinea(l, tipo)
+              const baseTipo = precioBaseDelTipo(tipo)
+              const tienePrecioFijo = baseTipo !== null
+              // Si el tipo tiene precio fijo, solo el Administrador puede cambiarlo.
+              const puedeEditarPrecio = !tienePrecioFijo || esAdmin
+              const precio = precioDeLinea(l, tipo)
+              const montoLinea = montoDeLinea(l, tipo)
+              // ¿El precio editado difiere del base? (descuento o recargo)
+              const editado =
+                baseTipo !== null &&
+                l.precioManual !== null &&
+                montoValido(l.precioManual) &&
+                Number(l.precioManual) !== baseTipo
 
               return (
-                <tr key={l.id} style={{ borderTop: '1px solid var(--color-border)' }}>
+                <tr key={l.id} style={{ borderTop: '1px solid var(--color-border)', verticalAlign: 'top' }}>
                   <td style={{ padding: '8px 8px 8px 0' }}>
                     <select
                       value={l.tipoServicioId ?? ''}
@@ -583,12 +699,13 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
                   </td>
                   <td style={{ padding: 8 }}>
                     {tipo?.requiereRuedas ? (
-                      <input
+                      <InputLimpiable
                         type="number"
                         min={1}
                         max={MAX_RUEDAS}
                         value={l.cantidadRuedas}
-                        onChange={(e) => cambiarRuedas(l, e.target.value)}
+                        // El precio por rueda no depende de la cantidad: al cambiarla se conserva el editado.
+                        onChange={(v) => actualizarLinea(l.id, { cantidadRuedas: v })}
                         placeholder="Cant."
                         className="font-data"
                         style={{ ...estiloInput, width: 80 }}
@@ -598,34 +715,64 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
                     )}
                   </td>
                   <td style={{ padding: 8 }}>
-                    <input
+                    <InputLimpiable
                       value={l.detalle}
-                      onChange={(e) => actualizarLinea(l.id, { detalle: e.target.value })}
+                      onChange={(v) => actualizarLinea(l.id, { detalle: v })}
                       placeholder="Ej. Tren delantero"
                       maxLength={255}
                       style={{ ...estiloInput, width: 210 }}
                     />
                   </td>
                   <td style={{ padding: 8 }}>
-                    <input
-                      type="number"
-                      min={0}
-                      value={valorMonto}
-                      disabled={!puedeEditarMonto}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        actualizarLinea(l.id, {
-                          montoManual: val === '' && tienePrecioFijo ? null : val
-                        })
-                      }}
-                      className="font-data"
-                      style={{
-                        ...estiloInput,
-                        width: 130,
-                        background: puedeEditarMonto ? undefined : 'var(--color-bg)',
-                        color: puedeEditarMonto ? undefined : 'var(--color-text-muted)'
-                      }}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <InputLimpiable
+                        type="number"
+                        min={0}
+                        value={precio}
+                        disabled={!puedeEditarPrecio}
+                        // Con precio fijo, vaciar el campo vuelve al precio base.
+                        onChange={(v) =>
+                          actualizarLinea(l.id, { precioManual: v === '' && tienePrecioFijo ? null : v })
+                        }
+                        className="font-data"
+                        style={{
+                          ...estiloInput,
+                          width: 120,
+                          background: puedeEditarPrecio ? undefined : 'var(--color-bg)',
+                          color: puedeEditarPrecio ? undefined : 'var(--color-text-muted)'
+                        }}
+                      />
+                      {tipo?.requiereRuedas && (
+                        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>por rueda</span>
+                      )}
+                    </div>
+                    {/* Monto de la línea: precio × ruedas */}
+                    {tipo?.requiereRuedas && montoLinea !== null && (
+                      <div className="font-data" style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                        × {l.cantidadRuedas} = Gs. {gs(montoLinea)}
+                      </div>
+                    )}
+                    {/* Precio editado: se muestra el base como referencia */}
+                    {editado && baseTipo !== null && (
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                        Precio base: Gs. {gs(baseTipo)}{' '}
+                        <button
+                          type="button"
+                          onClick={() => actualizarLinea(l.id, { precioManual: null })}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            padding: 0,
+                            fontSize: 12,
+                            color: 'var(--color-accent)',
+                            textDecoration: 'underline',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Restablecer
+                        </button>
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: 8 }}>
                     <button
@@ -655,24 +802,22 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
 
       {/* ---------- Cotización previa (HU-24): solo en pantalla ---------- */}
       <Panel title="Cotización previa">
-        {lineasCotizables.length === 0 ? (
+        {filasCotizacion.length === 0 ? (
           <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-muted)' }}>
-            Cargá las tareas con su monto para ver el costo que se le informa al cliente.
+            Cargá las tareas con su precio para ver el costo que se le informa al cliente.
           </p>
         ) : (
           <div style={{ fontSize: 13 }}>
-            {lineasCotizables.map((l) => {
-              const tipo = tipoDe(l)
-              const monto = Number(montoDeLinea(l, tipo))
+            {filasCotizacion.map(({ linea, tipo, monto }) => {
               const extras = [
-                tipo?.requiereRuedas && l.cantidadRuedas ? `${l.cantidadRuedas} ruedas` : null,
-                l.detalle.trim() || null
+                tipo.requiereRuedas ? `${linea.cantidadRuedas} ruedas × Gs. ${gs(Number(precioDeLinea(linea, tipo)))}` : null,
+                linea.detalle.trim() || null
               ].filter(Boolean)
 
               return (
-                <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                <div key={linea.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
                   <span>
-                    {tipo?.nombre ?? 'Servicio'}
+                    {tipo.nombre}
                     {extras.length > 0 ? ` (${extras.join(' · ')})` : ''}
                   </span>
                   <span className="font-data">Gs. {gs(monto)}</span>

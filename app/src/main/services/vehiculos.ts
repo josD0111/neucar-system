@@ -10,6 +10,7 @@ import { and, asc, eq, ilike, isNull, ne, or, type SQL } from "drizzle-orm";
 import type { Db } from "../api/server";
 import { clientes, vehiculos } from "../db/schema";
 import type { Resultado } from "./clientes";
+import type { Rol } from "./auth";
 
 // Vehículo tal como lo devuelve la API: sus datos más el nombre del dueño
 // (null si es de un cliente casual), para mostrarlo sin una segunda consulta.
@@ -176,10 +177,21 @@ export async function crearVehiculo(db: Db, body: unknown): Promise<Resultado<Ve
   return obtenerVehiculo(db, fila.id);
 }
 
-// Edita los datos de un vehículo existente (incluido su dueño).
-export async function actualizarVehiculo(db: Db, id: number, body: unknown): Promise<Resultado<Vehiculo>> {
+const MENSAJE_CAMBIO_DUENO =
+  "Solo el Administrador puede cambiar o quitar el dueño de un vehículo que ya tiene uno";
+
+// Edita los datos de un vehículo existente (incluido su dueño). Asignar dueño a un
+// vehículo que no tiene lo puede hacer cualquier usuario; cambiar o quitar un dueño
+// ya registrado es solo del Administrador (la validación es acá, no solo en la pantalla).
+export async function actualizarVehiculo(db: Db, id: number, rol: Rol, body: unknown): Promise<Resultado<Vehiculo>> {
   const v = validarDatosVehiculo(body);
   if (!v.ok) return v;
+
+  const [actual] = await db.select({ clienteId: vehiculos.clienteId }).from(vehiculos).where(eq(vehiculos.id, id)).limit(1);
+  if (!actual) return { ok: false, status: 404, mensaje: "Vehículo no encontrado" };
+  if (actual.clienteId !== null && v.data.clienteId !== actual.clienteId && rol !== "Administrador") {
+    return { ok: false, status: 403, mensaje: MENSAJE_CAMBIO_DUENO };
+  }
 
   const error = await comprobarReglas(db, v.data, id);
   if (error) return { ok: false, ...error };
@@ -187,4 +199,45 @@ export async function actualizarVehiculo(db: Db, id: number, body: unknown): Pro
   const [fila] = await db.update(vehiculos).set(v.data).where(eq(vehiculos.id, id)).returning({ id: vehiculos.id });
   if (!fila) return { ok: false, status: 404, mensaje: "Vehículo no encontrado" };
   return obtenerVehiculo(db, fila.id);
+}
+
+// Asigna un dueño a un vehículo (por ejemplo, uno que estaba registrado sin dueño y
+// ahora se quiere vincular a un cliente para poder hacerle servicios a crédito).
+//   - clienteId: obligatorio; el cliente debe existir y estar activo.
+//   - Si el vehículo ya tiene otro dueño, solo el Administrador puede cambiarlo.
+//   - Si el cliente ya tiene otro vehículo con la misma chapa, se rechaza (409).
+//   - Si ya es el dueño, no hay nada que cambiar y se devuelve el vehículo tal cual.
+export async function asignarDuenoVehiculo(db: Db, id: number, rol: Rol, body: unknown): Promise<Resultado<Vehiculo>> {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b.clienteId !== "number" || !Number.isInteger(b.clienteId) || b.clienteId <= 0) {
+    return { ok: false, status: 400, mensaje: "Indicá el cliente que será el dueño del vehículo" };
+  }
+  const nuevoClienteId = b.clienteId;
+
+  const [vehiculo] = await db
+    .select({ id: vehiculos.id, clienteId: vehiculos.clienteId, chapa: vehiculos.chapa })
+    .from(vehiculos)
+    .where(eq(vehiculos.id, id))
+    .limit(1);
+  if (!vehiculo) return { ok: false, status: 404, mensaje: "Vehículo no encontrado" };
+
+  if (vehiculo.clienteId === nuevoClienteId) return obtenerVehiculo(db, id);
+  if (vehiculo.clienteId !== null && rol !== "Administrador") {
+    return { ok: false, status: 403, mensaje: MENSAJE_CAMBIO_DUENO };
+  }
+
+  const [cliente] = await db
+    .select({ id: clientes.id, activo: clientes.activo })
+    .from(clientes)
+    .where(eq(clientes.id, nuevoClienteId))
+    .limit(1);
+  if (!cliente) return { ok: false, status: 400, mensaje: "El cliente indicado no existe" };
+  if (!cliente.activo) return { ok: false, status: 400, mensaje: "El cliente indicado está deshabilitado" };
+
+  if (vehiculo.chapa && (await chapaEnUso(db, vehiculo.chapa, nuevoClienteId, id))) {
+    return { ok: false, status: 409, mensaje: "Ese cliente ya tiene registrado otro vehículo con la misma chapa" };
+  }
+
+  await db.update(vehiculos).set({ clienteId: nuevoClienteId }).where(eq(vehiculos.id, id));
+  return obtenerVehiculo(db, id);
 }
