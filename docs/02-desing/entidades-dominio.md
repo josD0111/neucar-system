@@ -1,6 +1,6 @@
 # Entidades del Dominio
 
-*Elaborado a partir de `docs/01-analisis/entrevistas/entrevista_2026-06-30.md`, `desiciones-alcance.md` e `historias-usuario.md`.*
+*Elaborado a partir de `docs/01-analisis/entrevistas/entrevista--2026-06-30.md`, `desiciones-alcance.md` e `historias-usuario.md`. Actualizado con los hallazgos de `entrevista--2026-09-10.md` (ver secciones 9, 9.1 y 12.1).*
 
 Este documento identifica las entidades principales del sistema, sus atributos y sus relaciones, como base para el diseño de la base de datos y del modelo de clases.
 
@@ -22,6 +22,8 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 
 *Nota: la esposa no es una entidad/rol separado — usa el mismo registro de Usuario que el dueño (rol Administrador), según lo definido en `desiciones-alcance.md`.*
 
+*Nota (23/10/2026): el campo `usuario_id` de Venta no distingue roles a nivel de modelo, pero la regla de negocio (ver `desiciones-alcance.md`, sección 1 y 8.4) es que solo un Usuario con rol Administrador puede registrar una Venta; un Empleado solo puede calcular el total sin persistirlo — ver HU-17/HU-17.1 en `historias-usuario.md`. Esta restricción se valida en la capa de servicio/API, no en el modelo de datos.*
+
 ## 2. Cliente
 
 | Atributo | Descripción |
@@ -31,6 +33,7 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 | cédula | Documento de identidad |
 | celular | Teléfono de contacto |
 | RUC | Opcional, para factura electrónica |
+| activo | Booleano, por defecto `true`. Ver nota de baja lógica más abajo |
 | saldo_pendiente | Calculado: suma de `saldo_pendiente` de todos sus Ítems de Venta a crédito, más el saldo pendiente de sus Órdenes de Servicio a crédito (monto_total − Pagos asociados) |
 
 **Relaciones:**
@@ -39,6 +42,8 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 - Un Cliente puede tener muchos Vehículos asociados (ver entidad Vehículo).
 
 *Nota: un cliente "casual" (sin registrar) puede realizar una Venta sin estar asociado a esta entidad, salvo que la operación sea a crédito (ver HU-10), donde el registro es obligatorio.*
+
+*Nota — baja lógica (`activo`, agregada durante la implementación del Sprint 1, sin HU propia): un Cliente nunca se borra físicamente, porque eso rompería el historial de Ventas y Órdenes de Servicio que lo referencian. En cambio, se marca como `activo = false` ("deshabilitado"): deja de aparecer en los listados normales, pero conserva su historial completo y puede volver a habilitarse. Deshabilitar/habilitar queda restringido al rol Administrador (ver `src/main/api/routes/clientes.ts`); el resto del CRUD de Cliente (HU-09) está disponible para ambos roles. Este campo no estaba contemplado en el análisis original (`historias-usuario.md`/`desiciones-alcance.md`) — conviene sumarle una historia de usuario explícita si todavía no la tiene, para dejar registrada la regla de negocio en vez de que solo viva en el código.*
 
 ## 3. Proveedor
 
@@ -54,6 +59,8 @@ Representa a quien opera el sistema (dueño, esposa o empleado).
 ## 4. Categoría
 
 Se modela como entidad propia (y no como texto libre dentro de Producto) pensando en que el taller podría ampliar su rubro a futuro (por ejemplo, vender accesorios u otros productos no contemplados hoy). Tener la categoría como entidad permite agregar/renombrar categorías sin tocar el modelo de Producto.
+
+*Actualizado 12/10/2026: el Administrador gestiona las categorías libremente (creación, edición, eliminación) — no se trabaja con una lista fija predefinida por el sistema. El objetivo principal es habilitar el filtrado de productos por categoría (ver `historias-usuario.md`, HU-01.1 y HU-02).*
 
 | Atributo | Descripción |
 |---|---|
@@ -71,8 +78,8 @@ Se modela como entidad propia (y no como texto libre dentro de Producto) pensand
 | nombre | Nombre del producto |
 | categoría_id | Categoría a la que pertenece (ver entidad Categoría) |
 | precio_base | Precio de venta estándar |
-| stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14 |
-| stock_mínimo | Para notificación de stock bajo (futuro) |
+| stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14. **Denormalización deliberada** (igual que `producto_id` en Ítem de Venta, sección 14): se mantiene como columna propia por conveniencia de consulta rápida (HU-03, HU-04), en vez de calcularse con un `SUM` en cada lectura. La capa de lógica de negocio debe mantenerlo sincronizado en cada Compra y cada Venta — ver también el comentario en `schema.ts` |
+| stock_mínimo | Umbral opcional por producto, para la notificación de stock bajo. Incorporado al MVP el 12/10/2026 — ver `historias-usuario.md`, HU-08 |
 
 **Relaciones:**
 - Un Producto **pertenece** a una Categoría.
@@ -92,7 +99,7 @@ Registra la adquisición de uno o más unidades de un Producto a un Proveedor, e
 | cantidad | Cantidad de unidades compradas originalmente en este lote |
 | cantidad_disponible | Unidades de este lote que aún no fueron vendidas (se descuenta con cada venta que provenga de este lote) |
 | precio_compra | Precio pagado al proveedor (unitario) |
-| garantía_proveedor | Duración de la garantía ofrecida por el proveedor para las unidades de este lote (relevante sobre todo en baterías) |
+| garantía_proveedor | Duración de la garantía ofrecida por el proveedor para las unidades de este lote, **en meses** (relevante sobre todo en baterías). Opcional: queda vacío en productos sin garantía aplicable (ej. un filtro) |
 | factura | Referencia a la factura de compra |
 
 **Relaciones:**
@@ -133,13 +140,14 @@ Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Pro
 | garantía_ofrecida | Garantía otorgada al cliente para ese producto en esa venta. No debe superar la `garantía_proveedor` del lote referenciado en `compra_id` — ver HU-06. Si ese lote no tiene garantía de proveedor cargada (producto sin garantía aplicable), este campo queda a criterio del Administrador. |
 | tipo_pago | Contado \| Crédito — aplica a este ítem puntual, no a toda la Venta |
 | saldo_pendiente | Calculado: (precio_unitario × cantidad) − suma de Pagos asociados a este ítem. Si tipo_pago es Contado, siempre es 0. |
+| fecha_pago_prevista | Fecha en la que el cliente debería venir a pagar (toda o la próxima cuota) cuando tipo_pago es Crédito. Nulo si es Contado. Ver nota de diseño en sección 12.1 |
 
 **Relaciones:**
 - Un Ítem de Venta **pertenece** a una Venta.
 - Un Ítem de Venta **referencia** un Producto.
 - Un Ítem de Venta **referencia** una Compra (obligatorio: el lote específico de origen de la unidad vendida).
 
-*Nota — reparto entre lotes: si la cantidad solicitada de un Producto en una Venta supera la `cantidad_disponible` del lote más antiguo (regla PEPS/FIFO por defecto — pendiente de confirmar con el dueño, ver sección 14), el sistema genera automáticamente **más de un Ítem de Venta** para ese mismo Producto dentro de la misma Venta, uno por cada lote del cual efectivamente se descontó stock, cada uno con su propio `compra_id` y la porción de `cantidad` correspondiente a ese lote. Esto es una operación interna del sistema al registrar la venta, no algo que el Administrador tenga que armar manualmente ítem por ítem.*
+*Nota — reparto entre lotes (actualizada 23/10/2026, ver resolución en sección 14): si la cantidad solicitada de un Producto en una Venta supera la `cantidad_disponible` de un solo lote, hacen falta **más de un Ítem de Venta** para ese mismo Producto dentro de la misma Venta, uno por cada lote del cual efectivamente se descontó stock, cada uno con su propio `compra_id` y la porción de `cantidad` correspondiente a ese lote. Se resolvió que esto **no es automático**: el equipo decidió selección manual de lote (no PEPS/FIFO), así que es el Administrador quien arma, ítem por ítem, de qué Compra sale cada porción — viendo en pantalla las Compras disponibles con su `cantidad_disponible` y `garantía_proveedor`.*
 - Un Ítem de Venta (cuando es a crédito) tiene muchos **Pagos**.
 
 ## 7.2 Pago
@@ -158,7 +166,7 @@ Registra cada abono/cuota que un cliente realiza para saldar una deuda, ya sea d
 **Relaciones:**
 - Un Pago **pertenece** a (excluyentemente) un Ítem de Venta **o** una Orden de Servicio, nunca ambos ni ninguno.
 
-*Regla de negocio: un Pago solo debe existir si el ítem/orden al que referencia tiene `tipo_pago = Crédito`. Una compra al contado se considera "pagada" en el momento de la venta sin necesidad de un registro en Pago (o, alternativamente, se puede generar automáticamente un Pago por el monto total al momento de la venta contado, para mantener un único mecanismo — a definir en diseño técnico).*
+**Resuelto por el equipo (25/10/2026) — Pago automático en ítems al contado:** se optó por la segunda alternativa que dejaba abierta la nota original: un Ítem de Venta al contado genera automáticamente, dentro de la misma transacción de `registrarVenta`, un Pago por su monto total completo (ver `services/ventas.ts`). Motivo: con un único mecanismo, `saldo_pendiente` (= monto − suma de Pagos) se calcula exactamente igual para Contado y Crédito, sin que `services/pagos.ts` ni ninguna pantalla posterior (Fase 6, saldo de cliente) tenga que distinguir el `tipo_pago` del ítem como caso especial. La contrapartida (un Pago "de sistema" por cada venta al contado, no uno que el cliente entregó en mano en ese momento como abono) se consideró aceptable frente a la simplicidad de tener una sola fórmula de saldo.
 
 ## 8. Vehículo
 
@@ -190,7 +198,7 @@ Representa la **visita** del cliente al taller. Agrupa los datos que son comunes
 | tipo_pago | Contado \| Crédito (aplica al total de la visita, no a cada Servicio individual — ver nota) |
 | monto_total | Suma de los montos de los Servicios incluidos |
 | saldo_pendiente | Calculado: monto_total − suma de Pagos asociados a esta Orden. Si tipo_pago es Contado, siempre es 0. |
-| garantía_dias | Días de garantía ofrecidos sobre el trabajo completo de la visita (opcional; no todos los trabajos la incluyen) |
+| fecha_pago_prevista | Fecha en la que el cliente debería venir a pagar (toda o la próxima cuota) cuando tipo_pago es Crédito. Nulo si es Contado. Ver nota de diseño en sección 12.1 |
 | tipo_comprobante | Factura común \| Factura electrónica (futuro) |
 
 **Relaciones:**
@@ -202,6 +210,8 @@ Representa la **visita** del cliente al taller. Agrupa los datos que son comunes
 
 *Nota: a diferencia de la Venta (donde `tipo_pago` vive por Ítem — ver sección 12), en la Orden de Servicio el crédito es sobre el total de la visita, no por Servicio individual. Esto es coherente con cómo el dueño maneja el crédito en la práctica: no se mencionó en la entrevista que quiera cobrar una tarea al contado y otra a crédito dentro de la misma visita, sino que el acuerdo de "fiar" se hace sobre el trabajo completo. Si esa necesidad surgiera más adelante, el mismo ajuste que se hizo en Venta (mover `tipo_pago` al detalle) podría replicarse en Servicio.*
 
+*Nota — eliminación de `garantía_dias` (actualizado tras entrevista 10/09/2026): el modelo original incluía un campo `garantía_dias` opcional sobre el trabajo completo de la visita. La entrevista del 10/09/2026 aclaró explícitamente que **no es necesario registrar la garantía de los servicios ofrecidos**: cuando se termina una orden, se prueba el vehículo con el cliente en el momento, y los pocos casos de reclamo posterior los gestiona el dueño directamente, sin que el sistema necesite llevar un control formal de vigencia de garantía. Por eso se quita el campo del modelo. Lo que sí se mantiene (y es lo que el dueño pidió explícitamente) es el **historial de servicios aplicados al vehículo** — ver sección 9.1 y HU-26 — para poder consultar qué se hizo y cuándo, sin necesidad de una garantía formal asociada.*
+
 ## 9.1 Servicio (detalle)
 
 Representa **cada tarea individual** realizada dentro de una Orden de Servicio (alineación, balanceo, montaje, gomería, etc.). Solo contiene lo que puede variar entre tareas de una misma visita; todo lo demás vive en la Orden.
@@ -212,17 +222,20 @@ Representa **cada tarea individual** realizada dentro de una Orden de Servicio (
 | orden_id | Orden de Servicio a la que pertenece |
 | tipo_servicio | Alineación, balanceo, montaje, gomería, mantenimiento, etc. |
 | monto | Costo de esta tarea puntual |
+| detalle | Texto libre opcional para precisar la parte/alcance afectado cuando aplica (ej. "4 ruedas" en alineación o balanceo). No todos los tipos de servicio lo usan — ver nota |
 
 **Relaciones:**
 - Un Servicio **pertenece** a una Orden de Servicio.
 
-*Nota: la garantía se ofrece sobre el trabajo completo de la visita, no por cada tarea individual, y no es obligatoria (el dueño la ofrece a criterio propio como gesto de buena atención). Por eso `garantía_dias` vive en la Orden de Servicio y no en el detalle — ver corrección más abajo respecto del modelo anterior.*
+*Nota — campo `detalle` (agregado tras entrevista 10/09/2026): el dueño pidió poder ver, además del tipo y monto, "las partes afectadas" de un servicio — mencionó como ejemplo saber la cantidad de ruedas trabajadas en una alineación o balanceo. No se precisó en la entrevista si esto aplica a todos los tipos de servicio o solo a algunos (ej. no tendría sentido en un "cambio de aceite"), por lo que se modela como un campo de **texto libre opcional**, sin estructura fija ni validación por tipo de servicio. Esto es una interpretación provisional del equipo, no una confirmación cerrada del dueño — queda pendiente de validar en una próxima reunión, mostrándole concretamente cómo se vería este campo al cargar una alineación o un balanceo, y confirmar si conviene un campo estructurado (ej. cantidad numérica) en vez de texto libre.*
 
-*Nota: con este modelo, si en una visita se hacen 2 servicios (ej. alineación + balanceo), el vehículo, cliente, fecha, usuario y garantía se cargan **una sola vez** en la Orden, y solo se agregan 2 filas de Servicio con su tipo y monto — sin repetir el resto de los datos. Esto resuelve directamente la redundancia que se había detectado con el modelo anterior (un único registro de Servicio con todos los campos repetidos por cada tarea).*
+*Nota — garantía (actualizada tras entrevista 10/09/2026): la garantía sobre servicios se retiró del modelo por completo (ver nota en sección 9), no solo de este detalle.*
+
+*Nota: con este modelo, si en una visita se hacen 2 servicios (ej. alineación + balanceo), el vehículo, cliente, fecha y usuario se cargan **una sola vez** en la Orden, y solo se agregan 2 filas de Servicio con su tipo, monto y detalle — sin repetir el resto de los datos. Esto resuelve directamente la redundancia que se había detectado con el modelo anterior (un único registro de Servicio con todos los campos repetidos por cada tarea).*
 
 ## 10. Puntos a resolver en el diseño (no cerrados por el análisis)
 
-- **Garantía como entidad propia vs. campos embebidos:** por ahora se modeló la garantía como atributos dentro de Compra (garantía del proveedor), Ítem de Venta (garantía ofrecida por producto) y Orden de Servicio (garantía ofrecida sobre el trabajo completo, opcional). Si la lógica de cálculo de garantía se vuelve más compleja (ver pregunta abierta sobre el margen fijo), podría convenir una entidad "Garantía" separada con su propio estado (vigente/vencida) y reglas.
+- **Garantía como entidad propia vs. campos embebidos:** por ahora se modeló la garantía como atributos dentro de Compra (garantía del proveedor) e Ítem de Venta (garantía ofrecida por producto). Si la lógica de cálculo de garantía se vuelve más compleja (ver pregunta abierta sobre el margen fijo), podría convenir una entidad "Garantía" separada con su propio estado (vigente/vencida) y reglas. *(Actualizado 10/09/2026: la garantía sobre servicios se retiró del modelo — ver nota en sección 9 — por lo que este punto queda acotado solo a garantía de productos.)*
 
 ## 11. Dilema abierto: nivel de detalle de los Servicios
 
@@ -236,7 +249,9 @@ Durante el análisis surgió una tensión que no está resuelta y que **afecta d
 
 **Por qué se decidió así y no dejar todo en un solo campo de texto libre:** aunque el dueño no pidió el detalle, este modelo no le agrega carga de trabajo extra respecto de un campo único de texto — sigue anotando cada tarea con su monto por separado, como ya hace naturalmente al cobrar — pero sí deja la puerta abierta a extraer historial y reportes por tipo de servicio más adelante, sin haber ido en contra de lo que pidió.
 
-**Qué queda pendiente:** esto es una interpretación de nuestro equipo para conciliar ambas necesidades, no una confirmación explícita del dueño. Se recomienda validarlo en la próxima entrevista, mostrándole concretamente cómo se vería la carga de una visita con varios servicios en pantalla, para confirmar que el flujo propuesto realmente no le resulta más complejo que anotar en el cuaderno.
+**Qué queda pendiente:** esto era una interpretación de nuestro equipo para conciliar ambas necesidades, no una confirmación explícita del dueño. Se recomendó validarlo en la próxima entrevista, mostrándole concretamente cómo se vería la carga de una visita con varios servicios en pantalla, para confirmar que el flujo propuesto realmente no le resulta más complejo que anotar en el cuaderno.
+
+**Actualización (entrevista 10/09/2026) — dilema parcialmente resuelto a favor del detalle:** el dueño confirmó, sin que se le preguntara puntualmente por este dilema, que *sí* le interesa el detalle: *"Al dueño le interesa poder ver el detalle de una orden de servicio. Saber los servicios realizados, los precios unitario de cada servicio, las partes afectadas."* Esto valida el enfoque elegido (Orden de Servicio + Servicio como detalle granular) y además confirma que detallar servicio por servicio, con su monto individual, **no le genera carga adicional** — es justamente lo que pidió. Lo que sigue sin confirmarse es el alcance exacto del campo `detalle`/"partes afectadas" (ver campo `detalle` agregado en sección 9.1): no quedó claro en qué servicios aplica y con qué estructura, más allá del ejemplo de cantidad de ruedas en alineación/balanceo.
 
 ## 12. Validación del modelo: caso de pagos mixtos y parciales
 
@@ -264,6 +279,29 @@ Este caso puso en evidencia una falla real del modelo anterior, que ya se corrig
 - HU-10 debería aclarar que el crédito se define por ítem/producto, no por venta completa.
 - HU-11 debería aclarar que el saldo mostrado incluye el detalle de qué ítems están pendientes y su saldo individual.
 - Convendría agregar una historia nueva ("Como Administrador quiero registrar un pago/cuota de un ítem a crédito, para actualizar el saldo pendiente del cliente").
+
+## 12.1 Incorporación: fecha de pago prevista y aviso de mora (entrevista 10/09/2026)
+
+La entrevista del 10/09/2026 agregó dos requisitos nuevos sobre el manejo del crédito, no contemplados hasta ahora:
+
+- *"Se desea registrar la fecha en la que el cliente debería ir a pagar su cuota."*
+- *"Si un cliente no viene en la fecha prevista se le debe notificar al dueño."*
+
+También se confirmaron datos que antes eran una pregunta abierta: los créditos se pagan de forma mensual, no suelen superar los **2 meses**, y normalmente el monto se divide a la mitad para pagar en 2 cuotas. Un cliente con 2 cuotas puede cancelar todo en el primer pago si quiere.
+
+**Decisión de diseño — campo simple en vez de una entidad "Cuota":** en lugar de modelar un cronograma completo de cuotas futuras (una entidad `Cuota` separada de `Pago`), se agrega un único campo `fecha_pago_prevista` directamente en **Ítem de Venta** (sección 7.1) y en **Orden de Servicio** (sección 9), junto a `saldo_pendiente`. Representa la próxima fecha en la que se espera que el cliente venga a pagar (toda la deuda o la siguiente cuota). Se prefirió este enfoque más simple porque:
+
+- El dueño no maneja cronogramas de cuotas fijas de antemano — el monto y la fecha de la próxima cuota se acuerdan "en el momento" con el cliente, igual que ya ocurre con la garantía (sin reglas fijas).
+- En la práctica son como máximo 1-2 pagos por ítem/orden, no un plan de cuotas largo, por lo que una entidad `Cuota` agregaría complejidad sin necesidad real.
+- Es coherente con el pedido explícito del dueño de que el sistema sea simple.
+
+**Flujo:** al registrar un ítem/orden a crédito, el Administrador puede indicar `fecha_pago_prevista` (con un valor sugerido por defecto — ver más abajo). Al registrar un Pago parcial, el sistema puede pedir (opcionalmente) una nueva `fecha_pago_prevista` para la cuota siguiente, si todavía queda saldo pendiente.
+
+**Default sugerido, no bloqueo:** el tope de 2 meses mencionado por el dueño se implementa como un **valor sugerido** al calcular la fecha por defecto (por ejemplo, proponer "hoy + 1 mes" para la primera cuota), pero el Administrador puede modificarlo libremente a cualquier fecha. El sistema **no debe impedir** registrar una fecha más lejana ni rechazar la operación — así como no hay una regla fija para la garantía, tampoco la hay de forma estricta para el plazo de crédito; el dueño lo decide caso a caso.
+
+**Notificación de mora:** se agrega al alcance del MVP (ver `desiciones-alcance.md`, sección 2.2) un indicador/listado de ítems y órdenes a crédito cuya `fecha_pago_prevista` ya pasó y que todavía tienen `saldo_pendiente > 0`. No requiere una entidad nueva: es una consulta/vista sobre los campos ya agregados (`fecha_pago_prevista` + `saldo_pendiente`), comparando contra la fecha actual. Queda para la etapa de diseño técnico definir si se muestra como una sección del dashboard/inicio, una lista aparte, o un aviso puntual por cliente.
+
+**Pendiente de trasladar a `historias-usuario.md`:** agregar una historia para registrar/editar `fecha_pago_prevista` al crear o abonar un crédito, y otra para ver el listado de créditos vencidos (ver HU-10.2 y actualización de HU-27).
 
 ## 13. Validación del modelo: Orden de Servicio a crédito con pagos parciales
 
@@ -303,12 +341,7 @@ Se incorporó el concepto de **lote de stock**, usando la propia entidad Compra 
 3. El `stock` del Producto pasa a ser un valor agregado (suma de `cantidad_disponible` de todas sus Compras), en lugar de un contador aislado sin relación con los lotes de origen.
 4. La `garantía_ofrecida` al cliente en el Ítem de Venta queda validada contra la `garantía_proveedor` del lote específico (`compra_id`), no contra un valor genérico del Producto — esto también ajusta el criterio de aceptación de HU-06.
 
-**Pregunta operativa pendiente de confirmar con el dueño:** este modelo asume que, al vender, el sistema puede elegir automáticamente de qué lote descontar stock, típicamente con una regla **PEPS/FIFO** (se vende primero lo que se compró primero). Sin embargo, esto depende de cómo el dueño maneja físicamente el stock en el taller:
-
-- Si los productos de distintas compras están mezclados físicamente en el estante (por ejemplo, cubiertas sin ningún dato visible que indique de qué compra provienen), el sistema puede aplicar FIFO automáticamente sin que el dueño tenga que hacer nada, aunque en la práctica podría no coincidir exactamente con la unidad física que efectivamente se entrega.
-- Si el producto tiene algún dato identificable físicamente (por ejemplo, baterías con fecha de fabricación o número de serie visible), podría ser preferible que el sistema le muestre al dueño las compras disponibles con su garantía, y sea él quien elija manualmente cuál está entregando.
-
-Esta pregunta se agrega al guion de la próxima reunión (ver `guion-reunion-dueno.md`).
+**Resuelto por el equipo (23/10/2026) — selección manual de lote:** se decidió que el Administrador elige manualmente de qué Compra (lote) sale cada unidad vendida, en vez de que el sistema aplique PEPS/FIFO automático. Al registrar un Ítem de Venta, la interfaz muestra las Compras disponibles de ese Producto (con su `cantidad_disponible` y `garantía_proveedor`) para que el Administrador elija el `compra_id` correspondiente. Si la cantidad a vender de un Producto debe repartirse entre más de un lote, esto **no es automático**: el Administrador agrega manualmente un Ítem de Venta por cada lote del que efectivamente sale stock, cada uno con su propio `compra_id` y su porción de `cantidad` — ver tarea correspondiente en `sprint-2-backlog.md`, punto 1. Esto reemplaza la nota de "reparto automático entre lotes" que tenía antes la sección 7.1 (Ítem de Venta).
 
 **Nota de diseño — por qué `producto_id` se mantiene en Ítem de Venta a pesar de existir `compra_id`:** dado que toda Compra ya referencia un `producto_id`, `producto_id` en Ítem de Venta es técnicamente derivable a través de `compra_id → Compra.producto_id`, y podría eliminarse sin perder información. Se decide mantenerlo de todas formas como una **denormalización deliberada**: permite consultar y filtrar ventas por producto sin necesidad de un `JOIN` contra Compra en cada consulta (por ejemplo, para HU-07, historial de compra/venta de un producto). La capa de lógica de negocio debe garantizar, al registrar cada Ítem de Venta, que `producto_id` coincida siempre con el `producto_id` de la Compra referenciada en `compra_id`, para que ambos campos nunca queden desincronizados.
 

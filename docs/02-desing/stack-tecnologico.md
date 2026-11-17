@@ -45,13 +45,13 @@ La recomendación es diseñar la lógica de negocio (validaciones, cálculo de s
 | Interfaz (frontend) | **React + TypeScript** | Coincide con la experiencia previa del equipo en JavaScript/TypeScript; el tipado estático ayuda a reflejar el modelo de datos de `entidades-dominio.md` en el código y detectar errores antes de la ejecución |
 | Lógica de negocio (backend) | **Node.js + TypeScript**, expuesto como servidor local (ver sección 3) | Centraliza las validaciones de negocio (cálculo de saldos, permisos por rol) en una capa desacoplada de la interfaz, preparada para un eventual acceso móvil |
 | Base de datos | **PGlite** (PostgreSQL embebido vía WebAssembly) | Resuelve la tensión descripta en la sección 1 |
-| ORM / acceso a datos | **Prisma** (alternativa: Drizzle) | Genera el código de acceso a datos a partir de un esquema declarado en TypeScript, que puede derivarse directamente de `diagrama-entidad-relacion.md` |
+| ORM / acceso a datos | **Drizzle ORM** | Cuenta con soporte oficial y nativo para PGlite (`drizzle-orm/pglite`) desde 2024. Prisma, en cambio, solo tuvo una propuesta de adaptador para PGlite impulsada por la comunidad, que nunca se integró de forma oficial al proyecto — por eso se descarta como opción para este stack, pese a ser más conocido en general |
 | Empaquetado / instalador | **electron-builder** | Genera los instaladores para los sistemas operativos definidos (ver sección 2) |
 | Pruebas | **Vitest** (alternativa: Jest) | Para cubrir la lógica de negocio más sensible: cálculo de saldos y pagos parciales, permisos por rol |
 
 ## 5. Correspondencia entre el modelo de datos y el stack
 
-- Cada entidad definida en `entidades-dominio.md` se representa como un modelo en el esquema de Prisma (o Drizzle), en correspondencia directa con las tablas de `diagrama-entidad-relacion.md`.
+- Cada entidad definida en `entidades-dominio.md` se representa como un modelo en el esquema de Drizzle, en correspondencia directa con las tablas de `diagrama-entidad-relacion.md`.
 - Los valores calculados (`saldo_pendiente` en Ítem de Venta y en Orden de Servicio, `monto_total`, etc.) se implementan como funciones en la capa de lógica de negocio, no como columnas fijas en la base de datos, para evitar inconsistencias si un registro se modifica fuera del flujo esperado.
 - Los permisos por rol (Administrador/Empleado — ver `entidades-dominio.md`, sección 1, e HU-17/HU-18) se validan en esta misma capa de lógica de negocio, y no únicamente ocultando elementos en la interfaz, conforme a los criterios de aceptación definidos para esas historias.
 
@@ -59,10 +59,16 @@ La recomendación es diseñar la lógica de negocio (validaciones, cálculo de s
 
 - Confirmar con el dueño, al momento de adquirir la notebook, que efectivamente tendrá Windows instalado (ver sección 2), para validar que la asunción tomada en este documento sigue vigente.
 - Inicializar el proyecto Electron + React + TypeScript (puede utilizarse una plantilla como `electron-vite` para reducir tiempo de configuración inicial).
-- Definir el esquema inicial de Prisma/Drizzle a partir de `diagrama-entidad-relacion.md`.
+- Definir el esquema inicial de Drizzle a partir de `diagrama-entidad-relacion.md`.
 - Configurar PGlite y validar que persiste los datos correctamente entre reinicios de la aplicación, en un entorno lo más parecido posible al de destino final.
 - Configurar `electron-builder` y validar la generación de instaladores tanto desde el entorno Windows 11 (build nativa de `.exe`) como desde el entorno Debian 12 (build de Linux para pruebas locales, y opcionalmente instalación de Wine para poder generar también el `.exe` desde ese equipo si hiciera falta).
 
-## 7. Riesgo a monitorear
+## 7. Riesgo monitoreado — validado en Sprint 0
 
-PGlite es una tecnología relativamente reciente. Aunque resuelve adecuadamente la tensión planteada en la sección 1, se recomienda que el Sprint 0 incluya una validación temprana y concreta de su persistencia de datos en un entorno similar al de destino final, antes de construir funcionalidad sobre esa base. En caso de detectarse algún inconveniente relevante, las alternativas de respaldo son SQLite (menor robustez formal, pero ampliamente probada en este tipo de aplicaciones) o PostgreSQL instalado como servicio local (ver sección 1, alternativa considerada).
+PGlite es una tecnología relativamente reciente. Se recomendó, durante el Sprint 0, una validación temprana y concreta de su persistencia de datos antes de construir funcionalidad sobre esa base.
+
+**Estado: validado en Debian 12 y en Windows 11.** Se realizó la prueba en el entorno de desarrollo Debian 12: se insertó un registro de prueba en el primer arranque de la aplicación, se cerró el proceso por completo, y en el segundo arranque el registro seguía presente. La misma prueba se repitió el 15/10/2026 en la notebook de desarrollo con Windows 11, con el mismo resultado. Esto confirma que la persistencia a disco de PGlite funciona correctamente entre reinicios en ambos sistemas operativos de desarrollo del equipo.
+
+Queda pendiente repetir esta misma validación en la notebook real del taller una vez adquirida, ya que podría tener una configuración de disco o permisos distinta a la de las notebooks de desarrollo.
+
+En caso de detectarse algún inconveniente en esa validación pendiente, las alternativas de respaldo siguen siendo SQLite (menor robustez formal, pero ampliamente probada en este tipo de aplicaciones) o PostgreSQL instalado como servicio local (ver sección 1, alternativa considerada).

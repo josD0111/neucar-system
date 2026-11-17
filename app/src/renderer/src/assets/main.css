@@ -1,0 +1,49 @@
+@import './base.css';
+
+/*
+ * Corrección 25/10/2026 (bug reportado: VentaScreen.tsx se veía cortada por
+ * la izquierda y por la derecha, de forma centrada, mientras que el sidebar
+ * -position:fixed- siempre se veía bien).
+ *
+ * Causa real: este archivo nunca se limpió del CSS de la plantilla inicial
+ * de electron-vite, pensado para centrar un logo y un texto de bienvenida
+ * ("Hello World") en pantalla. `body` y `#root` quedaron como contenedores
+ * flex con `align-items/justify-content: center`, sin `flex-grow` ni ancho
+ * explícito en el árbol de la app real — eso hace que el div raíz de App.tsx
+ * se dimensione por su CONTENIDO (shrink-to-fit) en vez de llenar la
+ * ventana, y `overflow: hidden` en `body` recorta ese contenido centrado en
+ * vez de dejarlo scrollear. Con pantallas angostas (ej. StockScreen) el
+ * recorte no se notaba porque el contenido ya entraba en la ventana; con la
+ * tabla ancha de Ventas, sí.
+ *
+ * Las clases de abajo (.logo, .creator, .text, .tip, .react, .ts, .actions,
+ * .action, .versions) eran del mismo "Hello World" de la plantilla: no las
+ * usa ningún componente real (verificado con grep antes de borrarlas), así
+ * que se eliminan en vez de dejarlas como CSS muerto.
+ */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+  user-select: none;
+}
+
+code {
+  font-weight: 600;
+  padding: 3px 5px;
+  border-radius: 2px;
+  background-color: var(--color-background-mute);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    Consolas,
+    Liberation Mono,
+    monospace;
+  font-size: 85%;
+}

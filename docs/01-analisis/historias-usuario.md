@@ -1,6 +1,6 @@
 # Historias de Usuario
 
-*Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`.*
+*Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas), con las decisiones del equipo del 12/10/2026 (HU-01.1 agregada; HU-08 reclasificada de post-MVP a MVP) y con el feedback del dueño al cierre del Sprint 1 (23/10/2026 — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y `desiciones-alcance.md`, sección 8): HU-17 corregida y HU-17.1 agregada (el Empleado ya no registra la venta, solo la calcula), y adenda a HU-05 (filtro en la impresión de existencias).
 
 Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
@@ -8,6 +8,13 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **HU-01**
 > Como Administrador, quiero registrar productos con su categoría, precio y stock inicial, para poder gestionar el inventario del taller.
+
+**HU-01.1** *(agregada 12/10/2026)*
+> Como Administrador, quiero crear, editar y eliminar las categorías de producto, para organizar y filtrar el catálogo según las necesidades del taller.
+
+**Criterios de aceptación:**
+- El conjunto de categorías no es una lista fija del sistema: el Administrador puede crear, renombrar o eliminar categorías en cualquier momento.
+- El objetivo principal de la categoría es habilitar el filtrado de productos (ver HU-02); no se le exige ninguna otra regla de negocio.
 
 **HU-02**
 > Como Administrador o Empleado, quiero buscar productos por tipo (neumáticos, baterías, lubricantes, filtros, etc.), para encontrar rápidamente lo que el cliente necesita.
@@ -21,6 +28,12 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **HU-05**
 > Como Administrador, quiero imprimir el listado de existencias, para verificar físicamente el stock en el depósito.
 
+**Adenda 23/10/2026** *(feedback del dueño al cierre del Sprint 1 — no es una historia nueva, amplía HU-05)*
+> Al imprimir el listado, quiero poder filtrar qué productos se incluyen, ya sea por una categoría puntual o mostrando solo los que tienen stock bajo, para no tener que revisar/tachar productos que no necesito en esa impresión.
+
+**Criterio de aceptación agregado:**
+- El listado en pantalla ya admite filtrar por categoría (`categoriaId`) y por stock bajo (`soloStockBajo`) desde Sprint 1. La generación del PDF (`GET /api/productos/listado-pdf`) debe aceptar los mismos filtros y aplicarlos al contenido impreso, no solo al listado en pantalla.
+
 **HU-06**
 > Como Administrador, quiero registrar la garantía de un producto (por ejemplo, la fecha de garantía del proveedor para baterías), para poder calcular la garantía que ofrezco al cliente al momento de la venta.
 
@@ -28,14 +41,19 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado que registro la compra de un producto con garantía (ej. una batería), cuando ingreso la fecha de compra y los meses de garantía otorgados por el proveedor, entonces el sistema calcula y guarda la fecha de vencimiento de la garantía del proveedor.
 - Dado un producto con stock proveniente de más de una Compra (lote), con distinta `garantía_proveedor` cada una, cuando se vende una unidad, entonces la garantía que se le puede ofrecer al cliente se valida contra la `garantía_proveedor` del lote (Compra) específico del cual salió esa unidad — no contra un valor genérico del Producto (ver `entidades-dominio.md`, sección 14).
 - Dado un producto con garantía de proveedor registrada, cuando lo vendo a un cliente, entonces el sistema debe permitirme definir la garantía que le ofrezco a ese cliente, sin superar la garantía restante del proveedor del lote correspondiente a la fecha de venta.
-- Dado que la regla exacta de cálculo del margen (ej. "12-13 meses si el proveedor da 18") no está confirmada como fija para todos los productos, el sistema debe permitir ingresar la garantía ofrecida al cliente de forma manual en el MVP, y no calcularla automáticamente, hasta confirmar la regla con el dueño (ver pregunta abierta en `desiciones-alcance.md`).
+- El dueño confirmó (entrevista 10/09/2026) que no aplica una regla fija de margen (ej. "12-13 meses si el proveedor da 18") para todos los productos, sino que lo calcula caso a caso — ver `desiciones-alcance.md`, sección 7.1. Por lo tanto, el sistema debe permitir ingresar la garantía ofrecida al cliente de forma **manual**, sin calcularla automáticamente; esto ya no es una limitación temporal del MVP, sino el comportamiento definitivo esperado.
 - Dado un producto sin garantía aplicable (ej. un filtro), cuando lo registro, entonces el campo de garantía debe poder quedar vacío u omitido, sin bloquear el registro del producto.
 
 **HU-07**
 > Como Administrador, quiero ver el historial de compra y venta de un producto, incluyendo proveedor, fecha, estado y cliente (si fue vendido), para saber si el producto tiene una salida rentable.
 
-**HU-08** *(futuro)*
+**HU-08** *(incorporada al MVP el 12/10/2026 — originalmente post-MVP)*
 > Como Administrador, quiero recibir una notificación cuando un producto esté por debajo de un stock mínimo definido, para reponerlo a tiempo.
+
+**Criterios de aceptación:**
+- El Administrador puede definir un `stock_mínimo` por producto (campo opcional).
+- Un producto con `stock` por debajo de su `stock_mínimo` definido aparece en un listado/aviso visible para el Administrador, de forma análoga al listado de créditos vencidos (ver HU-10.2).
+- Un producto sin `stock_mínimo` definido no genera ninguna notificación.
 
 ## 2. Clientes
 
@@ -49,7 +67,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado que registro una venta con varios productos, cuando indico la forma de pago, entonces el sistema me permite definirla **por cada producto/ítem de la venta**, no para la venta completa (ej. 1 producto al contado y 2 a crédito, en la misma venta).
 - Dado un ítem de venta marcado como "a crédito", cuando lo guardo, entonces el sistema exige asociar la venta a un cliente registrado (no permite ítems a crédito en venta a cliente "casual" no registrado).
 - Dado un ítem de venta a crédito, cuando se guarda, entonces el sistema incrementa el saldo pendiente del cliente en el monto de ese ítem específico.
-- Dado que el sistema no define actualmente una fecha límite de pago (pregunta abierta en `desiciones-alcance.md`), el MVP registra el crédito sin fecha de vencimiento; queda como saldo abierto hasta que se registren pagos suficientes.
+- El crédito queda como saldo abierto hasta que se registren pagos suficientes (sin vencimiento duro). La fecha en la que se espera el próximo pago se maneja como un campo aparte (`fecha_pago_prevista`, sugerido por defecto y editable, sin bloquear la operación) — ver HU-10.2, que resuelve lo que acá quedaba como pregunta abierta.
 - Dado un empleado (rol Empleado) que intenta registrar una venta con algún ítem a crédito, cuando lo hace, entonces el sistema le permite hacerlo al precio base (sin descuento), ya que la restricción del rol Empleado es sobre descuentos, no sobre la forma de pago.
 
 **HU-10.1**
@@ -59,7 +77,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado un ítem de venta (o una orden de servicio) a crédito con saldo pendiente mayor a cero, cuando registro un pago por un monto menor o igual al saldo, entonces el sistema resta ese monto del saldo pendiente de ese ítem/orden específico, sin afectar el saldo de otros ítems u órdenes del mismo cliente.
 - Dado un ítem de venta a crédito, cuando la suma de sus pagos registrados iguala su monto original, entonces el sistema lo considera saldado (saldo pendiente = 0) y deja de contarlo en el saldo total del cliente.
 - Dado que un cliente tiene dos productos a crédito de una misma venta, cuando paga por completo uno de ellos, entonces el otro producto conserva su saldo pendiente sin modificaciones, y sus futuros pagos se siguen registrando de forma independiente.
-- Dado un intento de registrar un pago por un monto mayor al saldo pendiente del ítem/orden, el sistema debe advertir o rechazar la operación (a definir en diseño si se permite dejar saldo a favor).
+- Dado un intento de registrar un pago por un monto mayor al saldo pendiente del ítem/orden, el sistema **no rechaza la operación ni genera saldo a favor** (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): el `monto` del Pago que se guarda queda limitado al saldo pendiente exacto, dejando el ítem/orden en `saldo_pendiente = 0`. Si el cliente entrega un monto mayor, la diferencia se calcula y muestra en pantalla como "vuelto" al momento de cobrar, pero no se persiste.
 
 **HU-11**
 > Como Administrador, quiero ver el saldo pendiente de un cliente y el detalle de qué productos o servicios específicos lo componen (con su saldo individual), para gestionar los cobros.
@@ -68,6 +86,15 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado un cliente con uno o más ítems de venta y/o órdenes de servicio a crédito, cuando consulto su ficha, entonces el sistema muestra el saldo total pendiente y el detalle de cada ítem/orden que lo compone, con su producto o tipo de servicio, fecha, monto original y saldo pendiente individual.
 - Dado un cliente con un ítem de venta ya saldado (pagos = monto original) y otro con saldo pendiente, cuando consulto su ficha, entonces el sistema solo muestra en el detalle de deuda el ítem que todavía tiene saldo pendiente.
 - Dado un cliente sin deudas pendientes, cuando consulto su ficha, entonces el sistema indica saldo cero, sin mostrar operaciones ya saldadas como pendientes.
+
+**HU-10.2** *(agregada tras entrevista 10/09/2026)*
+> Como Administrador, quiero registrar la fecha en la que el cliente debería venir a pagar su próxima cuota de un ítem de venta o una orden de servicio a crédito, y ver un listado de los que ya pasaron esa fecha sin pagarse, para poder hacer seguimiento de la mora.
+
+**Criterios de aceptación:**
+- Dado un ítem de venta o una orden de servicio marcados como Crédito, cuando se registra o se abona, entonces el sistema permite indicar/actualizar una `fecha_pago_prevista` para la próxima cuota.
+- Dado que el dueño no tiene una fecha límite fija (créditos de hasta 2 meses, normalmente divididos en 2 cuotas), el sistema debe proponer una fecha por defecto (ej. a 1 mes) pero permitir modificarla libremente, sin bloquear ni rechazar fechas más lejanas.
+- Dado un ítem/orden a crédito con `fecha_pago_prevista` anterior a hoy y `saldo_pendiente > 0`, el sistema debe mostrarlo en un listado/aviso de créditos vencidos, visible para el Administrador.
+- Dado un ítem/orden ya saldado, no debe aparecer en el listado de créditos vencidos aunque su `fecha_pago_prevista` haya pasado.
 
 **HU-12**
 > Como Administrador, quiero imprimir el comprobante de saldo de un cliente, para que lo firme como respaldo de la deuda.
@@ -88,13 +115,22 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 ## 4. Ventas de productos
 
-**HU-17**
-> Como Empleado, quiero registrar una venta de producto al precio base, para atender a un cliente sin necesidad de intervención del dueño.
+**HU-17** *(corregida 23/10/2026 — ver `desiciones-alcance.md`, sección 8.4)*
+> Como Empleado, quiero calcular el precio total de una posible venta a precio base (sin descuentos), para informar al cliente mientras espero a que el Administrador la registre.
 
 **Criterios de aceptación:**
-- Dado que un usuario con rol Empleado registra una venta, cuando ingresa el/los producto(s), entonces el sistema usa siempre el precio base del producto, sin mostrar ni habilitar ningún campo para modificarlo.
-- Dado que un Empleado intenta modificar el precio de un producto en una venta (por ejemplo, mediante manipulación directa de un formulario o API), cuando el sistema procesa la operación, entonces debe rechazarla o forzar el precio base, ya que la restricción de permisos se valida también del lado del servidor y no solo en la interfaz.
-- Dado que un Empleado completa una venta al precio base, cuando la confirma, entonces el sistema descuenta el stock correspondiente (ver HU-20), sin requerir aprobación del Administrador.
+- Dado que un usuario con rol Empleado abre la sección de Ventas, cuando arma un carrito con uno o más productos y cantidades, entonces el sistema calcula y muestra el total a precio base, sin ningún campo para modificar el precio.
+- Dado un carrito armado por un Empleado, el sistema no ofrece ninguna acción para confirmar/registrar la venta: esa acción solo está disponible para el rol Administrador (ver HU-17.1).
+- Dado que un Empleado intenta registrar una venta de forma directa (por ejemplo, manipulando el formulario o llamando a la API), cuando el sistema procesa la petición, entonces la rechaza, ya que el endpoint de registro de venta exige rol Administrador — no alcanza con ocultar el botón de confirmar en la interfaz.
+- **Nota de corrección:** la versión original de esta historia (30/06/2026) asumía que el Empleado también registraba la venta completa al precio base, sin intervención del dueño. El dueño aclaró, al cierre del Sprint 1 (23/10/2026), que la sección de Ventas debe ser simple y que el Empleado la usa solo para calcular/informar — el registro final siempre lo hace el Administrador.
+
+**HU-17.1** *(nueva, 23/10/2026 — completa el flujo de HU-17)*
+> Como Administrador, quiero registrar la venta (armada por mí o calculada previamente por un Empleado), para confirmarla, descontar el stock correspondiente y generar el comprobante.
+
+**Criterios de aceptación:**
+- Dado un carrito de venta con uno o más productos (armado por un Empleado como calculadora, o directamente por el Administrador), cuando el Administrador lo confirma, entonces el sistema registra la Venta, descuenta el stock de los lotes correspondientes (ver HU-20) y queda disponible para emitir el comprobante (ver HU-21).
+- El endpoint de registro de venta exige rol Administrador (`requireRole('Administrador')`); un Empleado no puede invocarlo aunque conozca su URL/forma.
+- Esta historia no reemplaza a HU-18 (aplicar descuento): el Administrador puede registrar la venta al precio base tal cual la calculó el Empleado, o modificar el precio antes de confirmar.
 
 **HU-18**
 > Como Administrador, quiero aplicar un descuento sobre el precio de un producto al registrar una venta, para poder negociar con el cliente cuando lo considere conveniente.
@@ -112,7 +148,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **Criterios de aceptación:**
 - Dado un producto con stock disponible, cuando se confirma una venta que lo incluye, entonces el sistema descuenta automáticamente la cantidad vendida del stock, sin requerir una acción manual adicional del usuario.
-- Dado un producto sin stock suficiente para cubrir la cantidad solicitada, cuando se intenta registrar la venta, entonces el sistema debe advertir la falta de stock antes de confirmar la operación (a definir en diseño si bloquea la venta o solo advierte, dado que el dueño no mencionó una regla estricta al respecto).
+- Dado un producto sin stock suficiente para cubrir la cantidad solicitada, cuando se intenta registrar la venta, entonces el sistema **bloquea** la operación (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): no se permite confirmar una venta cuya cantidad supere el stock disponible.
 - Dado que un Empleado no tiene permiso para "descontar mercaderías" manualmente (según la entrevista), cuando registra una venta normal, entonces el descuento automático de stock por venta sí debe ocurrir igual, ya que la restricción del Empleado aplica a ajustes manuales de inventario, no al descuento derivado de una venta legítima.
 - Dado que se anula o cancela una venta ya confirmada, cuando se realiza la anulación, entonces el sistema debe reponer el stock descontado (a confirmar si la anulación de ventas es parte del MVP).
 
@@ -124,17 +160,31 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **HU-22**
 > Como Administrador o Empleado, quiero registrar un servicio realizado a un vehículo (tipo de servicio, fecha, marca, número de chapa, color y monto), para llevar un registro ordenado de lo que antes se anotaba en el cuaderno.
 
+**HU-22.1** *(agregada tras entrevista 10/09/2026)*
+> Como Administrador, quiero registrar opcionalmente un detalle de la parte afectada en un servicio (ej. cantidad de ruedas en una alineación o balanceo), para tener más información disponible sobre lo realizado.
+
+**Criterios de aceptación:**
+- Dado un servicio dentro de una orden, el campo de detalle es opcional y de texto libre, sin estructura obligatoria por tipo de servicio.
+- Dado que no está confirmado en qué tipos de servicio aplica este campo (ver `entidades-dominio.md`, sección 9.1), el sistema no debe exigirlo ni validarlo de forma distinta según el tipo de servicio hasta que se confirme con el dueño.
+
 **HU-23**
 > Como Administrador, quiero registrar varios servicios solicitados por un mismo cliente para un mismo vehículo en una sola orden, para reflejar cómo se atiende realmente al cliente.
 
 **HU-24**
 > Como Administrador, quiero informar el costo estimado de un servicio antes de realizarlo, para que el cliente lo conozca de antemano.
 
-**HU-25**
-> Como Administrador, quiero registrar opcionalmente una garantía (en días) sobre el trabajo completo realizado en una visita, para poder verificarla si el cliente vuelve por un reclamo.
+**Criterio de aceptación agregado (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3):**
+- La cotización **no es un estado persistido de la Orden de Servicio** (no existe un estado "Cotizada" en el modelo). Es un cálculo en pantalla: el Administrador arma la lista de servicios con sus montos y ve el total estimado, de forma similar a la calculadora de Ventas del Empleado (HU-17), sin que se cree ningún registro en la base de datos hasta que el trabajo se confirma y se registra la Orden de Servicio real.
 
-**HU-26**
-> Como Administrador, quiero consultar el historial de servicios de un cliente o vehículo (por ejemplo, alineaciones realizadas y sus fechas), para verificar la vigencia de la garantía y las condiciones de entrega.
+**HU-25** *(descartada — ver nota)*
+> ~~Como Administrador, quiero registrar opcionalmente una garantía (en días) sobre el trabajo completo realizado en una visita, para poder verificarla si el cliente vuelve por un reclamo.~~
+
+> **Descartada tras entrevista 10/09/2026:** el dueño indicó explícitamente que no es necesario registrar la garantía de los servicios ofrecidos. Se mantiene el número HU-25 para no romper la numeración/trazabilidad, pero esta historia ya no forma parte del alcance (ver `entidades-dominio.md`, sección 9, y `desiciones-alcance.md`).
+
+**HU-26** *(actualizada tras entrevista 10/09/2026)*
+> Como Administrador, quiero consultar el historial de servicios de un cliente o vehículo (por ejemplo, alineaciones realizadas y sus fechas, con el detalle y monto de cada una), para saber qué se le hizo al vehículo y cuándo.
+>
+> *Redacción original: "...para verificar la vigencia de la garantía y las condiciones de entrega." Se ajustó porque la garantía de servicios se descartó (ver HU-25); el historial sigue siendo necesario, pero ya no con ese propósito — ver `entidades-dominio.md`, sección 9.*
 
 **HU-27**
 > Como Administrador, quiero registrar una visita/orden de servicio "a crédito" para un cliente de confianza, para permitirle pagarla más adelante sin perder el registro de la deuda.
@@ -145,6 +195,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado una orden de servicio registrada como pendiente de pago, cuando se guarda, entonces el sistema la suma al saldo pendiente del cliente, de la misma forma que un ítem de venta a crédito (ver HU-10/HU-11).
 - Dado que el cliente va abonando la orden de a cuotas, se aplica el mismo mecanismo de registro de pagos parciales definido en HU-10.1, actualizando el saldo pendiente de la orden hasta saldarla.
 - Dado que no existe actualmente un criterio formal de "cliente de confianza" en el sistema (es una decisión subjetiva del dueño en el momento), el MVP no debe validar ni restringir quién puede recibir una orden a crédito; queda a criterio del Administrador al momento de registrar la operación.
+- *(Agregado tras entrevista 10/09/2026)* Dado que el dueño pidió registrar la fecha en la que el cliente debería pagar y ser notificado si no viene en esa fecha, la orden de servicio a crédito también admite `fecha_pago_prevista` y participa del listado de créditos vencidos — ver HU-10.2, que aplica igual a órdenes de servicio que a ítems de venta.
 
 ## 6. Reportes (futuro)
 
@@ -164,15 +215,22 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 ### Notas sobre priorización
 
 - Las historias marcadas como *(futuro)* corresponden a funcionalidades post-MVP, según lo definido en `desiciones-alcance.md`.
-- El resto de las historias (HU-01 a HU-27, salvo las marcadas) se consideran parte del alcance del MVP.
+- HU-25 fue descartada (ver nota en la historia); no forma parte del MVP ni de ninguna etapa futura.
+- HU-08 se incorporó al MVP el 12/10/2026 (ver nota en la historia); ya no está marcada como futura.
+- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1), la agregada el 12/10/2026 (HU-01.1) y la agregada el 23/10/2026 (HU-17.1).
+- HU-17 fue corregida el 23/10/2026 (ver nota en la historia): el Empleado deja de registrar la venta y pasa a solo calcularla; el registro queda en la nueva HU-17.1. HU-05 recibió una adenda la misma fecha (filtro en la impresión de existencias).
 - Falta definir el orden de implementación (sprints/iteraciones) de las historias del MVP; se recomienda abordarlo en `docs/03-gestion-proyecto/`.
 
 ### Notas sobre criterios de aceptación
 
-Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-06, HU-10, HU-10.1, HU-11, HU-17, HU-18, HU-20 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, permisos por rol, descuento de stock).
+Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-05 (adenda), HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-17.1, HU-18, HU-20, HU-22.1, HU-24 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo).
 
 *HU-10.1 se agregó a partir de la revisión del modelo de datos (ver `entidades-dominio.md`, sección 12), al detectar que faltaba una historia explícita para el registro de pagos/cuotas parciales sobre un ítem a crédito.*
 
-Varios de estos criterios quedan sujetos a las preguntas abiertas listadas en `desiciones-alcance.md` (ej. regla exacta de cálculo de garantía, existencia de vencimiento en el crédito); se recomienda confirmarlas con el dueño antes de pasar a diseño/implementación de esas partes.
+*HU-10.2 y HU-22.1 se agregaron tras la entrevista del 10/09/2026, a partir de pedidos explícitos del dueño (fecha de pago prevista + aviso de mora, y detalle de partes afectadas en servicios — ver `entidades-dominio.md`, secciones 9.1 y 12.1). HU-25 (garantía en servicios) se descartó por el mismo motivo.*
+
+*HU-01.1 se agregó el 12/10/2026 para hacer explícita la gestión de categorías por parte del Administrador, previamente implícita en HU-01/HU-02. En la misma fecha, HU-08 (notificación de stock mínimo) se reclasificó de post-MVP a MVP — ver `desiciones-alcance.md`, sección 2.1.*
+
+Varios de estos criterios quedan sujetos a las preguntas abiertas listadas en `desiciones-alcance.md` (ej. regla exacta de cálculo de garantía de productos, alcance exacto del campo `detalle` en Servicio); se recomienda confirmarlas con el dueño antes de pasar a diseño/implementación de esas partes. La pregunta sobre existencia de vencimiento en el crédito ya se resolvió (tope de 2 meses, sin bloqueo — ver HU-10.2).
 
 El resto de las historias (CRUD simples de productos, clientes, proveedores, etc.) no cuentan con criterios de aceptación explícitos por considerarse de bajo riesgo de ambigüedad; se pueden agregar más adelante si surge la necesidad.
