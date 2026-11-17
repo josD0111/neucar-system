@@ -6,15 +6,18 @@
 //
 // Saldo pendiente, detalle de deudas y créditos vencidos (HU-10.2, HU-11,
 // HU-12) ya están conectados a la API real (ver api/creditos.ts). El saldo
-// hoy solo puede venir de Ítems de Venta a crédito: las Órdenes de Servicio
-// se suman solas en cuanto exista el módulo de Servicios (ver
-// src/main/services/saldoClientes.ts).
+// mezcla Ítems de Venta y Órdenes de Servicio a crédito (ver
+// src/main/services/saldoClientes.ts). Desde el 16/11/2026, las dos se
+// pueden cobrar directamente acá mismo, en la tabla de "Saldo pendiente"
+// (ver CobroCredito — componente compartido también con VentasScreen.tsx e
+// HistorialServiciosScreen.tsx).
 
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { apiFetch } from '../api/client'
 import { creditosApi } from '../api/creditos'
 import type { CreditoVencido, SaldoCliente } from '../api/types'
 import { useAuth } from '../data/AuthContext'
+import { CobroCredito } from '../components/CobroCredito'
 import { HistorialOrdenes } from '../components/HistorialOrdenes'
 // Forma de un cliente tal como lo devuelve la API.
 interface Cliente {
@@ -162,6 +165,21 @@ export function ClienteScreen(): React.JSX.Element {
       cancelado = true
     }
   }, [seleccionado, token])
+
+  // Vuelve a pedir el saldo del cliente abierto (fuente de verdad: el
+  // servidor). Se usa tras registrar un pago sobre un Ítem de Venta o una
+  // Orden de Servicio (ver CobroCredito) para que la fila desaparezca o
+  // actualice su saldo sin tener que cerrar y reabrir la ficha.
+  const recargarSaldo = async (): Promise<void> => {
+    if (!seleccionado) return
+    const r = await creditosApi.saldoCliente(token, seleccionado.id)
+    if (r.ok) {
+      setSaldo(r.data)
+      setErrorSaldo(null)
+    } else {
+      setErrorSaldo(r.error.message)
+    }
+  }
 
   // Descarga/abre el comprobante de saldo en PDF (HU-12).
   const descargarComprobante = async (): Promise<void> => {
@@ -528,36 +546,78 @@ export function ClienteScreen(): React.JSX.Element {
                   </button>
                 </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
                   <thead>
                     <tr style={{ textAlign: 'left', color: 'var(--color-text-muted)', fontSize: 12 }}>
-                      <th style={{ paddingBottom: 8 }}>Origen</th>
-                      <th style={{ paddingBottom: 8 }}>Fecha</th>
-                      <th style={{ paddingBottom: 8 }}>Pago previsto</th>
-                      <th style={{ paddingBottom: 8 }}>Saldo (Gs.)</th>
+                      <th style={{ paddingBottom: 8, width: '40%' }}>Origen</th>
+                      <th style={{ paddingBottom: 8, width: '18%' }}>Fecha</th>
+                      <th style={{ paddingBottom: 8, width: '20%' }}>Pago previsto</th>
+                      <th style={{ paddingBottom: 8, width: '22%' }}>Saldo (Gs.)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {saldo.deudas.map((d) => {
                       const vencido =
                         d.fechaPagoPrevista !== null && d.fechaPagoPrevista < new Date().toISOString().slice(0, 10)
+                      const clave = `${d.tipo}-${d.tipo === 'venta' ? d.itemVentaId : d.ordenServicioId}`
                       return (
-                        <tr
-                          key={`${d.tipo}-${d.tipo === 'venta' ? d.itemVentaId : d.ordenServicioId}`}
-                          style={{ borderTop: '1px solid var(--color-border)' }}
-                        >
-                          <td style={{ padding: 8 }}>
-                            {d.tipo === 'venta' ? `Venta #${d.ventaId} — ${d.productoNombre}` : `Orden de servicio #${d.ordenServicioId}`}
-                          </td>
-                          <td className="font-data" style={{ padding: 8 }}>{d.fecha.slice(0, 10)}</td>
-                          <td
-                            className="font-data"
-                            style={{ padding: 8, color: vencido ? 'var(--color-alert)' : undefined, fontWeight: vencido ? 600 : undefined }}
-                          >
-                            {d.fechaPagoPrevista ?? '—'}
-                          </td>
-                          <td className="font-data" style={{ padding: 8 }}>{d.saldoPendiente.toLocaleString('es-PY')}</td>
-                        </tr>
+                        // Dos filas por deuda, no una: el cobro (botón + formulario +
+                        // historial de pagos) necesita todo el ancho de la tabla para no
+                        // quedar apretado contra las demás columnas, así que va en una
+                        // fila propia debajo, con colSpan, en vez de en una quinta
+                        // columna angosta (eso era lo que se veía "encimado").
+                        <Fragment key={clave}>
+                          <tr style={{ borderTop: '1px solid var(--color-border)' }}>
+                            <td style={{ padding: 8, paddingBottom: 4, verticalAlign: 'top' }}>
+                              {d.tipo === 'venta'
+                                ? `Venta #${d.ventaId} — ${d.productoNombre}`
+                                : `Orden de servicio #${d.ordenServicioId}`}
+                            </td>
+                            <td className="font-data" style={{ padding: 8, paddingBottom: 4, verticalAlign: 'top' }}>
+                              {d.fecha.slice(0, 10)}
+                            </td>
+                            <td
+                              className="font-data"
+                              style={{
+                                padding: 8,
+                                paddingBottom: 4,
+                                verticalAlign: 'top',
+                                color: vencido ? 'var(--color-alert)' : undefined,
+                                fontWeight: vencido ? 600 : undefined
+                              }}
+                            >
+                              {d.fechaPagoPrevista ?? '—'}
+                            </td>
+                            <td className="font-data" style={{ padding: 8, paddingBottom: 4, verticalAlign: 'top' }}>
+                              {d.saldoPendiente.toLocaleString('es-PY')}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td colSpan={4} style={{ padding: '0 8px 12px' }}>
+                              <CobroCredito
+                                credito={
+                                  d.tipo === 'venta'
+                                    ? {
+                                        origen: 'item',
+                                        itemVentaId: d.itemVentaId,
+                                        montoOriginal: d.montoItem,
+                                        saldoPendiente: d.saldoPendiente,
+                                        fechaPagoPrevista: d.fechaPagoPrevista
+                                      }
+                                    : {
+                                        origen: 'orden',
+                                        ordenServicioId: d.ordenServicioId,
+                                        montoOriginal: d.montoTotal,
+                                        saldoPendiente: d.saldoPendiente,
+                                        fechaPagoPrevista: d.fechaPagoPrevista
+                                      }
+                                }
+                                token={token}
+                                onPagoRegistrado={() => recargarSaldo()}
+                              />
+                            </td>
+                          </tr>
+                        </Fragment>
                       )
                     })}
                   </tbody>

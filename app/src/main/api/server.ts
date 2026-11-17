@@ -81,7 +81,7 @@ export function createServer(db: Db): Express {
   // Se montan una sola vez, al crear el servidor, y no dentro de otro handler.
   app.use('/api/auth', authRouter(db))
   // Rutas de clientes (HU-09), protegidas por sesión.
-<  app.use('/api/clientes', clientesRouter(db))
+  app.use('/api/clientes', clientesRouter(db))
   // Rutas de ventas (HU-17 a HU-21), protegidas por sesión desde el inicio
   // (ver sprint-2-backlog.md, punto 5 — deuda técnica).
   app.use('/api/ventas', ventasRouter(db))

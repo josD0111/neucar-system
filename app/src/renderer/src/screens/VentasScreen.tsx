@@ -25,12 +25,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../data/AuthContext'
 import { ventasApi } from '../api/ventas'
-import { pagosApi } from '../api/pagos'
-import type { ItemVentaDetalle, Pago, VentaDetalle, VentaListado } from '../api/types'
+import { CobroCredito } from '../components/CobroCredito'
+import type { ItemVentaDetalle, VentaDetalle, VentaListado } from '../api/types'
 
 const METODOS_PAGO_FILTRO = ['Todos', 'Efectivo', 'Tarjeta', 'Transferencia', 'QR'] as const
-// Mismas 4 opciones, sin 'Todos' — para el formulario de cobro (ver CobroItem).
-const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'QR'] as const
+// Mismas 4 opciones, sin 'Todos' — para el formulario de cobro (ver CobroCredito).
 
 function Panel({
   children,
@@ -63,24 +62,6 @@ const estiloInput: React.CSSProperties = {
   borderRadius: 'var(--radius)'
 }
 
-// Feedback de usabilidad del dueño (reunion-sprint01--2026-10-23.md), mismo
-// criterio ya aplicado en VentaScreen.tsx: Enter mueve el foco al siguiente
-// campo del formulario en vez de intentar enviarlo — acá se usa en el
-// formulario de registro de pago (CobroItem), que ese pedido también
-// incluye explícitamente.
-function manejarEnterComoTab(e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>): void {
-  if (e.key !== 'Enter') return
-  e.preventDefault()
-  const form = e.currentTarget.form
-  if (!form) return
-  const focosables = Array.from(
-    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
-      'input:not([disabled]), select:not([disabled])'
-    )
-  )
-  const idx = focosables.indexOf(e.currentTarget)
-  if (idx >= 0 && idx < focosables.length - 1) focosables[idx + 1].focus()
-}
 
 const estiloLabel: React.CSSProperties = {
   display: 'block',
@@ -153,251 +134,12 @@ function gs(valor: number | string): string {
   return Number(valor).toLocaleString('es-PY')
 }
 
-// --- Cobro de un ítem a crédito: historial de pagos + registrar uno nuevo -
+// --- Cobro de un ítem a crédito ---
+//
+// El formulario de cobro se movió a components/CobroCredito.tsx el
+// 16/11/2026, unificado con el de Órdenes de Servicio (ver ese archivo para
+// el porqué). Se usa en ItemDetalle, más abajo.
 
-function formatearFechaCorta(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('es-PY', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function CobroItem({
-  item,
-  token,
-  onPagoRegistrado
-}: {
-  item: ItemVentaDetalle
-  token: string | null
-  onPagoRegistrado: () => void
-}): React.JSX.Element {
-  // Historial de pagos del ítem: se pide siempre que el ítem es a Crédito
-  // (acá nunca se llega para Contado — ver ItemDetalle), para poder mostrarlo
-  // automático si ya tiene pagos (acordado con el dueño: "podemos probar
-  // mostrarlo de manera automática si ya tiene pagos") y para sugerir el
-  // monto de la próxima cuota.
-  const [pagosItem, setPagosItem] = useState<Pago[] | null>(null)
-
-  useEffect(() => {
-    let cancelado = false
-    pagosApi.listarPorItem(token, item.id).then((r) => {
-      if (cancelado || !r.ok) return
-      setPagosItem(r.data)
-    })
-    return () => {
-      cancelado = true
-    }
-  }, [token, item.id])
-
-  const [formAbierto, setFormAbierto] = useState(false)
-  const [monto, setMonto] = useState('')
-  const [metodoPago, setMetodoPago] = useState<(typeof METODOS_PAGO)[number]>('Efectivo')
-  const [fechaPagoPrevista, setFechaPagoPrevista] = useState(item.fechaPagoPrevista ?? '')
-  const [enviando, setEnviando] = useState(false)
-  const [errorForm, setErrorForm] = useState<string | null>(null)
-
-  const montoItem = Number(item.precioUnitario) * item.cantidad
-
-  const abrirForm = (): void => {
-    // Monto sugerido (acordado con el dueño): los créditos se pagan
-    // mensualmente, como máximo en 2 cuotas, y cada cobro debería ser el
-    // total que corresponde a esa cuota — no hay una entidad "Cuota" en el
-    // modelo (ver entidades-dominio.md, 12.1), así que esto es una
-    // SUGERENCIA editable, no un monto fijo: primera cuota = mitad del
-    // total del ítem; de la segunda en adelante, se sugiere el saldo
-    // restante completo (lo habitual es que sea la última).
-    const sugerido =
-      !pagosItem || pagosItem.length === 0 ? Math.round(montoItem / 2) : item.saldoPendiente
-    setMonto(String(Math.min(sugerido, item.saldoPendiente)))
-    setMetodoPago('Efectivo')
-    setFechaPagoPrevista(item.fechaPagoPrevista ?? '')
-    setErrorForm(null)
-    setFormAbierto(true)
-  }
-
-  const montoNumero = Number(monto)
-  const montoValido = Number.isFinite(montoNumero) && montoNumero > 0
-  // Mismo cálculo que hace el servidor (clamp al saldo, ver
-  // services/pagos.ts): se usa para decidir si todavía tiene sentido pedir
-  // una fecha para la cuota siguiente, y para mostrar el vuelto.
-  const saldoLuegoDelPago = montoValido
-    ? Math.max(item.saldoPendiente - montoNumero, 0)
-    : item.saldoPendiente
-  const vuelto = montoValido ? Math.max(montoNumero - item.saldoPendiente, 0) : 0
-
-  const confirmar = (): void => {
-    if (!montoValido) {
-      setErrorForm('Ingresá un monto mayor a 0.')
-      return
-    }
-    setEnviando(true)
-    setErrorForm(null)
-    pagosApi
-      .registrarPorItem(token, item.id, {
-        monto: montoNumero,
-        metodoPago,
-        // Si con este pago el ítem queda saldado, no tiene sentido pedir
-        // una fecha para una cuota que ya no va a existir.
-        fechaPagoPrevista: saldoLuegoDelPago > 0 ? fechaPagoPrevista || null : undefined
-      })
-      .then((r) => {
-        setEnviando(false)
-        if (!r.ok) {
-          setErrorForm(r.error.message)
-          return
-        }
-        setFormAbierto(false)
-        setPagosItem((prev) => [r.data, ...(prev ?? [])])
-        onPagoRegistrado() // refresca el saldo/fecha del ítem en la venta (fuente de verdad: el servidor)
-      })
-  }
-
-  return (
-    <div style={{ marginTop: 'var(--space-2)' }}>
-      {pagosItem && pagosItem.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            fontSize: 13,
-            marginBottom: 'var(--space-2)'
-          }}
-        >
-          <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>
-            Pagos registrados:
-          </span>
-          {pagosItem.map((p) => (
-            <div
-              key={p.id}
-              className="font-data"
-              style={{ display: 'flex', gap: 8, color: 'var(--color-text)' }}
-            >
-              <span>{formatearFechaCorta(p.fecha)}</span>
-              <span style={{ fontWeight: 600 }}>Gs. {gs(p.monto)}</span>
-              <span style={{ color: 'var(--color-text-muted)' }}>({p.metodoPago})</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {item.saldoPendiente > 0 &&
-        (!formAbierto ? (
-          <button
-            type="button"
-            onClick={abrirForm}
-            style={{ ...estiloBotonSecundario, fontSize: 13, fontWeight: 600 }}
-          >
-            Cobrar
-          </button>
-        ) : (
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 'var(--space-2)',
-              alignItems: 'flex-end',
-              padding: 'var(--space-2)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius)',
-              background: 'var(--color-surface)'
-            }}
-          >
-            <div>
-              <label style={estiloLabel}>Monto recibido</label>
-              <input
-                type="number"
-                min={1}
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                onKeyDown={manejarEnterComoTab}
-                autoFocus
-                className="font-data"
-                style={{ ...estiloInput, width: 120 }}
-              />
-            </div>
-
-            <div>
-              <label style={estiloLabel}>Método</label>
-              <select
-                value={metodoPago}
-                onChange={(e) => setMetodoPago(e.target.value as (typeof METODOS_PAGO)[number])}
-                onKeyDown={manejarEnterComoTab}
-                style={estiloInput}
-              >
-                {METODOS_PAGO.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {saldoLuegoDelPago > 0 && (
-              <div>
-                <label style={estiloLabel}>Próxima cuota</label>
-                <input
-                  type="date"
-                  value={fechaPagoPrevista}
-                  onChange={(e) => setFechaPagoPrevista(e.target.value)}
-                  onKeyDown={manejarEnterComoTab}
-                  className="font-data"
-                  style={estiloInput}
-                />
-              </div>
-            )}
-
-            <div
-              className="font-data"
-              style={{ fontSize: 13, color: 'var(--color-text)', paddingBottom: 6 }}
-            >
-              {vuelto > 0 ? (
-                <span>
-                  Se aplican Gs. {gs(item.saldoPendiente)} al saldo.
-                  <br />
-                  <strong style={{ color: 'var(--color-ok)' }}>Vuelto: Gs. {gs(vuelto)}</strong>
-                </span>
-              ) : (
-                saldoLuegoDelPago > 0 && <span>Queda Gs. {gs(saldoLuegoDelPago)} pendiente.</span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                onClick={confirmar}
-                disabled={enviando}
-                style={{
-                  ...estiloBotonSecundario,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: 'var(--color-ok)',
-                  color: '#fff',
-                  borderColor: 'var(--color-ok)'
-                }}
-              >
-                {enviando ? 'Guardando…' : 'Confirmar'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormAbierto(false)}
-                disabled={enviando}
-                style={{ ...estiloBotonSecundario, fontSize: 13 }}
-              >
-                Cancelar
-              </button>
-            </div>
-
-            {errorForm && (
-              <div style={{ width: '100%', fontSize: 13, color: 'var(--color-alert)' }}>
-                {errorForm}
-              </div>
-            )}
-          </form>
-        ))}
-    </div>
-  )
-}
 
 // --- Un ítem dentro del detalle de una venta ------------------------------
 
@@ -494,7 +236,17 @@ function ItemDetalle({
             </span>
           </div>
 
-          <CobroItem item={item} token={token} onPagoRegistrado={onPagoRegistrado} />
+          <CobroCredito
+            credito={{
+              origen: 'item',
+              itemVentaId: item.id,
+              montoOriginal: Number(item.precioUnitario) * item.cantidad,
+              saldoPendiente: item.saldoPendiente,
+              fechaPagoPrevista: item.fechaPagoPrevista
+            }}
+            token={token}
+            onPagoRegistrado={() => onPagoRegistrado()}
+          />
         </>
       )}
     </div>
@@ -756,7 +508,7 @@ export function VentasScreen(): React.JSX.Element {
     })
   }
 
-  // Tras registrar un pago (CobroItem), se vuelve a pedir el detalle de esa
+  // Tras registrar un pago (CobroCredito), se vuelve a pedir el detalle de esa
   // venta para que el saldo pendiente/fecha prevista del ítem se actualicen
   // con el valor que calculó el servidor (fuente de verdad), en vez de
   // estimarlo en el cliente. No toca `ventas` (la fila del listado, con

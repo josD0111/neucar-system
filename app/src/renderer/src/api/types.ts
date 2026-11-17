@@ -168,9 +168,11 @@ export interface VentaInput {
   items: ItemVentaInput[]
 }
 
-// --- Pagos (módulo de Crédito/Pagos, sobre Ítems de Venta — HU-10.1) ---
-// Ver services/pagos.ts. Los pagos sobre Órdenes de Servicio (Fase 5 del
-// reparto) se agregan más adelante; estos tipos son solo de Ítem de Venta.
+// --- Pagos (módulo de Crédito/Pagos — HU-10.1) ---
+// Ver services/pagos.ts. `Pago`/`PagoInput` son comunes a los pagos sobre
+// Ítems de Venta y sobre Órdenes de Servicio (Fase 5, agregada el
+// 15/11/2026): un Pago siempre tiene uno de los dos ids (nunca ambos),
+// según el endpoint usado para registrarlo (ver api/pagos.ts).
 
 export interface Pago {
   id: number

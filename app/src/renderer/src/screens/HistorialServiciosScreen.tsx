@@ -16,14 +16,23 @@
 // identifican por la chapa.
 //
 // Las órdenes no guardan el método de cobro (efectivo, tarjeta, etc.), solo si
-// fueron al contado o a crédito: por eso el filtro es "Forma de pago". El saldo
-// pendiente de las órdenes a crédito se muestra en solo lectura: el cobro de
-// pagos es del módulo de Pagos.
+// fueron al contado o a crédito: por eso el filtro es "Forma de pago".
+//
+// El saldo pendiente de una orden a crédito se puede cobrar directamente
+// desde acá (botón "Cobrar" dentro de cada orden desplegada — ver
+// DetalleOrden), con CobroCredito (components/CobroCredito.tsx), compartido
+// también con ClienteScreen.tsx (su tabla de "Saldo pendiente", ahí para
+// Ítems de Venta y Órdenes de Servicio) y VentasScreen.tsx (ItemDetalle).
+// Estas pantallas apuntan al mismo lugar en la base de datos; se dejan varias
+// porque sirven para momentos distintos: acá para cuando se está recorriendo
+// el trabajo hecho en general, en Ficha de Cliente para cuando ya se sabe
+// quién viene a pagar.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVehiculos } from '../api/hooks'
 import { ordenesServicioApi } from '../api/ordenesServicio'
-import type { OrdenListado, Vehiculo } from '../api/types'
+import type { OrdenListado, Pago, Vehiculo } from '../api/types'
+import { CobroCredito } from '../components/CobroCredito'
 import { InputLimpiable } from '../components/InputLimpiable'
 import { useAuth } from '../data/AuthContext'
 import { useRetardo } from './useRetardo'
@@ -158,7 +167,15 @@ function textoRuedas(n: number): string {
 
 // --- Detalle de una orden (tareas) ------------------------------------------------
 
-function DetalleOrden({ orden }: { orden: OrdenListado }): React.JSX.Element {
+function DetalleOrden({
+  orden,
+  token,
+  onPagoRegistrado
+}: {
+  orden: OrdenListado
+  token: string | null
+  onPagoRegistrado: (ordenServicioId: number, pago: Pago) => void
+}): React.JSX.Element {
   const esCredito = orden.tipoPago === 'Crédito'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
@@ -233,6 +250,18 @@ function DetalleOrden({ orden }: { orden: OrdenListado }): React.JSX.Element {
               ? `Saldo pendiente: Gs. ${gs(orden.saldoPendiente)}`
               : 'Pagado'}
           </span>
+
+          <CobroCredito
+            credito={{
+              origen: 'orden',
+              ordenServicioId: orden.id,
+              montoOriginal: Number(orden.montoTotal),
+              saldoPendiente: orden.saldoPendiente,
+              fechaPagoPrevista: orden.fechaPagoPrevista
+            }}
+            token={token}
+            onPagoRegistrado={(pago) => onPagoRegistrado(orden.id, pago)}
+          />
         </div>
       )}
     </div>
@@ -296,6 +325,21 @@ export function HistorialServiciosScreen(): React.JSX.Element {
 
   // --- Datos: `ordenes` son los bloques de 7 días ya cargados, acumulados.
   const [ordenes, setOrdenes] = useState<OrdenListado[]>([])
+
+  // Tras cobrar una cuota desde acá (CobroCredito, ver DetalleOrden), se
+  // actualiza solo el saldoPendiente de esa orden puntual en la lista ya
+  // cargada, sin volver a pedir todo el historial. El monto del Pago es el
+  // que devuelve el servidor, ya con el clamp al saldo aplicado — no hace
+  // falta recalcularlo acá.
+  const actualizarSaldoOrden = (ordenServicioId: number, pago: Pago): void => {
+    setOrdenes((prev) =>
+      prev.map((o) =>
+        o.id === ordenServicioId
+          ? { ...o, saldoPendiente: Math.max(o.saldoPendiente - Number(pago.monto), 0) }
+          : o
+      )
+    )
+  }
   const [cargando, setCargando] = useState(true)
   const [cargandoMas, setCargandoMas] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -732,7 +776,11 @@ export function HistorialServiciosScreen(): React.JSX.Element {
                                     background: 'var(--color-bg)'
                                   }}
                                 >
-                                  <DetalleOrden orden={o} />
+                                  <DetalleOrden
+                                    orden={o}
+                                    token={token}
+                                    onPagoRegistrado={actualizarSaldoOrden}
+                                  />
                                 </div>
                               )}
                             </div>

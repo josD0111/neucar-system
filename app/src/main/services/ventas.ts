@@ -637,7 +637,19 @@ export async function obtenerVenta(db: Db, id: number): Promise<Resultado<VentaD
   const [venta] = await db.select().from(ventas).where(eq(ventas.id, id))
   if (!venta) return { ok: false, status: 404, mensaje: 'Venta no encontrada.' }
 
-  const items = await db.select().from(itemsVenta).where(eq(itemsVenta.ventaId, id))
+  // Sin .orderBy(), el orden de las filas no está garantizado y puede
+  // cambiar entre una llamada y la siguiente (por ejemplo, después de un
+  // INSERT en `pagos` al cobrar una cuota, aunque esa tabla no toque a
+  // itemsVenta) — es la misma causa que el .orderBy() agregado el
+  // 16/11/2026 en saldoClientes.ts, acá en el lugar donde en verdad hacía
+  // falta: esta es la consulta que arma el detalle de una Venta para
+  // VentasScreen.tsx, donde se vio un ítem "saltar" de posición justo
+  // después de cobrarle una cuota al otro.
+  const items = await db
+    .select()
+    .from(itemsVenta)
+    .where(eq(itemsVenta.ventaId, id))
+    .orderBy(itemsVenta.id)
 
   const idsProductos = [...new Set(items.map((i) => i.productoId))]
   const filasProductos = idsProductos.length

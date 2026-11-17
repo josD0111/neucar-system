@@ -6,24 +6,19 @@
 //
 // Decisión de diseño: el saldo de un Cliente es la suma del saldo pendiente
 // de sus Ítems de Venta a Crédito MÁS sus Órdenes de Servicio a Crédito (ver
-// entidades-dominio.md, sección 7.2 y 12.1). La tabla `ordenesServicio` ya
-// existe en el esquema aunque todavía no haya pantalla/servicio que la
-// cargue (eso queda a cargo del módulo de Vehículos/Servicios, Sprint 2,
-// puntos 2 y 3): se consulta igual acá, así que en cuanto existan filas
-// aparecen solas en el saldo, sin tocar este archivo.
+// entidades-dominio.md, sección 7.2 y 12.1).
 //
-// La fórmula del saldo de un Ítem de Venta se reutiliza de services/pagos.ts
-// (calcularSaldoPendienteItem) para no duplicarla ni arriesgarse a que
-// queden desincronizadas.
+// Las fórmulas de saldo pendiente (tanto de Ítem de Venta como de Orden de
+// Servicio, ya con sus Pagos de la Fase 5 descontados) se reutilizan de
+// services/pagos.ts (calcularSaldoPendienteItem / calcularSaldoPendienteOrden)
+// para no duplicarlas ni arriesgarse a que queden desincronizadas.
 
 import { and, eq, isNotNull, lt } from 'drizzle-orm'
 import type { Db } from '../api/server'
-import { clientes, itemsVenta, ordenesServicio, pagos, productos, ventas } from '../db/schema'
-import { calcularSaldoPendienteItem } from './pagos'
+import { clientes, itemsVenta, ordenesServicio, productos, ventas } from '../db/schema'
+import { calcularSaldoPendienteItem, calcularSaldoPendienteOrden } from './pagos'
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; status: number; mensaje: string }
-
-type OrdenServicioFila = typeof ordenesServicio.$inferSelect
 
 // Deuda pendiente de un Ítem de Venta (producto vendido a crédito).
 export interface DeudaItemVenta {
@@ -70,15 +65,6 @@ export interface CreditoVencido {
   diasVencido: number
 }
 
-// Saldo pendiente de una Orden de Servicio: montoTotal − suma(pagos de esa
-// orden). Mismo criterio que calcularSaldoPendienteItem (nunca negativo).
-async function calcularSaldoPendienteOrden(db: Db, orden: OrdenServicioFila): Promise<number> {
-  const pagosOrden = await db.select().from(pagos).where(eq(pagos.ordenServicioId, orden.id))
-  const pagado = pagosOrden.reduce((acc, p) => acc + Number(p.monto), 0)
-  const saldo = Number(orden.montoTotal) - pagado
-  return saldo > 0 ? saldo : 0
-}
-
 // Días corridos entre dos fechas 'YYYY-MM-DD' (positivo si `hasta` es
 // posterior a `desde`). Se usa para "días vencido" en el listado de HU-10.2.
 function diasEntre(desde: string, hasta: string): number {
@@ -112,6 +98,14 @@ export async function calcularSaldoCliente(db: Db, clienteId: number): Promise<R
     .innerJoin(ventas, eq(itemsVenta.ventaId, ventas.id))
     .innerJoin(productos, eq(itemsVenta.productoId, productos.id))
     .where(and(eq(ventas.clienteId, clienteId), eq(itemsVenta.tipoPago, 'Crédito')))
+    // Sin esto, el orden de las filas no está garantizado (puede cambiar
+    // entre llamadas, por ejemplo después de un INSERT en otra tabla como
+    // `pagos` — no hace falta que toque esta tabla para que el motor decida
+    // devolver las filas en otro orden). Dos Ítems de una misma Venta tienen
+    // la misma `fecha` (la de la Venta), así que el `.sort()` de abajo no
+    // alcanza para desempatarlos: por eso se vio, el 16/11/2026, una fila
+    // "saltando" de posición después de cobrar la otra.
+    .orderBy(itemsVenta.id)
 
   const deudasItems: DeudaItemVenta[] = []
   for (const f of filasItems) {
@@ -140,6 +134,10 @@ export async function calcularSaldoCliente(db: Db, clienteId: number): Promise<R
     .select()
     .from(ordenesServicio)
     .where(and(eq(ordenesServicio.clienteId, clienteId), eq(ordenesServicio.tipoPago, 'Crédito')))
+    // Mismo motivo que el .orderBy() de arriba, en la consulta de Ítems de
+    // Venta: sin orden explícito, dos Órdenes del mismo día (misma `fecha`
+    // a nivel de día) podrían reordenarse entre llamadas.
+    .orderBy(ordenesServicio.id)
 
   const deudasOrdenes: DeudaOrdenServicio[] = []
   for (const orden of filasOrdenes) {
