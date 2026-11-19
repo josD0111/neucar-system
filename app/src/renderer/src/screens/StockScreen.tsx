@@ -36,6 +36,7 @@ import { proveedoresApi } from '../api/proveedores'
 import { productosApi } from '../api/productos'
 import { comprasApi } from '../api/compras'
 import { urlPdfListadoStock, ApiClientError } from '../api/client'
+import { useStockAlert } from '../data/StockAlertContext'
 import type { Compra, Proveedor, Producto } from '../api/types'
 import { useNavegacionConEnter } from './useNavegacionConEnter'
 function Panel({ children, title }: { children: React.ReactNode; title?: string }) {
@@ -1395,6 +1396,7 @@ export function StockScreen() {
 
   const categorias = useCategorias()
   const proveedores = useProveedores()
+  const { refrescar: refrescarStockBajo } = useStockAlert()
   // "Solo stock bajo" es un filtro más del mismo listado paginado (ver
   // soloStockBajo en FiltrosProductos), no un endpoint aparte: corrección
   // del 20/10/2026 — antes usaba GET /productos/stock-bajo, que no conocía
@@ -1442,6 +1444,12 @@ export function StockScreen() {
 
   const refrescarListado = () => {
     listado.refrescar()
+    // El contador de "Control de stock" en el panel lateral (HU-08) puede
+    // haber cambiado con cualquiera de las acciones que llaman a esto
+    // (compra registrada, producto nuevo, edición de un producto —
+    // incluido su stock_mínimo—, cambio de stock de un lote): un solo
+    // lugar para refrescarlo, en vez de repetirlo en cada callback.
+    refrescarStockBajo()
   }
 
   // Ver DetalleLotes: además de refrescar el listado, avisa al detalle de

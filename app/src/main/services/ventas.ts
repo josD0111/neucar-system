@@ -43,6 +43,20 @@ export type Venta = typeof ventas.$inferSelect
 export type ItemVenta = typeof itemsVenta.$inferSelect
 export type VentaConItems = Venta & { items: ItemVenta[] }
 
+// Aviso de stock bajo tras una Venta (HU-08, plan del 16/11/2026): un
+// producto vendido que, después de descontar el stock de esta Venta, quedó
+// con `stock <= stockMinimo`. Se avisa cada vez que pasa (opción A, no solo
+// la primera vez que lo cruza) — decisión del dueño, para no depender de
+// que se acuerde de que ya estaba bajo; el contador del panel lateral (ver
+// api/routes/productos.ts) cubre el resto del tiempo. `stockMinimo` nunca
+// es null acá: un producto sin mínimo cargado no puede estar "bajo" nada.
+export interface ProductoStockBajo {
+  productoId: number
+  nombre: string
+  stock: number
+  stockMinimo: number
+}
+
 // Fila de listado (GET /api/ventas): la venta sola no dice a quién se le
 // vendió ni cuántos ítems tiene, y pedir el detalle completo de cada una
 // solo para mostrar el listado sería un N+1 contra el servidor. Se resuelve
@@ -264,7 +278,7 @@ export async function registrarVenta(
   db: Db,
   usuario: { id: number; rol: Rol },
   body: unknown
-): Promise<Resultado<VentaConItems>> {
+): Promise<Resultado<VentaConItems & { productosStockBajo: ProductoStockBajo[] }>> {
   if (usuario.rol !== 'Administrador') {
     return {
       ok: false,
@@ -414,7 +428,21 @@ export async function registrarVenta(
         }
       }
 
-      return { ...ventaCreada, items: itemsCreados }
+      // Aviso de stock bajo (HU-08): se mira DESPUÉS de todos los descuentos
+      // de stock de esta Venta (no después de cada ítem), para que si un
+      // mismo producto aparece en dos ítems el resultado sea el stock final,
+      // no uno intermedio. Una sola consulta por los productos distintos que
+      // tocó esta Venta, no una por ítem.
+      const productoIdsAfectados = [...new Set(itemsAInsertar.map((i) => i.productoId))]
+      const productosFinales = await tx
+        .select({ id: productos.id, nombre: productos.nombre, stock: productos.stock, stockMinimo: productos.stockMinimo })
+        .from(productos)
+        .where(inArray(productos.id, productoIdsAfectados))
+      const productosStockBajo: ProductoStockBajo[] = productosFinales
+        .filter((p) => p.stockMinimo !== null && p.stock <= p.stockMinimo)
+        .map((p) => ({ productoId: p.id, nombre: p.nombre, stock: p.stock, stockMinimo: p.stockMinimo as number }))
+
+      return { ...ventaCreada, items: itemsCreados, productosStockBajo }
     })
 
     return { ok: true, data: resultado }

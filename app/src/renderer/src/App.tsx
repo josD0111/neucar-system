@@ -25,6 +25,7 @@ import './design/tokens.css'
 import { Sidebar, type Pantalla } from './components/Sidebar'
 import { AppDataProvider } from './data/AppDataContext'
 import { AuthProvider, useAuth } from './data/AuthContext'
+import { StockAlertProvider } from './data/StockAlertContext'
 import { LoginScreen } from './screens/LoginScreen'
 import { StockScreen } from './screens/StockScreen'
 import { CategoriaScreen } from './screens/CategoriaScreen'
@@ -43,6 +44,7 @@ function AppAutenticada(): React.JSX.Element {
 
   return (
     <AppDataProvider>
+      <StockAlertProvider>
       <div style={{ height: '100%', overflow: 'hidden', display: 'flex' }}>
         <Sidebar pantallaActiva={pantalla} onCambiarPantalla={setPantalla} />
         <main
@@ -75,6 +77,7 @@ function AppAutenticada(): React.JSX.Element {
           {pantalla === 'cliente' && <ClienteScreen />}
         </main>
       </div>
+      </StockAlertProvider>
     </AppDataProvider>
   )
 }

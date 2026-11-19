@@ -52,6 +52,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../data/AuthContext'
+import { useStockAlert } from '../data/StockAlertContext'
 import { productosApi } from '../api/productos'
 import { ventasApi } from '../api/ventas'
 import { apiFetch } from '../api/client'
@@ -788,6 +789,7 @@ function CampoNumericoOpcional({
 
 export function VentaScreen(): React.JSX.Element {
   const { usuario, token } = useAuth()
+  const { refrescar: refrescarStockBajo } = useStockAlert()
   const esAdmin = usuario?.rol === 'Administrador'
 
   // Ya no se precarga "todo" el catálogo (ver BuscadorProducto arriba): acá
@@ -1013,6 +1015,10 @@ export function VentaScreen(): React.JSX.Element {
     // El stock de los lotes usados cambió: se descarta la caché para que la
     // próxima venta vuelva a pedir cantidades disponibles frescas.
     setLotesPorProducto({})
+    // El contador de "Control de stock" en el panel lateral también puede
+    // haber cambiado (HU-08) — no hace falta esperar a que se cambie de
+    // pantalla para que se entere.
+    refrescarStockBajo()
   }
 
   const nuevaVenta = (): void => {
@@ -1067,6 +1073,35 @@ export function VentaScreen(): React.JSX.Element {
             ✓ Venta #{ventaRegistrada.id} registrada por Gs.{' '}
             {Number(ventaRegistrada.montoTotal).toLocaleString('es-PY')}
           </p>
+
+          {/* Aviso de stock bajo (HU-08): se muestra cada vez que un producto
+              de esta venta queda en stock <= stockMinimo, no solo la primera
+              vez que lo cruza (decisión del dueño, 16/11/2026) — el
+              recordatorio constante es el contador de Control de Stock en el
+              panel lateral, acá es el aviso puntual del momento en que pasó. */}
+          {ventaRegistrada.productosStockBajo.length > 0 && (
+            <div
+              style={{
+                padding: 'var(--space-2) var(--space-3)',
+                marginBottom: 'var(--space-3)',
+                border: '1px solid var(--color-alert)',
+                borderRadius: 'var(--radius)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-alert)',
+                fontSize: 14
+              }}
+            >
+              <strong>⚠ Quedaron con stock bajo:</strong>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+                {ventaRegistrada.productosStockBajo.map((p) => (
+                  <li key={p.productoId} className="font-data">
+                    {p.nombre}: quedan {p.stock} (mínimo {p.stockMinimo})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button
               autoFocus

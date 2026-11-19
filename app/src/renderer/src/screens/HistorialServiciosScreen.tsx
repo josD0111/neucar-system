@@ -223,34 +223,42 @@ function DetalleOrden({
       </div>
 
       {esCredito && (
-        <div
-          style={{
-            fontSize: 13,
-            display: 'flex',
-            gap: 'var(--space-3)',
-            flexWrap: 'wrap'
-          }}
-        >
-          {orden.fechaPagoPrevista && (
-            <span>
-              Pago previsto:{' '}
-              <span className="font-data" style={{ fontWeight: 600 }}>
-                {fechaCorta(orden.fechaPagoPrevista)}
-              </span>
-            </span>
-          )}
-          <span
-            className="font-data"
+        <>
+          <div
             style={{
-              fontWeight: 600,
-              color: orden.saldoPendiente > 0 ? 'var(--color-alert)' : 'var(--color-ok)'
+              fontSize: 13,
+              display: 'flex',
+              gap: 'var(--space-3)',
+              flexWrap: 'wrap'
             }}
           >
-            {orden.saldoPendiente > 0
-              ? `Saldo pendiente: Gs. ${gs(orden.saldoPendiente)}`
-              : 'Pagado'}
-          </span>
+            {orden.fechaPagoPrevista && (
+              <span>
+                Pago previsto:{' '}
+                <span className="font-data" style={{ fontWeight: 600 }}>
+                  {fechaCorta(orden.fechaPagoPrevista)}
+                </span>
+              </span>
+            )}
+            <span
+              className="font-data"
+              style={{
+                fontWeight: 600,
+                color: orden.saldoPendiente > 0 ? 'var(--color-alert)' : 'var(--color-ok)'
+              }}
+            >
+              {orden.saldoPendiente > 0
+                ? `Saldo pendiente: Gs. ${gs(orden.saldoPendiente)}`
+                : 'Pagado'}
+            </span>
+          </div>
 
+          {/* Fuera de la fila de arriba, en su propio bloque: así el historial de
+              pagos y el formulario de cobro de CobroCredito ocupan todo el ancho
+              disponible en vez de aparecer como un tercer elemento de ese flex row
+              (bug encontrado el 18/11/2026 — se veía corrido hacia el centro de la
+              tarjeta, mismo problema que ya se había resuelto en ClienteScreen.tsx
+              poniéndolo en una fila propia). */}
           <CobroCredito
             credito={{
               origen: 'orden',
@@ -262,7 +270,7 @@ function DetalleOrden({
             token={token}
             onPagoRegistrado={(pago) => onPagoRegistrado(orden.id, pago)}
           />
-        </div>
+        </>
       )}
     </div>
   )

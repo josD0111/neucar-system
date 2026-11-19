@@ -97,8 +97,18 @@ export interface Venta {
   metodoPago: string
 }
 
+// Un producto vendido que, después de esta Venta, quedó con
+// stock <= stockMinimo (HU-08). Ver services/ventas.ts, ProductoStockBajo.
+export interface ProductoStockBajo {
+  productoId: number
+  nombre: string
+  stock: number
+  stockMinimo: number
+}
+
 export interface VentaConItems extends Venta {
   items: ItemVenta[]
+  productosStockBajo: ProductoStockBajo[]
 }
 
 // Fila de GET /api/ventas (ver services/ventas.ts, VentaListado): trae el

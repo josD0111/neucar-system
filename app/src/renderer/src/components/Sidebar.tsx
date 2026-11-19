@@ -5,7 +5,9 @@
 // En la parte inferior muestra quién está logueado y el botón para cerrar sesión
 // (reemplaza al selector "Ver como" del prototipo).
 
+import { useEffect } from 'react'
 import { useAuth } from '../data/AuthContext'
+import { useStockAlert } from '../data/StockAlertContext'
 
 export type Pantalla =
   | 'stock'
@@ -40,6 +42,14 @@ const items: { id: Pantalla; label: string; soloAdmin?: boolean }[] = [
 export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps): React.JSX.Element {
   // Datos del usuario logueado y la acción de cerrar sesión.
   const { usuario, cerrarSesion } = useAuth()
+
+  // Contador de "Control de stock" (HU-08): se recalcula cada vez que se
+  // cambia de pantalla — para Empleado no hace nada, porque refrescar() ya
+  // se frena solo cuando el rol no es Administrador (ver StockAlertContext).
+  const { contador: stockBajo, refrescar: refrescarStockBajo } = useStockAlert()
+  useEffect(() => {
+    refrescarStockBajo()
+  }, [pantallaActiva, refrescarStockBajo])
 
   return (
     <aside
@@ -88,6 +98,9 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps): Re
             key={item.id}
             onClick={() => onCambiarPantalla(item.id)}
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               textAlign: 'left',
               padding: 'var(--space-2) var(--space-4)',
               border: 'none',
@@ -100,7 +113,32 @@ export function Sidebar({ pantallaActiva, onCambiarPantalla }: SidebarProps): Re
               color: 'var(--color-text)'
             }}
           >
-            {item.label}
+            <span>{item.label}</span>
+            {/* Recordatorio de stock bajo (HU-08), solo Administrador y solo
+                si hay algo que mostrar — decisión del dueño, 16/11/2026: no
+                filtra solo al hacer clic, es nada más un recordatorio para
+                que entre y use los filtros que ya tiene ahí. */}
+            {item.id === 'stock' && usuario?.rol === 'Administrador' && !!stockBajo && (
+              <span
+                className="font-data"
+                title={`${stockBajo} producto${stockBajo === 1 ? '' : 's'} con stock bajo`}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: '#fff',
+                  background: 'var(--color-alert)',
+                  borderRadius: 999,
+                  minWidth: 18,
+                  height: 18,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 5px'
+                }}
+              >
+                {stockBajo}
+              </span>
+            )}
           </button>
         ))}
       </nav>
