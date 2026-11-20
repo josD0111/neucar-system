@@ -2,6 +2,8 @@
 
 *Elaborado a partir de `docs/01-analisis/entrevistas/entrevista--2026-06-30.md`, `desiciones-alcance.md` e `historias-usuario.md`. Actualizado con los hallazgos de `entrevista--2026-09-10.md` (ver secciones 9, 9.1 y 12.1).*
 
+*Actualizado el 20/11/2026, al cierre del Sprint 2, en una revisión de consistencia entre esta documentación y el código real: durante la implementación se tomaron decisiones de diseño que no se habían trasladado acá. Se agregó el catálogo **Tipo de Servicio** (sección 9.2, nueva) y su referencia desde Servicio (sección 9.1); se agregaron los campos `método_pago` de Venta (sección 7) y `precio_base` de Ítem de Venta (sección 7.1), ambos ya presentes en el esquema desde el 24/10/2026; y se completaron las reglas de negocio de Vehículo (sección 8) que ya estaban implementadas y en `sprint-2-backlog.md`, pero no en este documento de dominio.*
+
 Este documento identifica las entidades principales del sistema, sus atributos y sus relaciones, como base para el diseño de la base de datos y del modelo de clases.
 
 ## 1. Usuario
@@ -119,6 +121,7 @@ Registra la venta de uno o más Productos a un Cliente (o cliente casual). El ti
 | fecha | Fecha de la operación |
 | monto_total | Suma de los ítems vendidos |
 | tipo_comprobante | Factura común \| Factura electrónica (futuro) |
+| método_pago | Efectivo \| Tarjeta \| Transferencia \| QR (HU-19). Columna agregada durante la implementación del Sprint 2 (24/10/2026), sin reflejarse antes en este documento. Vive a nivel de Venta completa, no por Ítem, porque así lo pide la HU; para un ítem a crédito es el método "de referencia" de la operación, y el método real de cada cuota se registra aparte en `Pago.método_pago` al cobrarla |
 
 **Relaciones:**
 - Una Venta **pertenece** a (opcionalmente) un Cliente.
@@ -136,6 +139,7 @@ Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Pro
 | producto_id | Producto vendido. Se mantiene como campo propio (aunque sea derivable a través de `compra_id`) por conveniencia de consulta — ver nota de diseño en sección 14. |
 | compra_id | Lote de Compra específico del cual se descontó esta unidad. **Obligatorio**: dado que `Producto.stock` es la suma de `Compra.cantidad_disponible` (ver sección 5), toda venta debe descontar de algún lote puntual; no puede existir una unidad vendida "sin lote de origen". Debe corresponder al mismo `producto_id` del ítem. |
 | cantidad | Unidades vendidas |
+| precio_base | Snapshot del `precio_base` del Producto vigente al momento de la venta. Columna agregada durante la implementación del Sprint 2 (24/10/2026), sin reflejarse antes en este documento. Necesaria porque `Producto.precio_base` puede editarse después, y el dueño no pidió un histórico de cambios de precio (ver `desiciones-alcance.md`, sección 7.1) — sin este snapshot, la trazabilidad de precio base vs. precio final que exige HU-18 se perdería en cuanto alguien edite el producto. |
 | precio_unitario | Precio aplicado (puede diferir del precio_base si hubo descuento — ver HU-18) |
 | garantía_ofrecida | Garantía otorgada al cliente para ese producto en esa venta. No debe superar la `garantía_proveedor` del lote referenciado en `compra_id` — ver HU-06. Si ese lote no tiene garantía de proveedor cargada (producto sin garantía aplicable), este campo queda a criterio del Administrador. |
 | tipo_pago | Contado \| Crédito — aplica a este ítem puntual, no a toda la Venta |
@@ -184,6 +188,12 @@ Representa el vehículo sobre el cual se realiza un Servicio. Se modela como ent
 - Un Vehículo **pertenece** a (opcionalmente) un Cliente.
 - Un Vehículo tiene muchas Órdenes de Servicio asociadas.
 
+*Nota — reglas agregadas durante la implementación del Sprint 2 (18/11/2026), sin reflejarse antes en este documento (sí estaban en `sprint-2-backlog.md`, pero no en el modelo de dominio):*
+- *Normalización de `chapa`: se guarda en mayúsculas y sin espacios (ej. "abc 123" → "ABC123"), para que la misma chapa escrita de distintas formas no genere registros duplicados.*
+- *Un vehículo exige al menos `marca` o `chapa` cargada (no puede quedar sin ningún dato de identificación).*
+- *La misma `chapa` no puede repetirse para un mismo Cliente (o entre los vehículos de cliente casual, si `cliente_id` es nulo), pero sí puede existir bajo distintos clientes: un vehículo puede cambiar de dueño.*
+- *Asignación de dueño (`asignarDuenoVehiculo`): vincular un Cliente registrado a un vehículo que no tenía dueño (por ejemplo, uno cargado como de cliente casual) lo puede hacer cualquier rol. Cambiar o quitar el dueño de un vehículo que ya tenía uno asignado es una acción exclusiva del Administrador, validada en el servicio, no solo en la interfaz.*
+
 ## 9. Orden de Servicio
 
 Representa la **visita** del cliente al taller. Agrupa los datos que son comunes a todo lo que se hace en esa visita (cliente, vehículo, fecha, quién atendió), evitando repetirlos en cada servicio individual.
@@ -220,18 +230,43 @@ Representa **cada tarea individual** realizada dentro de una Orden de Servicio (
 |---|---|
 | id | Identificador único |
 | orden_id | Orden de Servicio a la que pertenece |
-| tipo_servicio | Alineación, balanceo, montaje, gomería, mantenimiento, etc. |
-| monto | Costo de esta tarea puntual |
+| tipo_servicio | Nombre del tipo al momento de la orden (snapshot de texto, ver nota de catálogo más abajo) |
+| tipo_servicio_id | Referencia al catálogo **Tipo de Servicio** (sección 9.2). Nulo en órdenes anteriores a la incorporación del catálogo, que conservan solo el texto de `tipo_servicio` |
+| cantidad_ruedas | Cantidad de ruedas trabajadas, solo si el Tipo de Servicio elegido lo requiere (ver sección 9.2). Nulo en los demás casos |
+| monto_base | Snapshot del precio de referencia del Tipo de Servicio al momento de esta orden (ya multiplicado por `cantidad_ruedas` si corresponde). Nulo si el tipo no tenía precio fijo cargado |
+| monto | Costo realmente cobrado por esta tarea puntual (puede diferir de `monto_base` — ver regla de descuento en sección 9.2) |
 | detalle | Texto libre opcional para precisar la parte/alcance afectado cuando aplica (ej. "4 ruedas" en alineación o balanceo). No todos los tipos de servicio lo usan — ver nota |
 
 **Relaciones:**
 - Un Servicio **pertenece** a una Orden de Servicio.
+- Un Servicio **referencia** (opcionalmente, ver nota de catálogo) un Tipo de Servicio.
 
-*Nota — campo `detalle` (agregado tras entrevista 10/09/2026): el dueño pidió poder ver, además del tipo y monto, "las partes afectadas" de un servicio — mencionó como ejemplo saber la cantidad de ruedas trabajadas en una alineación o balanceo. No se precisó en la entrevista si esto aplica a todos los tipos de servicio o solo a algunos (ej. no tendría sentido en un "cambio de aceite"), por lo que se modela como un campo de **texto libre opcional**, sin estructura fija ni validación por tipo de servicio. Esto es una interpretación provisional del equipo, no una confirmación cerrada del dueño — queda pendiente de validar en una próxima reunión, mostrándole concretamente cómo se vería este campo al cargar una alineación o un balanceo, y confirmar si conviene un campo estructurado (ej. cantidad numérica) en vez de texto libre.*
+*Nota — campo `detalle` (agregado tras entrevista 10/09/2026): el dueño pidió poder ver, además del tipo y monto, "las partes afectadas" de un servicio — mencionó como ejemplo saber la cantidad de ruedas trabajadas en una alineación o balanceo. No se precisó en la entrevista si esto aplica a todos los tipos de servicio o solo a algunos (ej. no tendría sentido en un "cambio de aceite"), por lo que se modela como un campo de **texto libre opcional**, sin estructura fija ni validación por tipo de servicio. Esto es una interpretación provisional del equipo, no una confirmación cerrada del dueño — queda pendiente de validar en una próxima reunión, mostrándole concretamente cómo se vería este campo al cargar una alineación o un balanceo, y confirmar si conviene un campo estructurado (ej. cantidad numérica) en vez de texto libre. *(Nota al cierre del Sprint 2, 20/11/2026: para el caso concreto de "cantidad de ruedas" que motivó esta nota, el campo estructurado ya se implementó — ver `cantidad_ruedas` arriba y sección 9.2 — así que esta pregunta queda acotada a si hace falta estructura para otros tipos de servicio además de ruedas, no para este caso puntual.)*
 
 *Nota — garantía (actualizada tras entrevista 10/09/2026): la garantía sobre servicios se retiró del modelo por completo (ver nota en sección 9), no solo de este detalle.*
 
 *Nota: con este modelo, si en una visita se hacen 2 servicios (ej. alineación + balanceo), el vehículo, cliente, fecha y usuario se cargan **una sola vez** en la Orden, y solo se agregan 2 filas de Servicio con su tipo, monto y detalle — sin repetir el resto de los datos. Esto resuelve directamente la redundancia que se había detectado con el modelo anterior (un único registro de Servicio con todos los campos repetidos por cada tarea).*
+
+## 9.2 Tipo de Servicio (catálogo)
+
+*Entidad agregada a este documento el 20/11/2026, en una revisión de consistencia al cierre del Sprint 2: el equipo la implementó durante el sprint (resolver cada Servicio de una Orden contra un catálogo, en vez de contra texto libre) sin que quedara documentada como decisión de diseño en su momento — no corresponde a un pedido explícito del dueño en ninguna entrevista.*
+
+Catálogo de los tipos de servicio que ofrece el taller (alineación, balanceo, montaje, gomería, mantenimiento, etc.), con un precio de referencia opcional. Resuelve dos necesidades que fueron apareciendo al construir Órdenes de Servicio: no tener que escribir a mano el monto de cada tarea habitual, y poder distinguir cuándo el monto cobrado es el de referencia o un descuento aplicado a criterio del Administrador (mismo problema que ya resolvía HU-18 para Ventas, pero sin una historia de usuario propia hasta ahora — ver HU-22.2 en `historias-usuario.md`).
+
+| Atributo | Descripción |
+|---|---|
+| id | Identificador único |
+| nombre | Nombre del tipo de servicio (único) |
+| monto_base | Precio de referencia, opcional. Si `requiere_ruedas` es verdadero, es el precio **por rueda**; si no, es el precio del servicio completo. Nulo = sin precio fijo (se escribe a mano en cada orden) |
+| requiere_ruedas | Si es verdadero, al cargar este tipo en un Servicio de una Orden es obligatorio indicar `cantidad_ruedas` (ej. alineación, balanceo). Si es falso, no se pide (ej. mantenimiento) |
+| activo | Booleano, por defecto `true`. Igual que Categoría y Cliente, un Tipo de Servicio **nunca se borra** (para no romper las Órdenes que ya lo usaron): se deshabilita y deja de poder elegirse en órdenes nuevas |
+
+**Relaciones:**
+- Un Tipo de Servicio **clasifica** muchos Servicios (detalle de Orden de Servicio, sección 9.1).
+
+**Regla de negocio — descuento sobre el precio de referencia:** si un Tipo de Servicio tiene `monto_base` cargado y el monto que se quiere cobrar en un Servicio difiere de ese precio de referencia (multiplicado por `cantidad_ruedas` si corresponde), el sistema solo permite guardarlo si quien registra la Orden tiene rol Administrador — el mismo criterio que HU-18 aplica a Ventas, validado en el servicio (`services/ordenesServicio.ts`), no solo en la interfaz. Si el tipo no tiene `monto_base` cargado, el monto queda libre para cualquier rol, igual que un servicio sin precio fijo.
+
+**Nota — permisos de lectura:** cualquier usuario (Administrador o Empleado) puede listar y elegir los tipos de servicio activos, para poder cargarlos en una Orden; ver (y gestionar) los tipos deshabilitados es solo del Administrador.
 
 ## 10. Puntos a resolver en el diseño (no cerrados por el análisis)
 

@@ -2,6 +2,8 @@
 
 *Basado en `entidades-dominio.md`. Representa el modelo de datos completo del sistema, incluyendo las correcciones acordadas en las revisiones posteriores (normalización de Orden de Servicio, Categoría como entidad propia, etc.) y las actualizaciones derivadas de la entrevista del 10/09/2026 (eliminación de garantía en servicios, campo `detalle` en Servicio, `fecha_pago_prevista` en Ítem de Venta y Orden de Servicio).*
 
+*Actualizado el 20/11/2026, al cierre del Sprint 2, para reflejar decisiones tomadas durante la implementación que no se habían trasladado acá: entidad `TIPO_SERVICIO` (catálogo, nueva), `método_pago` en `VENTA`, `precio_base` en `ITEM_VENTA`, y la corrección de la nota sobre reparto automático entre lotes (ver "Notas sobre cardinalidades" más abajo) — ver `entidades-dominio.md` para el detalle de cada una.*
+
 ```mermaid
 erDiagram
     USUARIO ||--o{ VENTA : registra
@@ -28,6 +30,8 @@ erDiagram
     VEHICULO ||--o{ ORDEN_SERVICIO : "es atendido en"
 
     ORDEN_SERVICIO ||--|{ SERVICIO : contiene
+
+    TIPO_SERVICIO ||--o{ SERVICIO : clasifica
 
     USUARIO {
         int id PK
@@ -85,6 +89,7 @@ erDiagram
         date fecha
         decimal monto_total
         string tipo_comprobante
+        string metodo_pago
     }
 
     ITEM_VENTA {
@@ -93,6 +98,7 @@ erDiagram
         int producto_id FK
         int compra_id FK
         int cantidad
+        decimal precio_base
         decimal precio_unitario
         int garantia_ofrecida
         string tipo_pago
@@ -133,9 +139,20 @@ erDiagram
     SERVICIO {
         int id PK
         int orden_id FK
+        int tipo_servicio_id FK
         string tipo_servicio
+        int cantidad_ruedas
+        decimal monto_base
         decimal monto
         string detalle
+    }
+
+    TIPO_SERVICIO {
+        int id PK
+        string nombre
+        decimal monto_base
+        boolean requiere_ruedas
+        boolean activo
     }
 ```
 
@@ -148,7 +165,10 @@ erDiagram
 - **SERVICIO.detalle** es nullable/opcional, para precisar la parte afectada cuando aplica (ej. cantidad de ruedas en alineación/balanceo) — ver `entidades-dominio.md`, sección 9.1.
 - **ITEM_VENTA/ORDEN_SERVICIO–PAGO** son relaciones excluyentes: un Pago referencia a uno de los dos, nunca ambos. Esto permite manejar crédito por producto individual (no por venta completa) y por orden de servicio completa, con pagos parciales acumulables en el tiempo — ver el caso de validación en `entidades-dominio.md`, sección 12.
 - **Diferencia clave:** en Venta, `tipo_pago` vive en `ITEM_VENTA` (crédito por producto). En Orden de Servicio, `tipo_pago` vive en `ORDEN_SERVICIO` (crédito por visita completa, no por Servicio individual), reflejando cómo el dueño maneja el crédito en la práctica — ver `entidades-dominio.md`, sección 13.
-- **COMPRA–ITEM_VENTA** (`compra_id`, **obligatorio**) traza de qué lote de compra proviene cada unidad vendida. No es opcional: dado que `PRODUCTO.stock` se calcula como la suma de `COMPRA.cantidad_disponible`, toda venta debe descontar de algún lote puntual — ver el problema y la corrección detallados en `entidades-dominio.md`, sección 14. Si la cantidad vendida de un producto supera lo disponible en un solo lote, el sistema genera automáticamente varios Ítems de Venta (uno por lote consumido) dentro de la misma Venta.
+- **COMPRA–ITEM_VENTA** (`compra_id`, **obligatorio**) traza de qué lote de compra proviene cada unidad vendida. No es opcional: dado que `PRODUCTO.stock` se calcula como la suma de `COMPRA.cantidad_disponible`, toda venta debe descontar de algún lote puntual — ver el problema y la corrección detallados en `entidades-dominio.md`, sección 14. **Corregido 20/11/2026:** si la cantidad vendida de un producto supera lo disponible en un solo lote, el sistema **no** genera los Ítems de Venta automáticamente — esta nota decía lo contrario en una versión anterior del documento, lo cual contradecía la decisión de selección manual de lote ya registrada más abajo y en `entidades-dominio.md`, sección 14. Es el Administrador quien agrega manualmente un Ítem de Venta por cada lote del que efectivamente sale stock.
+- **ITEM_VENTA.precio_base** (agregado 24/10/2026, sin reflejarse antes acá): snapshot del `precio_base` del Producto al momento de la venta, para conservar trazabilidad entre precio base y precio final aplicado (HU-18) aunque el producto cambie de precio después — ver `entidades-dominio.md`, sección 7.1.
+- **VENTA.metodo_pago** (agregado 24/10/2026, sin reflejarse antes acá): método de pago de la Venta completa (HU-19) — ver `entidades-dominio.md`, sección 7.
+- **TIPO_SERVICIO–SERVICIO**: catálogo de tipos de servicio (agregado durante la implementación del Sprint 2, documentado recién el 20/11/2026 — ver `entidades-dominio.md`, sección 9.2). `SERVICIO.tipo_servicio_id` es opcional/nullable (nulo en órdenes anteriores a la incorporación del catálogo); `SERVICIO.tipo_servicio` sigue guardando el nombre como snapshot de texto. `SERVICIO.cantidad_ruedas` y `SERVICIO.monto_base` solo se completan cuando el Tipo de Servicio elegido tiene precio de referencia y/o requiere ruedas.
 - **COMPRA.garantia_proveedor** se expresa en **meses** (confirmado durante la implementación del Sprint 1; quedaba sin unidad definida en versiones anteriores de este documento y de `entidades-dominio.md`, sección 6).
 - **CLIENTE.activo** es la baja lógica del cliente (nunca se borra, se deshabilita) — ver `entidades-dominio.md`, sección 2, y `desiciones-alcance.md`, sección 2.2.
 

@@ -83,7 +83,7 @@ export const compras = pgTable('compras', {
   cantidad: integer('cantidad').notNull(),
   cantidadDisponible: integer('cantidad_disponible').notNull(),
   precioCompra: numeric('precio_compra', { precision: 12, scale: 2 }).notNull(),
-  garantiaProveedor: integer('garantia_proveedor'), // en días o meses, a definir
+  garantiaProveedor: integer('garantia_proveedor'), // en meses (confirmado durante Sprint 1 — ver diagrama-entidad-relacion.md)
   factura: varchar('factura', { length: 100 })
 })
 

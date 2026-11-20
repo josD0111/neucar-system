@@ -1,6 +1,7 @@
 # Historias de Usuario
 
 *Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas), con las decisiones del equipo del 12/10/2026 (HU-01.1 agregada; HU-08 reclasificada de post-MVP a MVP) y con el feedback del dueño al cierre del Sprint 1 (23/10/2026 — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y `desiciones-alcance.md`, sección 8): HU-17 corregida y HU-17.1 agregada (el Empleado ya no registra la venta, solo la calcula), y adenda a HU-05 (filtro en la impresión de existencias).
+Actualizadas también al cierre del Sprint 2 (20/11/2026), en una revisión de consistencia entre esta documentación y el código real: se agregó HU-22.2 (catálogo de tipos de servicio, implementado durante el sprint sin historia previa) y se corrigió el criterio de aceptación de HU-20 sobre anulación de venta, que seguía redactado como pregunta abierta pese a estar ya resuelto (ver `desiciones-alcance.md`, sección 7.4).
 
 Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
@@ -150,7 +151,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado un producto con stock disponible, cuando se confirma una venta que lo incluye, entonces el sistema descuenta automáticamente la cantidad vendida del stock, sin requerir una acción manual adicional del usuario.
 - Dado un producto sin stock suficiente para cubrir la cantidad solicitada, cuando se intenta registrar la venta, entonces el sistema **bloquea** la operación (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): no se permite confirmar una venta cuya cantidad supere el stock disponible.
 - Dado que un Empleado no tiene permiso para "descontar mercaderías" manualmente (según la entrevista), cuando registra una venta normal, entonces el descuento automático de stock por venta sí debe ocurrir igual, ya que la restricción del Empleado aplica a ajustes manuales de inventario, no al descuento derivado de una venta legítima.
-- Dado que se anula o cancela una venta ya confirmada, cuando se realiza la anulación, entonces el sistema debe reponer el stock descontado (a confirmar si la anulación de ventas es parte del MVP).
+- La anulación de una venta ya confirmada **queda fuera del alcance de este MVP** (decisión del equipo, 24/10/2026 — ver `desiciones-alcance.md`, sección 7.4): no existe endpoint de anulación ni reposición automática de stock. Si se carga una venta por error, no hay forma de revertirla desde el sistema por ahora.
 
 **HU-21**
 > Como Administrador, quiero emitir un comprobante de venta (factura común, y en el futuro electrónica), para respaldar la operación ante el cliente.
@@ -166,6 +167,16 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **Criterios de aceptación:**
 - Dado un servicio dentro de una orden, el campo de detalle es opcional y de texto libre, sin estructura obligatoria por tipo de servicio.
 - Dado que no está confirmado en qué tipos de servicio aplica este campo (ver `entidades-dominio.md`, sección 9.1), el sistema no debe exigirlo ni validarlo de forma distinta según el tipo de servicio hasta que se confirme con el dueño.
+
+**HU-22.2** *(agregada 20/11/2026, a partir de una decisión tomada durante la implementación del Sprint 2, sin pasar antes por una historia de usuario explícita — ver nota de actualización de documentación al cierre del sprint)*
+> Como Administrador, quiero mantener un catálogo de tipos de servicio con un precio de referencia, para no tener que escribir a mano el monto de cada tarea habitual (alineación, balanceo, etc.) y poder decidir cuándo se aplica un descuento sobre ese precio.
+
+**Criterios de aceptación:**
+- El Administrador puede crear, editar y deshabilitar tipos de servicio (nombre, precio de referencia opcional, si requiere indicar cantidad de ruedas). Igual que con Categoría y con cliente, un tipo de servicio **nunca se borra**: se deshabilita (`activo = false`) para no romper las Órdenes de Servicio que ya lo usaron.
+- Cualquier usuario (Administrador o Empleado) puede ver y elegir los tipos de servicio activos al cargar un Servicio dentro de una Orden; ver los tipos deshabilitados es solo del Administrador.
+- Si un tipo de servicio tiene precio de referencia y requiere cantidad de ruedas, el precio que se calcula por defecto es `precio_referencia × cantidad_ruedas` (ej. balanceo con precio por rueda).
+- Dado que se carga un Servicio con un tipo que tiene precio de referencia, cuando el monto indicado difiere de ese precio de referencia (un descuento), entonces el sistema solo permite guardarlo si quien registra la Orden tiene rol Administrador — mismo criterio que HU-18 para Ventas, pero aplicado a Servicios. Si el tipo de servicio no tiene precio de referencia cargado, el monto queda libre para cualquier rol.
+- Cada Servicio guardado conserva una copia (snapshot) del precio de referencia vigente al momento de la orden, para que un cambio posterior en el catálogo no altere órdenes ya registradas.
 
 **HU-23**
 > Como Administrador, quiero registrar varios servicios solicitados por un mismo cliente para un mismo vehículo en una sola orden, para reflejar cómo se atiende realmente al cliente.
@@ -217,7 +228,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Las historias marcadas como *(futuro)* corresponden a funcionalidades post-MVP, según lo definido en `desiciones-alcance.md`.
 - HU-25 fue descartada (ver nota en la historia); no forma parte del MVP ni de ninguna etapa futura.
 - HU-08 se incorporó al MVP el 12/10/2026 (ver nota en la historia); ya no está marcada como futura.
-- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1), la agregada el 12/10/2026 (HU-01.1) y la agregada el 23/10/2026 (HU-17.1).
+- El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1), la agregada el 12/10/2026 (HU-01.1), la agregada el 23/10/2026 (HU-17.1) y la agregada el 20/11/2026 al cierre del Sprint 2 (HU-22.2, catálogo de tipos de servicio — documenta en retrospectiva una decisión ya tomada durante la implementación).
 - HU-17 fue corregida el 23/10/2026 (ver nota en la historia): el Empleado deja de registrar la venta y pasa a solo calcularla; el registro queda en la nueva HU-17.1. HU-05 recibió una adenda la misma fecha (filtro en la impresión de existencias).
 - Falta definir el orden de implementación (sprints/iteraciones) de las historias del MVP; se recomienda abordarlo en `docs/03-gestion-proyecto/`.
 
