@@ -2,13 +2,17 @@
 
 *Elaboradas a partir de la entrevista al dueño del taller (30/06/2026) y del documento `desiciones-alcance.md`. Actualizadas con los hallazgos de la entrevista del 10/09/2026 (HU-10.2, HU-22.1 agregadas; HU-25 descartada; HU-26, HU-27 ajustadas), con las decisiones del equipo del 12/10/2026 (HU-01.1 agregada; HU-08 reclasificada de post-MVP a MVP) y con el feedback del dueño al cierre del Sprint 1 (23/10/2026 — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y `desiciones-alcance.md`, sección 8): HU-17 corregida y HU-17.1 agregada (el Empleado ya no registra la venta, solo la calcula), y adenda a HU-05 (filtro en la impresión de existencias).
 Actualizadas también al cierre del Sprint 2 (20/11/2026), en una revisión de consistencia entre esta documentación y el código real: se agregó HU-22.2 (catálogo de tipos de servicio, implementado durante el sprint sin historia previa) y se corrigió el criterio de aceptación de HU-20 sobre anulación de venta, que seguía redactado como pregunta abierta pese a estar ya resuelto (ver `desiciones-alcance.md`, sección 7.4).
+El mismo día, tras presentarle al dueño el trabajo del Sprint 2, se agregaron HU-36 a HU-41 (ver sección 6) a partir de su feedback (`docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md`): restricción de lectura del rol Empleado, marcas de producto, compras en sección separada, pago inicial obligatorio en crédito, rediseño del flujo de Ventas y kilometraje/próximo mantenimiento — estas dos últimas y el pago inicial con detalles todavía pendientes de confirmar (ver `desiciones-alcance.md`, sección 7.6).
 
 Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 ## 1. Productos y stock
 
 **HU-01**
-> Como Administrador, quiero registrar productos con su categoría, precio y stock inicial, para poder gestionar el inventario del taller.
+> Como Administrador, quiero registrar productos con su categoría, marca, precio y stock inicial, para poder gestionar el inventario del taller.
+
+**Adenda 20/11/2026** *(feedback del dueño al cierre del Sprint 2 — no es una historia nueva, amplía HU-01; ver HU-37/HU-37.1 para la gestión del catálogo de marcas)*
+> El campo marca se agregó tras pedido del dueño. Queda como pregunta abierta si es obligatorio para todo producto o puede quedar sin marca — ver `desiciones-alcance.md`, sección 7.6.
 
 **HU-01.1** *(agregada 12/10/2026)*
 > Como Administrador, quiero crear, editar y eliminar las categorías de producto, para organizar y filtrar el catálogo según las necesidades del taller.
@@ -71,6 +75,9 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - El crédito queda como saldo abierto hasta que se registren pagos suficientes (sin vencimiento duro). La fecha en la que se espera el próximo pago se maneja como un campo aparte (`fecha_pago_prevista`, sugerido por defecto y editable, sin bloquear la operación) — ver HU-10.2, que resuelve lo que acá quedaba como pregunta abierta.
 - Dado un empleado (rol Empleado) que intenta registrar una venta con algún ítem a crédito, cuando lo hace, entonces el sistema le permite hacerlo al precio base (sin descuento), ya que la restricción del rol Empleado es sobre descuentos, no sobre la forma de pago.
 
+**Adenda 20/11/2026** *(feedback del dueño al cierre del Sprint 2 — no es una historia nueva, amplía HU-10; ver HU-39 más abajo)*
+> El taller no da crédito sin cobrar antes un pago inicial. Todo ítem (o, en Órdenes de Servicio, toda la visita) registrado a crédito debe llevar un pago inicial mayor a cero al momento de la venta. Ver HU-39.
+
 **HU-10.1**
 > Como Administrador, quiero registrar un pago (cuota) sobre un ítem de venta o una orden de servicio a crédito, para reflejar lo que el cliente va abonando y actualizar su saldo pendiente.
 
@@ -114,6 +121,9 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **HU-16**
 > Como Administrador, quiero asociar una compra a la factura correspondiente, para tener respaldo documental de cada operación con proveedores.
 
+**Adenda 20/11/2026** *(feedback del dueño al cierre del Sprint 2 — no es una historia nueva, amplía HU-14/HU-15/HU-16; ver HU-38 más abajo)*
+> Las compras deben gestionarse en una pantalla propia, separada de Control de Stock, con su propio historial en una pantalla aparte — no mezcladas con la gestión de Productos como hasta ahora, ni el historial mezclado con el formulario de alta (ajuste 21/11/2026, ver criterios de HU-38).
+
 ## 4. Ventas de productos
 
 **HU-17** *(corregida 23/10/2026 — ver `desiciones-alcance.md`, sección 8.4)*
@@ -155,6 +165,9 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 **HU-21**
 > Como Administrador, quiero emitir un comprobante de venta (factura común, y en el futuro electrónica), para respaldar la operación ante el cliente.
+
+**Adenda 20/11/2026** *(feedback del dueño al cierre del Sprint 2 — no es una historia nueva, amplía HU-17/HU-17.1/HU-18; ver HU-40 más abajo)*
+> El dueño pidió un flujo de carga distinto al actual, similar al de un sistema que ya usa: buscar el producto directamente, verlo en una tabla de ítems de la venta, y al seleccionar una fila de esa tabla editar sus datos en una sección aparte (con una sección separada para los datos del cliente cuando la venta es a crédito). Esto no cambia las reglas de negocio ya definidas (HU-17, HU-17.1, HU-18, HU-20), solo el flujo de pantalla sobre el que se cargan.
 
 ## 5. Servicios
 
@@ -208,7 +221,55 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Dado que no existe actualmente un criterio formal de "cliente de confianza" en el sistema (es una decisión subjetiva del dueño en el momento), el MVP no debe validar ni restringir quién puede recibir una orden a crédito; queda a criterio del Administrador al momento de registrar la operación.
 - *(Agregado tras entrevista 10/09/2026)* Dado que el dueño pidió registrar la fecha en la que el cliente debería pagar y ser notificado si no viene en esa fecha, la orden de servicio a crédito también admite `fecha_pago_prevista` y participa del listado de créditos vencidos — ver HU-10.2, que aplica igual a órdenes de servicio que a ítems de venta.
 
-## 6. Reportes (futuro)
+## 6. Historias agregadas tras el feedback de cierre de Sprint 2 (20/11/2026)
+
+*Trasladadas de `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` y `desiciones-alcance.md`, sección 9. A diferencia de las adendas puntuales ya agregadas junto a HU-01, HU-10, HU-14/15/16 y HU-17/17.1/18, las siguientes son historias nuevas, sin HU previa de la cual depender.*
+
+**HU-36**
+> Como dueño del taller, quiero que el Empleado solo pueda consultar información (precio final, stock disponible, ficha de clientes), sin ver el historial de compras ni el de ventas, para no exponerle datos de costos y de la operación del negocio que no necesita para atender a un cliente.
+
+**Criterios de aceptación:**
+- El Empleado no tiene acceso a ningún listado ni detalle de compras (historial de compras, precio de compra/costo de un producto), ni al historial/listado de ventas — a diferencia del Sprint 2, donde podía consultarlos aunque no pudiera registrar operaciones nuevas.
+- El Empleado conserva acceso de solo lectura a: precio final de producto, cantidad en stock, ficha de clientes, y la calculadora de Ventas (HU-17).
+- Esta restricción se valida en el servidor (en los endpoints `GET` correspondientes y/o en los campos que devuelven), no solo ocultando elementos en la interfaz — mismo criterio ya aplicado en HU-17.1 para el registro de ventas.
+
+**HU-37** *(agregada 20/11/2026, mismo criterio que HU-01.1 para Categoría)*
+> Como Administrador, quiero crear, editar y eliminar las marcas de producto, para organizar el catálogo según las marcas que maneja el taller.
+
+**Criterios de aceptación:**
+- El conjunto de marcas no es una lista fija del sistema: el Administrador puede crear, renombrar o eliminar marcas en cualquier momento, igual que las categorías (HU-01.1).
+- Un Producto puede tener una marca asociada (ver adenda de HU-01). Queda pendiente confirmar con el dueño si es un dato obligatorio en todo producto — ver `desiciones-alcance.md`, sección 7.6.
+
+**HU-38** *(agregada 20/11/2026; criterios ajustados 21/11/2026)*
+> Como Administrador, quiero gestionar las compras en una sección separada de Productos/Stock, con su propio historial de compras registradas, para no tener que mezclar la gestión de inventario con el registro de nuevas compras.
+
+**Criterios de aceptación:**
+- Existe una pantalla propia para registrar una Compra, distinta de Control de Stock/Productos.
+- El historial de compras ya registradas vive en **otra pantalla separada**, no en la misma pantalla de alta — mismo patrón ya usado para Ventas (`VentaScreen` para cargar / `VentasScreen` para el historial) y Servicios (`OrdenServicioScreen` / `HistorialServiciosScreen`). Así, la pantalla de Compras queda dedicada solo a registrar, igual que "Nueva venta" y "Nueva orden de servicio". *(Ajuste 21/11/2026: la redacción original de esta historia no distinguía si el historial iba en la misma pantalla o en una aparte; se alinea con el patrón ya existente en el resto del sistema.)*
+- Ese historial es filtrable (al menos por rango de fecha y proveedor), igual criterio que los demás historiales del sistema.
+- No cambia ninguna regla de negocio de Compras ya definida (HU-14, HU-15, HU-16, ni el mecanismo de lotes de stock de `entidades-dominio.md`, sección 6): es una reorganización de pantallas, no un cambio de modelo.
+
+**HU-39** *(agregada 20/11/2026)*
+> Como dueño del taller, quiero que toda venta a crédito incluya un pago inicial al momento de registrarse, para asegurarme un compromiso mínimo del cliente antes de fiarle el resto.
+
+**Criterios de aceptación:**
+- Dado un ítem de venta (o, en Órdenes de Servicio, una orden completa) marcado como Crédito, cuando se registra, el sistema exige un pago inicial mayor a cero en el mismo momento — no se acepta un saldo pendiente igual al 100% del monto.
+- El monto mínimo de ese pago inicial queda, por ahora, en "mayor a cero, sin piso específico" (decisión provisional del equipo, 20/11/2026, sin pasar por el dueño — ver `desiciones-alcance.md`, sección 7.6). Si el dueño confirma un mínimo distinto (ej. un porcentaje), esta historia debe actualizarse.
+- Esta historia no reemplaza el mecanismo de Pago ya existente (HU-10.1): el pago inicial es, técnicamente, el primer Pago registrado contra el ítem/orden recién creado, usando el mismo servicio.
+
+**HU-40** *(agregada 20/11/2026, amplía HU-17/HU-17.1/HU-18 — ver adenda ahí)*
+> Como Administrador o Empleado, quiero buscar un producto directamente y verlo en una tabla de ítems de la venta en curso, y al seleccionar una fila de esa tabla editar sus datos (cantidad, precio, lote, forma de pago) en una sección aparte, para cargar la venta de forma más parecida al sistema que ya conocemos.
+
+**Criterios de aceptación:**
+- Pendiente de definir junto con el dueño si la búsqueda es por nombre, por código de producto, o ambos (ver `desiciones-alcance.md`, sección 7.6) — no se agregan criterios de aceptación detallados hasta resolver esto, para no construir sobre un supuesto equivocado.
+- No cambia ninguna regla de negocio ya definida (selección manual de lote, bloqueo por stock insuficiente, permisos por rol): es un cambio de flujo de pantalla, no de lógica de negocio.
+
+**HU-41** *(agregada 20/11/2026 — SIN modelo de datos definido, ver nota)*
+> Como Administrador, quiero registrar el kilometraje del vehículo en los servicios de mantenimiento y saber a qué kilometraje correspondería el próximo, para poder avisarle al cliente cuándo le toca volver.
+
+> **Nota:** esta historia se deja registrada tal como la planteó el dueño, pero **sin criterios de aceptación ni modelo de datos todavía** — a diferencia del resto de las historias de este documento. Antes de poder definirlos hace falta resolver, junto con el dueño o el equipo (ver `desiciones-alcance.md`, sección 7.6): si el kilometraje se registra por visita, como un dato del vehículo, o ambos; si el intervalo de "próximo mantenimiento" es único o varía según el tipo de servicio; y si aplica solo a "mantenimiento" o a otros tipos del catálogo (`entidades-dominio.md`, sección 9.2).
+
+## 7. Reportes (futuro)
 
 **HU-28** *(futuro)*
 > Como Administrador, quiero ver un reporte de ventas realizadas en un período de tiempo determinado, para conocer el desempeño del negocio.
@@ -216,7 +277,7 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **HU-29** *(futuro)*
 > Como Administrador, quiero ver un reporte de gastos y ganancias del taller, para tener una visión financiera general.
 
-## 7. Acceso al sistema (futuro)
+## 8. Acceso al sistema (futuro)
 
 **HU-30** *(futuro)*
 > Como Administrador, quiero poder acceder al sistema desde mi celular, para consultar información del taller cuando no estoy en la computadora principal.
@@ -230,11 +291,12 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - HU-08 se incorporó al MVP el 12/10/2026 (ver nota en la historia); ya no está marcada como futura.
 - El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1), la agregada el 12/10/2026 (HU-01.1), la agregada el 23/10/2026 (HU-17.1) y la agregada el 20/11/2026 al cierre del Sprint 2 (HU-22.2, catálogo de tipos de servicio — documenta en retrospectiva una decisión ya tomada durante la implementación).
 - HU-17 fue corregida el 23/10/2026 (ver nota en la historia): el Empleado deja de registrar la venta y pasa a solo calcularla; el registro queda en la nueva HU-17.1. HU-05 recibió una adenda la misma fecha (filtro en la impresión de existencias).
+- **HU-36 a HU-41** se agregaron el 20/11/2026, a partir del feedback del dueño al cierre del Sprint 2 (ver sección 6 y `desiciones-alcance.md`, sección 9), y corresponden al alcance planificado para el Sprint 3. A diferencia del resto de historias "agregadas tras feedback", **HU-39 (pago inicial), HU-40 (buscador de Ventas) y HU-41 (kilometraje)** dependen de reglas de negocio que el dueño no terminó de precisar — ver las preguntas abiertas correspondientes en `desiciones-alcance.md`, sección 7.6, antes de darlas por cerradas.
 - Falta definir el orden de implementación (sprints/iteraciones) de las historias del MVP; se recomienda abordarlo en `docs/03-gestion-proyecto/`.
 
 ### Notas sobre criterios de aceptación
 
-Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-05 (adenda), HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-17.1, HU-18, HU-20, HU-22.1, HU-24 y HU-27**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo).
+Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-05 (adenda), HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-17.1, HU-18, HU-20, HU-22.1, HU-24, HU-27, HU-36, HU-37, HU-38 y HU-39**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo, marcas, pago inicial). **HU-40 y HU-41 deliberadamente no tienen criterios de aceptación todavía** — ver la nota en cada una: depende de precisar con el dueño el flujo de búsqueda (HU-40) y el modelo de kilometraje (HU-41) antes de poder redactarlos sin arriesgarse a inventar una regla de negocio que el dueño no pidió.
 
 *HU-10.1 se agregó a partir de la revisión del modelo de datos (ver `entidades-dominio.md`, sección 12), al detectar que faltaba una historia explícita para el registro de pagos/cuotas parciales sobre un ítem a crédito.*
 

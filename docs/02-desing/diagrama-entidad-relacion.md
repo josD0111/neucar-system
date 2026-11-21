@@ -4,6 +4,8 @@
 
 *Actualizado el 20/11/2026, al cierre del Sprint 2, para reflejar decisiones tomadas durante la implementación que no se habían trasladado acá: entidad `TIPO_SERVICIO` (catálogo, nueva), `método_pago` en `VENTA`, `precio_base` en `ITEM_VENTA`, y la corrección de la nota sobre reparto automático entre lotes (ver "Notas sobre cardinalidades" más abajo) — ver `entidades-dominio.md` para el detalle de cada una.*
 
+*Actualizado nuevamente el mismo día, tras el feedback del dueño al cierre del Sprint 2 (ver `desiciones-alcance.md`, sección 9): se agregó la entidad `MARCA` (relación opcional con `PRODUCTO`). El pedido de kilometraje/próximo mantenimiento no se incluye todavía — ver `entidades-dominio.md`, sección 10.*
+
 ```mermaid
 erDiagram
     USUARIO ||--o{ VENTA : registra
@@ -16,6 +18,7 @@ erDiagram
     PROVEEDOR ||--o{ COMPRA : provee
 
     CATEGORIA ||--o{ PRODUCTO : clasifica
+    MARCA ||--o{ PRODUCTO : "clasifica (opcional)"
 
     PRODUCTO ||--o{ COMPRA : "es comprado en"
     PRODUCTO ||--o{ ITEM_VENTA : "es vendido en"
@@ -61,10 +64,16 @@ erDiagram
         string nombre
     }
 
+    MARCA {
+        int id PK
+        string nombre
+    }
+
     PRODUCTO {
         int id PK
         string nombre
         int categoria_id FK
+        int marca_id FK
         decimal precio_base
         int stock
         int stock_minimo
@@ -169,6 +178,7 @@ erDiagram
 - **ITEM_VENTA.precio_base** (agregado 24/10/2026, sin reflejarse antes acá): snapshot del `precio_base` del Producto al momento de la venta, para conservar trazabilidad entre precio base y precio final aplicado (HU-18) aunque el producto cambie de precio después — ver `entidades-dominio.md`, sección 7.1.
 - **VENTA.metodo_pago** (agregado 24/10/2026, sin reflejarse antes acá): método de pago de la Venta completa (HU-19) — ver `entidades-dominio.md`, sección 7.
 - **TIPO_SERVICIO–SERVICIO**: catálogo de tipos de servicio (agregado durante la implementación del Sprint 2, documentado recién el 20/11/2026 — ver `entidades-dominio.md`, sección 9.2). `SERVICIO.tipo_servicio_id` es opcional/nullable (nulo en órdenes anteriores a la incorporación del catálogo); `SERVICIO.tipo_servicio` sigue guardando el nombre como snapshot de texto. `SERVICIO.cantidad_ruedas` y `SERVICIO.monto_base` solo se completan cuando el Tipo de Servicio elegido tiene precio de referencia y/o requiere ruedas.
+- **MARCA–PRODUCTO** (agregado 20/11/2026, feedback de cierre del Sprint 2): `PRODUCTO.marca_id` es **opcional** (a diferencia de `categoria_id`, que es obligatorio) hasta confirmar con el dueño si toda marca es obligatoria — ver `entidades-dominio.md`, sección 4.1.
 - **COMPRA.garantia_proveedor** se expresa en **meses** (confirmado durante la implementación del Sprint 1; quedaba sin unidad definida en versiones anteriores de este documento y de `entidades-dominio.md`, sección 6).
 - **CLIENTE.activo** es la baja lógica del cliente (nunca se borra, se deshabilita) — ver `entidades-dominio.md`, sección 2, y `desiciones-alcance.md`, sección 2.2.
 

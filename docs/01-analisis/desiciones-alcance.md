@@ -1,6 +1,6 @@
 # Decisiones de Alcance
 
-*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md` — y con el feedback recibido al cierre del Sprint 1 (23/10/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y sección 8.*
+*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md` — con el feedback recibido al cierre del Sprint 1 (23/10/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y sección 8 — y con el feedback recibido al cierre del Sprint 2 (20/11/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` y sección 9.*
 
 Este documento define qué funcionalidades formarán parte del sistema en su primera versión (MVP), cuáles quedan planificadas para etapas futuras, y cuáles quedan explícitamente fuera de alcance. El objetivo es acotar el trabajo de desarrollo y evitar ambigüedades sobre qué se va a construir.
 
@@ -10,18 +10,21 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 | --- | --- | --- |
 | **Dueño** | Administrador del sistema | Acceso total: ventas, descuentos, gestión de stock, clientes, proveedores, reportes, configuración |
 | **Esposa del dueño** | Usa las mismas credenciales que el dueño | Mismo nivel de acceso que el dueño (no se maneja como rol separado en el MVP) |
-| **Empleado (Rey)** | Vendedor / operador básico | Solo funciones básicas: consultar precios y stock, y usar la sección de Ventas como **calculadora** a precio base para informar al cliente. **No puede**: registrar/confirmar una venta (la registra el Administrador — corregido 23/10/2026, ver nota abajo), aplicar descuentos, descontar stock manualmente, ni acceder a reportes o configuración |
+| **Empleado (Rey)** | Vendedor / operador básico | Rol de **solo consulta** (acotado tras el feedback del 20/11/2026 — ver sección 9.6): ve precio final (no precio de compra/costo) y cantidad de mercadería, puede usar Ventas como **calculadora** a precio base, y puede ver la ficha de clientes. **No puede**: registrar/confirmar una venta (la registra el Administrador — corregido 23/10/2026, ver nota abajo), aplicar descuentos, descontar stock manualmente, cargar ni modificar ningún dato, ver el historial de compras, ver el historial de ventas, ni acceder a reportes o configuración |
 
 **Decisión:** se implementan dos roles a nivel de sistema: `Administrador` y `Empleado`. La esposa no requiere un rol propio, ya que opera con las credenciales del dueño.
 
 **Corrección 23/10/2026** (feedback del dueño al cierre del Sprint 1 — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md`): se aclaró que la sección de Ventas debe ser fácil de usar y sin complicaciones, y que el Empleado accede a ella **únicamente para calcular precios** (arma el carrito, ve el total a precio base), pero **no registra la venta** — eso lo hace el Administrador después. Esto corrige la definición original (30/06/2026), que asumía que el Empleado también registraba la operación completa al precio base sin intervención del dueño. Ver `historias-usuario.md`, HU-17 (corregida) y HU-17.1 (nueva), y sección 8 más abajo.
 
+**Corrección 20/11/2026** (feedback del dueño al cierre del Sprint 2 — ver `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` y sección 9.6 más abajo): el dueño acotó el rol Empleado más de lo que estaba implementado hasta ahora. Además de no registrar ventas (ya resuelto el 23/10), el Empleado **tampoco puede ver el historial de compras ni el historial de ventas**, y en el detalle de un producto **no debe ver el precio de compra/costo**, solo el precio final y la cantidad en stock. Esto es una restricción nueva de **lectura**, no solo de escritura — impacta endpoints de consulta (`GET`), no solo los de alta/edición, y debe validarse en el servidor, no solo ocultarse en la interfaz (mismo criterio que ya se aplicó para el registro de ventas). Ver HU-36 (nueva) en `historias-usuario.md`.
+
 ## 2. Alcance funcional — MVP (primera versión)
 
 ### 2.1 Gestión de productos y stock
 
-- Registro de productos (nombre, categoría/tipo, precio, stock disponible).
+- Registro de productos (nombre, categoría/tipo, marca, precio, stock disponible).
 - Gestión de categorías de producto por parte del Administrador (creación, edición, eliminación), para habilitar el filtrado del catálogo según las necesidades del taller. No se trabaja con una lista fija de categorías predefinidas.
+- Gestión de marcas de producto por parte del Administrador (creación, edición, eliminación), con el mismo criterio que las categorías: entidad propia, no texto libre, sin lista fija predefinida *(agregado tras el feedback de cierre del Sprint 2, 20/11/2026 — ver sección 9.5 y HU-37/HU-37.1 en `historias-usuario.md`)*.
 - Clasificación por tipo de producto (neumáticos, lubricantes, cubiertas, baterías, filtros de aire/aceite/caja, etc.) para búsqueda rápida.
 - Consulta de existencias en tiempo real.
 - Notificación de stock mínimo/escaso por producto. *(Incorporado al MVP el 12/10/2026; originalmente estaba en la sección 3 como funcionalidad post-MVP — ver nota en esa sección.)*
@@ -38,17 +41,20 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 - Aviso/listado de créditos vencidos (ítems de venta u órdenes de servicio con `fecha_pago_prevista` ya pasada y saldo pendiente), para que el Administrador le avise al dueño *(agregado tras entrevista 10/09/2026 — ver HU-10.2)*.
 - Impresión de comprobante de saldo/deuda para firma del cliente.
 
-### 2.3 Gestión de proveedores
+### 2.3 Gestión de proveedores y compras
 
 - Registro de proveedores.
 - Asociación de un producto a múltiples proveedores (sin proveedor prioritario).
 - Registro de compras: proveedor, precio de compra, garantía ofrecida, factura asociada.
+- Las compras se gestionan en una **sección propia**, separada de Control de Stock/Productos, con su historial en **otra pantalla aparte** (mismo patrón que Ventas y Servicios) *(agregado tras el feedback de cierre del Sprint 2, 20/11/2026 — ver sección 9.2 y HU-38 en `historias-usuario.md`; hasta ahora se gestionaban juntas en la misma pantalla, lo cual el dueño identificó como poco práctico frente al sistema que ya usa)*.
 
 ### 2.4 Ventas de productos
 
 - Registro de venta con descuento de stock automático. **Solo el rol Administrador registra/confirma la venta** *(corregido 23/10/2026 — ver sección 1 y sección 8)*; el Empleado puede armar el carrito y calcular el total a precio base para informar al cliente, pero no confirmar la operación. El Administrador es además el único rol que puede aplicar descuentos de precio.
 - Métodos de pago: efectivo, tarjeta, transferencia bancaria, QR.
 - Preparación para emisión de factura electrónica y factura común (impresión física).
+- **Toda venta a crédito exige un pago inicial** al momento de registrarse, mayor a cero *(agregado tras el feedback de cierre del Sprint 2, 20/11/2026 — ver sección 9.1 y HU-39 en `historias-usuario.md`; decisión provisional del equipo, ya que el dueño no precisó un monto o porcentaje mínimo — pendiente de validar con él, ver sección 7.6)*.
+- El flujo de carga de la venta se rediseña sobre un patrón de buscador (buscar producto → tabla de ítems del carrito → al seleccionar una fila se editan sus datos en una sección aparte), reemplazando el flujo actual *(agregado tras el feedback de cierre del Sprint 2, 20/11/2026 — ver sección 9.1; el detalle exacto del buscador — por nombre, código, o ambos — queda como pregunta abierta, ver sección 7.6)*.
 
 ### 2.5 Gestión de servicios
 
@@ -58,6 +64,7 @@ Este documento define qué funcionalidades formarán parte del sistema en su pri
 - Cotización previa: informar el costo antes de realizar el servicio.
 - Historial de servicios por cliente/vehículo (para saber qué se le hizo al vehículo y cuándo).
 - Posibilidad de servicio "a crédito" para clientes de confianza (se registra que el cliente queda debiendo).
+- Registro de kilometraje del vehículo en los servicios de mantenimiento, con aviso de cuándo correspondería el próximo *(pedido tras el feedback de cierre del Sprint 2, 20/11/2026 — ver sección 9.4; **sin modelo de datos definido todavía**, queda como pregunta abierta, ver sección 7.6)*.
 
 *Actualizado tras entrevista 10/09/2026: se elimina del alcance la garantía sobre servicios. El dueño aclaró explícitamente que no es necesario registrarla — alcanza con tener el historial de lo realizado. Ver `entidades-dominio.md`, sección 9, e historia HU-25 (descartada).*
 
@@ -141,6 +148,16 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 
 - **Pago automático en ítems al contado (cierra la nota pendiente de `entidades-dominio.md`, sección 7.2):** un Ítem de Venta al contado genera automáticamente, en la misma transacción de registro de la venta, un Pago por su monto total. Así `saldo_pendiente` se calcula con la misma fórmula (`monto − suma(pagos)`) para Contado y Crédito, sin casos especiales en `services/pagos.ts` ni en el cálculo de saldo de cliente (Fase 6).
 
+### 7.6 Nuevas tras el feedback de cierre de Sprint 2 (20/11/2026)
+
+*Trasladado de `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` — ver sección 9 más abajo. A diferencia de las preguntas de la sección 7.3 (que el equipo pudo cerrar por ser decisiones de diseño técnico), las siguientes son reglas de negocio que el dueño no precisó del todo y conviene confirmar con él antes o durante el Sprint 3, no decidirlas unilateralmente — es el mismo tipo de vacío que, sin querer, se dejó sin documentar en el Sprint 2 (ver la actualización del 20/11/2026 en `sprint-2-backlog.md`).*
+
+- **Monto del pago inicial obligatorio en ventas a crédito:** el dueño pidió que toda venta a crédito incluya un pago inicial, pero no indicó un monto o porcentaje mínimo. **Decisión provisional del equipo (20/11/2026, sin pasar por el dueño):** alcanza con que sea mayor a cero, sin mínimo específico. Queda pendiente confirmar si esto es suficiente para el dueño o si en la práctica espera algo como "al menos el 30%", por ejemplo.
+- **Buscador de productos en Ventas:** el dueño describió un flujo de buscador similar al de su sistema actual, pero no se precisó si la búsqueda debe ser por nombre, por código de producto, o ambos.
+- **Marca de producto:** se definió como entidad propia (ver sección 9.5), pero no se confirmó con el dueño si es un dato obligatorio en todo producto o puede quedar vacío (ej. para productos genéricos sin marca relevante).
+- **Kilometraje y próximo mantenimiento (ver sección 9.4):** no hay todavía ningún modelo de datos propuesto. Preguntas sin resolver: ¿el kilometraje se registra en cada visita (Servicio) o se mantiene como un dato actual del Vehículo (o ambos)? ¿El "próximo mantenimiento" se calcula con un intervalo fijo para todos los servicios de mantenimiento, o distinto según el tipo de servicio (ej. cambio de aceite cada 5.000 km, otra cosa cada 10.000 km)? ¿Aplica solo a "mantenimiento" o a otros tipos de servicio del catálogo `tiposServicio` (ver `entidades-dominio.md`, sección 9.2)?
+- **Estilo visual:** el dueño pidió mejorar el contraste/presentación de botones, sidebar y desplegables, pero no se le mostró ninguna propuesta concreta (paleta, modo oscuro, etc.) para que la apruebe. Conviene validar una propuesta visual con él antes de implementarla a fondo, en vez de rediseñar a criterio del equipo.
+
 ## 8. Feedback del dueño — cierre de Sprint 1 (23/10/2026)
 
 *Resumen trasladado de `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md`, con el detalle de en qué documento quedó reflejado cada punto.*
@@ -160,3 +177,40 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 ### 8.4 Rol Empleado en Ventas — corrección (ver también sección 1)
 
 - El dueño aclaró que la sección de Ventas debe ser simple, y que el Empleado accede a ella solo para calcular precios y así poder informar al cliente — **no para registrar la venta**, operación que queda exclusivamente a cargo del Administrador. Esto corrige el supuesto original (30/06/2026) de que el Empleado también registraba la venta completa al precio base. Impacta: la tabla de roles (sección 1), el alcance de Ventas (sección 2.4), HU-17 (corregida) y HU-17.1 (nueva) en `historias-usuario.md`, y el punto 1 (Ventas) de `sprint-2-backlog.md`.
+
+## 9. Feedback del dueño — cierre de Sprint 2 (20/11/2026)
+
+*Resumen trasladado de `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md`, recibido luego de presentarle al dueño el trabajo del Sprint 2. A diferencia del feedback de cierre del Sprint 1 (sección 8, mayormente ajustes puntuales), varios de estos puntos implican rediseñar pantallas ya construidas, no solo agregar funcionalidad — se abordan en el Sprint 3 (ver `docs/03-gestion-proyecto/sprint-3-backlog.md`).*
+
+### 9.1 Ventas
+
+- El dueño no encontró práctico el flujo actual de Ventas. Está acostumbrado a un sistema en Java que permite: buscar un producto directamente, ver sus datos para la venta, tener una tabla con los productos que se van a vender, y que al seleccionar una fila de esa tabla se carguen sus datos en una sección de edición aparte — con una sección separada para los datos del cliente cuando la venta es a crédito. Esto implica rediseñar la pantalla de Ventas (HU-17/HU-17.1/HU-18), no solo ajustarla.
+- **Toda venta a crédito debe llevar un pago inicial** al momento de registrarse — el taller no da crédito "puro" sin cobrar nada primero. Ver HU-39 (nueva) en `historias-usuario.md` y la pregunta abierta sobre el monto mínimo (sección 7.6).
+
+### 9.2 Compras
+
+- El dueño, por el mismo sistema en Java, está acostumbrado a gestionar las compras en una sección separada del catálogo de productos, con su propio historial. No le gustó tener que gestionar todo desde Control de Stock. Ver HU-38 (nueva). *(Precisado 21/11/2026: el historial va en una pantalla separada de la de registrar compras, siguiendo el mismo patrón ya usado en Ventas y Servicios — ver `sprint-3-backlog.md`, punto 2.)*
+
+### 9.3 Visual
+
+- El tono claro actual dificulta identificar botones, elementos del sidebar y desplegables. El dueño pidió una mejor presentación general de los componentes — sin una propuesta concreta todavía (ver pregunta abierta, sección 7.6).
+
+### 9.4 Servicios
+
+- Para servicios de mantenimiento, el dueño quiere poder registrar el kilometraje del vehículo y saber a qué kilometraje correspondería el próximo mantenimiento. No se definió ningún modelo de datos para esto (ver pregunta abierta, sección 7.6).
+
+### 9.5 Productos
+
+- El dueño pidió poder registrar la marca de un producto y gestionar las marcas disponibles. Se decide modelarla como entidad propia, con el mismo criterio que Categoría (ver `entidades-dominio.md`, sección 4.1, y HU-37/HU-37.1).
+
+### 9.6 Rol Empleado — acotado (ver también sección 1)
+
+- El Empleado no puede cargar ni modificar ningún dato, solo consultar.
+- El Empleado ve el precio final de la mercadería, pero **no** el precio de compra/costo.
+- El Empleado puede ver la cantidad de mercadería disponible.
+- El Empleado **no** puede ver el historial de compras.
+- El Empleado **no** puede ver el historial de ventas.
+- En Ventas, el Empleado sigue limitado a calcular el precio final de una venta (sin cambios respecto de HU-17, ya vigente desde el Sprint 2).
+- El Empleado puede ver la ficha de clientes.
+
+Esto acota más de lo implementado hasta ahora: hasta el Sprint 2, el Empleado no podía *registrar* ventas ni compras, pero sí podía *consultar* su historial y ver precios de compra. Ver HU-36 (nueva) en `historias-usuario.md`.

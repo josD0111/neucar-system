@@ -4,6 +4,8 @@
 
 *Actualizado el 20/11/2026, al cierre del Sprint 2, en una revisión de consistencia entre esta documentación y el código real: durante la implementación se tomaron decisiones de diseño que no se habían trasladado acá. Se agregó el catálogo **Tipo de Servicio** (sección 9.2, nueva) y su referencia desde Servicio (sección 9.1); se agregaron los campos `método_pago` de Venta (sección 7) y `precio_base` de Ítem de Venta (sección 7.1), ambos ya presentes en el esquema desde el 24/10/2026; y se completaron las reglas de negocio de Vehículo (sección 8) que ya estaban implementadas y en `sprint-2-backlog.md`, pero no en este documento de dominio.*
 
+*Actualizado nuevamente el mismo día (20/11/2026), tras presentarle al dueño el trabajo del Sprint 2 — ver `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` y `desiciones-alcance.md`, sección 9: se agregó la entidad **Marca** (sección 4.1, nueva) y su relación con Producto. El pedido de registrar kilometraje de vehículo y aviso de próximo mantenimiento (sección 9.4 de `desiciones-alcance.md`) queda **deliberadamente sin modelar todavía** — ver sección 10 — porque faltan definiciones de negocio básicas (dónde se registra el kilometraje, cómo se calcula el intervalo) que conviene no inventar sin confirmar con el dueño o el equipo.*
+
 Este documento identifica las entidades principales del sistema, sus atributos y sus relaciones, como base para el diseño de la base de datos y del modelo de clases.
 
 ## 1. Usuario
@@ -72,6 +74,20 @@ Se modela como entidad propia (y no como texto libre dentro de Producto) pensand
 **Relaciones:**
 - Una Categoría **clasifica** muchos Productos.
 
+## 4.1 Marca
+
+*Entidad agregada el 20/11/2026, a partir del feedback del dueño al cierre del Sprint 2 (ver `desiciones-alcance.md`, sección 9.5). Se modela con el mismo criterio que Categoría: entidad propia, no texto libre dentro de Producto, para poder gestionar/filtrar por marca sin tocar el modelo de Producto después, y para evitar que la misma marca quede escrita de formas distintas en productos distintos.*
+
+| Atributo | Descripción |
+|---|---|
+| id | Identificador único |
+| nombre | Nombre de la marca |
+
+**Relaciones:**
+- Una Marca **clasifica** muchos Productos.
+
+*Nota — pendiente de confirmar con el dueño: si `marca_id` en Producto es obligatorio (todo producto debe tener una marca) u opcional (hay productos sin marca relevante) — ver `desiciones-alcance.md`, sección 7.6. Se modela acá como **opcional** hasta tener esa confirmación, a diferencia de `categoria_id`, que sí es obligatorio.*
+
 ## 5. Producto
 
 | Atributo | Descripción |
@@ -79,12 +95,14 @@ Se modela como entidad propia (y no como texto libre dentro de Producto) pensand
 | id | Identificador único |
 | nombre | Nombre del producto |
 | categoría_id | Categoría a la que pertenece (ver entidad Categoría) |
+| marca_id | Marca a la que pertenece (ver entidad Marca, sección 4.1). Opcional — ver nota ahí. Agregado el 20/11/2026 |
 | precio_base | Precio de venta estándar |
 | stock | Cantidad disponible total. Corresponde a la suma de `cantidad_disponible` de todas las Compras (lotes) de este Producto — ver sección 14. **Denormalización deliberada** (igual que `producto_id` en Ítem de Venta, sección 14): se mantiene como columna propia por conveniencia de consulta rápida (HU-03, HU-04), en vez de calcularse con un `SUM` en cada lectura. La capa de lógica de negocio debe mantenerlo sincronizado en cada Compra y cada Venta — ver también el comentario en `schema.ts` |
 | stock_mínimo | Umbral opcional por producto, para la notificación de stock bajo. Incorporado al MVP el 12/10/2026 — ver `historias-usuario.md`, HU-08 |
 
 **Relaciones:**
 - Un Producto **pertenece** a una Categoría.
+- Un Producto **pertenece** (opcionalmente) a una Marca.
 - Un Producto es **comprado** a través de muchas Compras (lotes), a distintos Proveedores.
 - Un Producto es **vendido** a través de muchos ítems de Venta.
 
@@ -271,6 +289,7 @@ Catálogo de los tipos de servicio que ofrece el taller (alineación, balanceo, 
 ## 10. Puntos a resolver en el diseño (no cerrados por el análisis)
 
 - **Garantía como entidad propia vs. campos embebidos:** por ahora se modeló la garantía como atributos dentro de Compra (garantía del proveedor) e Ítem de Venta (garantía ofrecida por producto). Si la lógica de cálculo de garantía se vuelve más compleja (ver pregunta abierta sobre el margen fijo), podría convenir una entidad "Garantía" separada con su propio estado (vigente/vencida) y reglas. *(Actualizado 10/09/2026: la garantía sobre servicios se retiró del modelo — ver nota en sección 9 — por lo que este punto queda acotado solo a garantía de productos.)*
+- **Kilometraje de vehículo y próximo mantenimiento** *(agregado 20/11/2026, feedback de cierre del Sprint 2 — ver HU-41 en `historias-usuario.md` y `desiciones-alcance.md`, sección 9.4):* sin modelo propuesto todavía. Preguntas a resolver antes de diseñarlo: ¿el kilometraje se registra por visita (en Servicio), como un dato actual de Vehículo, o ambos? ¿El intervalo para calcular "próximo mantenimiento" es único o varía según el tipo de servicio (podría apoyarse en el catálogo Tipo de Servicio, sección 9.2, agregándole un campo de intervalo)? ¿Aplica solo a servicios de tipo "mantenimiento" o a otros también? Ver preguntas abiertas en `desiciones-alcance.md`, sección 7.6.
 
 ## 11. Dilema abierto: nivel de detalle de los Servicios
 
