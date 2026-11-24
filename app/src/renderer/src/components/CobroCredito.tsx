@@ -1,22 +1,26 @@
 // src/renderer/src/components/CobroCredito.tsx
 //
-// Cobro de una cuota sobre un crédito, sea un Ítem de Venta o una Orden de
-// Servicio (ver src/main/services/pagos.ts: registrarPagoItem /
+// Cobro de una cuota sobre un crédito, sea una Venta o una Orden de
+// Servicio (ver src/main/services/pagos.ts: registrarPagoVenta /
 // registrarPagoOrden — son la misma operación con dos orígenes distintos).
 //
+// Cambio de alcance (22/11/2026): el crédito pasó de ser por Ítem de Venta a
+// ser por Venta completa (ver entidades-dominio.md, sección 12), así que el
+// origen 'item' / `itemVentaId` pasó a 'venta' / `ventaId`.
+//
 // Antes de este archivo existían dos componentes casi idénticos: `CobroItem`
-// (vivía dentro de VentasScreen.tsx) y `CobroOrden` (components/CobroOrden.tsx,
+// (vivía dentro de VentasScreen.tsx, cuando el crédito era por ítem) y `CobroOrden` (components/CobroOrden.tsx,
 // agregado el 15/11/2026 para la Fase 5). Se unificaron acá porque, con
-// Ficha de Cliente ahora cobrando también Ítems de Venta (además de Órdenes
+// Ficha de Cliente ahora cobrando también Ventas (además de Órdenes
 // de Servicio, que ya cobraba, y del propio Historial de servicios), iban a
 // terminar siendo TRES copias del mismo formulario. `CobroOrden.tsx` queda
 // eliminado; donde antes importaban `CobroOrden`, ahora importan
 // `CobroCredito` con `credito.origen: 'orden'`.
 //
 // Se usa desde:
-// - VentasScreen.tsx (ItemDetalle), con origen 'item' — reemplaza al CobroItem
-//   que vivía ahí.
-// - ClienteScreen.tsx, dentro de la tabla de "Saldo pendiente": origen 'item'
+// - VentasScreen.tsx (DetalleVenta), con origen 'venta' — reemplaza al
+//   CobroItem que vivía ahí.
+// - ClienteScreen.tsx, dentro de la tabla de "Saldo pendiente": origen 'venta'
 //   u 'orden' según la fila.
 // - HistorialServiciosScreen.tsx (DetalleOrden), origen 'orden'.
 
@@ -74,13 +78,13 @@ const estiloBotonSecundario: React.CSSProperties = {
 }
 
 // Lo mínimo que este componente necesita del crédito a cobrar, sea cual sea
-// su origen. `montoOriginal` es el monto total de ese ítem/orden (antes de
+// su origen. `montoOriginal` es el monto total de esa venta/orden (antes de
 // cualquier pago) — se usa solo para sugerir la primera cuota (mitad del
 // total), nunca se envía al servidor.
 export type CreditoACobrar =
   | {
-      origen: 'item'
-      itemVentaId: number
+      origen: 'venta'
+      ventaId: number
       montoOriginal: number
       saldoPendiente: number
       fechaPagoPrevista: string | null
@@ -106,7 +110,7 @@ export function CobroCredito({
   // venta puntual, o el saldoPendiente de una fila del historial.
   onPagoRegistrado: (pago: Pago) => void
 }): React.JSX.Element {
-  const id = credito.origen === 'item' ? credito.itemVentaId : credito.ordenServicioId
+  const id = credito.origen === 'venta' ? credito.ventaId : credito.ordenServicioId
 
   // Historial de pagos ya registrados: se pide siempre (acá solo se llega
   // para créditos — ver cada pantalla que llama), para poder mostrarlo solo
@@ -115,7 +119,7 @@ export function CobroCredito({
 
   useEffect(() => {
     let cancelado = false
-    const listar = credito.origen === 'item' ? pagosApi.listarPorItem : pagosApi.listarPorOrden
+    const listar = credito.origen === 'venta' ? pagosApi.listarPorVenta : pagosApi.listarPorOrden
     listar(token, id).then((r) => {
       if (cancelado || !r.ok) return
       setPagos(r.data)
@@ -153,7 +157,7 @@ export function CobroCredito({
   const montoNumero = Number(monto)
   const montoValido = Number.isFinite(montoNumero) && montoNumero > 0
   // Mismo cálculo que hace el servidor (clamp al saldo — ver
-  // services/pagos.ts, registrarPagoItem/registrarPagoOrden).
+  // services/pagos.ts, registrarPagoVenta/registrarPagoOrden).
   const saldoLuegoDelPago = montoValido
     ? Math.max(credito.saldoPendiente - montoNumero, 0)
     : credito.saldoPendiente
@@ -166,7 +170,8 @@ export function CobroCredito({
     }
     setEnviando(true)
     setErrorForm(null)
-    const registrar = credito.origen === 'item' ? pagosApi.registrarPorItem : pagosApi.registrarPorOrden
+    const registrar =
+      credito.origen === 'venta' ? pagosApi.registrarPorVenta : pagosApi.registrarPorOrden
     registrar(token, id, {
       monto: montoNumero,
       metodoPago,

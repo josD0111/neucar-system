@@ -1,7 +1,7 @@
 // src/main/api/routes/pagos.ts
 //
-// Rutas de Pagos sobre Ítems de Venta (Fase 3 del reparto) y sobre Órdenes
-// de Servicio (Fase 5, agregada el 15/11/2026) — ver docs/03-gestion-proyecto/
+// Rutas de Pagos sobre Ventas (Fase 3 del reparto) y sobre Órdenes de
+// Servicio (Fase 5, agregada el 15/11/2026) — ver docs/03-gestion-proyecto/
 // tareas-ventas-creditopagos-deudatecnica.md. Montadas bajo /api/pagos (ver
 // server.ts).
 //
@@ -9,10 +9,15 @@
 // Administrador), el dueño no pidió restringir quién cobra una cuota —
 // alcanza con sesión iniciada (Administrador o Empleado). Si eso cambia,
 // alcanza con agregar requireRole acá. Mismo criterio para las dos rutas
-// (ítem de venta y orden de servicio): es el mismo tipo de operación.
+// (venta y orden de servicio): es el mismo tipo de operación.
 //
-//   GET  /api/pagos/item/:itemVentaId        → pagos registrados de ese ítem
-//   POST /api/pagos/item/:itemVentaId        → registrar un pago sobre ese ítem
+// Cambio de alcance (22/11/2026 — ver entidades-dominio.md, sección 12): la
+// ruta de pagos sobre un Ítem de Venta puntual (`/item/:itemVentaId`) pasa a
+// ser sobre la Venta completa (`/venta/:ventaId`), acompañando el cambio de
+// `tipoPago` de Ítem de Venta a Venta.
+//
+//   GET  /api/pagos/venta/:ventaId          → pagos registrados de esa venta
+//   POST /api/pagos/venta/:ventaId          → registrar un pago sobre esa venta
 //   GET  /api/pagos/orden/:ordenServicioId   → pagos registrados de esa orden
 //   POST /api/pagos/orden/:ordenServicioId   → registrar un pago sobre esa orden
 
@@ -21,9 +26,9 @@ import type { Db } from '../server'
 import { requireAuth } from '../middleware/auth'
 import { sendBadRequest, sendError, sendOk } from '../response'
 import {
-  listarPagosItem,
+  listarPagosVenta,
   listarPagosOrden,
-  registrarPagoItem,
+  registrarPagoVenta,
   registrarPagoOrden,
   type Resultado
 } from '../../services/pagos'
@@ -43,21 +48,21 @@ export function pagosRouter(db: Db): Router {
 
   router.use(requireAuth)
 
-  router.get('/item/:itemVentaId', async (req, res, next) => {
+  router.get('/venta/:ventaId', async (req, res, next) => {
     try {
-      const id = leerId(req.params.itemVentaId)
-      if (id === null) return sendBadRequest(res, 'Id de ítem de venta no válido')
-      responder(res, await listarPagosItem(db, id))
+      const id = leerId(req.params.ventaId)
+      if (id === null) return sendBadRequest(res, 'Id de venta no válido')
+      responder(res, await listarPagosVenta(db, id))
     } catch (err) {
       next(err)
     }
   })
 
-  router.post('/item/:itemVentaId', async (req, res, next) => {
+  router.post('/venta/:ventaId', async (req, res, next) => {
     try {
-      const id = leerId(req.params.itemVentaId)
-      if (id === null) return sendBadRequest(res, 'Id de ítem de venta no válido')
-      responder(res, await registrarPagoItem(db, id, req.body), 201)
+      const id = leerId(req.params.ventaId)
+      if (id === null) return sendBadRequest(res, 'Id de venta no válido')
+      responder(res, await registrarPagoVenta(db, id, req.body), 201)
     } catch (err) {
       next(err)
     }

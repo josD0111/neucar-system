@@ -83,8 +83,6 @@ export interface ItemVenta {
   precioBase: string
   precioUnitario: string
   garantiaOfrecida: number | null
-  tipoPago: TipoPago
-  fechaPagoPrevista: string | null
 }
 
 export interface Venta {
@@ -95,6 +93,10 @@ export interface Venta {
   montoTotal: string
   tipoComprobante: string | null
   metodoPago: string
+  // tipoPago/fechaPagoPrevista viven acá (a nivel de toda la Venta) desde el
+  // 22/11/2026 — antes vivían en ItemVenta. Ver entidades-dominio.md, sección 12.
+  tipoPago: TipoPago
+  fechaPagoPrevista: string | null
 }
 
 // Un producto vendido que, después de esta Venta, quedó con
@@ -143,11 +145,11 @@ export interface PaginaVentas {
   antesDe: string | null
 }
 
-// Ítem con su nombre de producto y saldo pendiente ya calculados (ver
-// services/ventas.ts, ItemVentaDetalle).
+// Ítem con su nombre de producto ya resuelto (ver services/ventas.ts,
+// ItemVentaDetalle). El saldo pendiente ya NO es por ítem desde el
+// 22/11/2026: ver VentaDetalle.saldoPendiente más abajo.
 export interface ItemVentaDetalle extends ItemVenta {
   productoNombre: string
-  saldoPendiente: number
 }
 
 // GET /api/ventas/:id (ver services/ventas.ts, VentaDetalle).
@@ -155,6 +157,9 @@ export interface VentaDetalle extends Venta {
   clienteNombre: string | null
   usuarioNombre: string
   items: ItemVentaDetalle[]
+  // Saldo pendiente de toda la Venta (cambio de alcance 22/11/2026, antes
+  // era por ítem — ver entidades-dominio.md, sección 12).
+  saldoPendiente: number
 }
 
 // Lo que manda el cliente al registrar (ver services/ventas.ts, ItemVentaInput/VentaInput).
@@ -165,16 +170,30 @@ export interface ItemVentaInput {
   // Si se omite, el servidor usa el precioBase vigente del producto.
   precioUnitario?: number
   garantiaOfrecida?: number | null
-  tipoPago: TipoPago
-  // Solo tiene sentido si tipoPago = 'Crédito'. Si se omite, el servidor
-  // sugiere "hoy + 1 mes" (HU-10.2).
-  fechaPagoPrevista?: string | null
+}
+
+// Pago inicial obligatorio de una venta a crédito (HU-39). `metodoPago` es
+// opcional: si se omite, el servidor usa el mismo método de pago de la
+// Venta (ver services/ventas.ts, PagoInicialInput).
+export interface PagoInicialInput {
+  monto: number
+  metodoPago?: string
 }
 
 export interface VentaInput {
   clienteId?: number | null
   metodoPago: string
   tipoComprobante?: string | null
+  // tipoPago/fechaPagoPrevista viven a nivel de toda la Venta desde el
+  // 22/11/2026 (antes eran por ítem) — ver entidades-dominio.md, sección 12.
+  tipoPago: TipoPago
+  // Solo tiene sentido si tipoPago = 'Crédito'. Si se omite, el servidor
+  // sugiere "hoy + 1 mes" (HU-10.2).
+  fechaPagoPrevista?: string | null
+  // Obligatorio si tipoPago = 'Crédito' (HU-39, Sprint 3 punto 1): el
+  // servidor rechaza la venta si falta o si monto <= 0. Se ignora si
+  // tipoPago = 'Contado'.
+  pagoInicial?: PagoInicialInput | null
   items: ItemVentaInput[]
 }
 
@@ -186,7 +205,9 @@ export interface VentaInput {
 
 export interface Pago {
   id: number
-  itemVentaId: number | null
+  // Modificado 22/11/2026: antes era `itemVentaId` — ver entidades-dominio.md,
+  // sección 12.
+  ventaId: number | null
   ordenServicioId: number | null
   monto: string
   fecha: string
@@ -350,13 +371,15 @@ export interface Cliente {
 // --- Saldo de cliente y créditos vencidos (HU-10.2, HU-11, HU-12) ---
 // Ver src/main/services/saldoClientes.ts.
 
+// Cambio de alcance 22/11/2026: la deuda ya es por Venta completa, no por
+// Ítem de Venta — `productos` lista los nombres de los productos incluidos,
+// para no perder el detalle que antes daba el desglose por ítem.
 export interface DeudaItemVenta {
   tipo: 'venta'
-  itemVentaId: number
   ventaId: number
-  productoNombre: string
+  productos: string[]
   fecha: string
-  montoItem: number
+  montoTotal: number
   saldoPendiente: number
   fechaPagoPrevista: string | null
 }
@@ -383,7 +406,7 @@ export interface SaldoCliente {
 // Una fila de GET /api/clientes/creditos-vencidos.
 export interface CreditoVencido {
   tipo: 'venta' | 'orden'
-  id: number
+  id: number // ventaId u ordenServicioId según `tipo` (ventaId desde 22/11/2026)
   clienteId: number
   clienteNombre: string
   fechaPagoPrevista: string

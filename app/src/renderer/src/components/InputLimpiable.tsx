@@ -31,7 +31,17 @@ export function InputLimpiable({
   const derecha = type === 'number' ? 22 : 6
 
   return (
-    <span style={{ position: 'relative', display: 'inline-block' }}>
+    // El wrapper necesita el mismo `width` que se le pide al input: al ser
+    // `inline-block` sin ancho propio, por defecto se achica al contenido
+    // (shrink-to-fit). Eso hace que un `width: '100%'` en el <input> no
+    // sirva de nada cuando el wrapper queda como único hijo de un
+    // contenedor que no sea flex (con flex, el `align-items: stretch` por
+    // defecto lo estira y "tapa" el problema sin querer) — el 100% del
+    // input se calcula contra el wrapper, que mide lo mismo que el propio
+    // input, no el espacio real disponible. Replicando acá el mismo
+    // `width` que recibe el input, el wrapper queda con una medida
+    // correcta y el porcentaje (o el px) del input se resuelve bien.
+    <span style={{ position: 'relative', display: 'inline-block', width: style?.width }}>
       <input
         {...resto}
         ref={inputRef}

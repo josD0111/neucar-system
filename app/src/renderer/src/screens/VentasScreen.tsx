@@ -8,7 +8,7 @@
 // Patrón de carga: el listado trae clienteNombre/cantidadItems ya
 // resueltos (ver services/ventas.ts, VentaListado) para no pedir el detalle
 // de cada venta solo para mostrar la tabla. El detalle completo (ítems,
-// saldo pendiente por ítem) se pide recién al expandir una fila, y queda en
+// saldo pendiente de la venta) se pide recién al expandir una fila, y queda en
 // caché — mismo criterio que StockScreen.tsx con los lotes de un producto.
 //
 // Paginación (acordada el 02/11/2026): el servidor devuelve DÍAS CALENDARIO
@@ -134,24 +134,18 @@ function gs(valor: number | string): string {
   return Number(valor).toLocaleString('es-PY')
 }
 
-// --- Cobro de un ítem a crédito ---
+// --- Cobro de una venta a crédito ---
 //
 // El formulario de cobro se movió a components/CobroCredito.tsx el
 // 16/11/2026, unificado con el de Órdenes de Servicio (ver ese archivo para
-// el porqué). Se usa en ItemDetalle, más abajo.
+// el porqué). Se usa en DetalleVenta, más abajo. Desde el 22/11/2026 el
+// crédito (tipo de pago, fecha prevista, saldo y cobro) vive a nivel de toda
+// la Venta, no de cada ítem — ver entidades-dominio.md, sección 12.
 
 
 // --- Un ítem dentro del detalle de una venta ------------------------------
 
-function ItemDetalle({
-  item,
-  token,
-  onPagoRegistrado
-}: {
-  item: ItemVentaDetalle
-  token: string | null
-  onPagoRegistrado: () => void
-}): React.JSX.Element {
+function ItemDetalle({ item }: { item: ItemVentaDetalle }): React.JSX.Element {
   const subtotal = Number(item.precioUnitario) * item.cantidad
   const precioModificado = Number(item.precioUnitario) !== Number(item.precioBase)
   return (
@@ -187,68 +181,14 @@ function ItemDetalle({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <span
-            style={estiloBadge(
-              item.tipoPago === 'Crédito' ? 'var(--color-alert)' : 'var(--color-ok)',
-              item.tipoPago === 'Crédito' ? 'var(--color-alert-bg)' : '#e7efe9'
-            )}
-          >
-            {item.tipoPago}
-          </span>
-          {item.garantiaOfrecida != null && (
+        {item.garantiaOfrecida != null && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <span style={estiloBadge('var(--color-info)', '#e4ebed')}>
               {item.garantiaOfrecida}m garantía
             </span>
-          )}
-        </div>
-      </div>
-
-      {item.tipoPago === 'Crédito' && (
-        <>
-          <div
-            style={{
-              marginTop: 'var(--space-2)',
-              fontSize: 13,
-              display: 'flex',
-              gap: 'var(--space-3)',
-              flexWrap: 'wrap'
-            }}
-          >
-            {item.fechaPagoPrevista && (
-              <span style={{ color: 'var(--color-text)' }}>
-                Pago previsto:{' '}
-                <span className="font-data" style={{ fontWeight: 600 }}>
-                  {item.fechaPagoPrevista}
-                </span>
-              </span>
-            )}
-            <span
-              className="font-data"
-              style={{
-                fontWeight: 600,
-                color: item.saldoPendiente > 0 ? 'var(--color-alert)' : 'var(--color-ok)'
-              }}
-            >
-              {item.saldoPendiente > 0
-                ? `Saldo pendiente: Gs. ${gs(item.saldoPendiente)}`
-                : 'Pagado'}
-            </span>
           </div>
-
-          <CobroCredito
-            credito={{
-              origen: 'item',
-              itemVentaId: item.id,
-              montoOriginal: Number(item.precioUnitario) * item.cantidad,
-              saldoPendiente: item.saldoPendiente,
-              fechaPagoPrevista: item.fechaPagoPrevista
-            }}
-            token={token}
-            onPagoRegistrado={() => onPagoRegistrado()}
-          />
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -317,8 +257,86 @@ function DetalleVenta({
       )}
 
       {venta.items.map((item) => (
-        <ItemDetalle key={item.id} item={item} token={token} onPagoRegistrado={onPagoRegistrado} />
+        <ItemDetalle key={item.id} item={item} />
       ))}
+
+      {/* Condición de pago de TODA la venta (antes era por ítem). */}
+      <div
+        style={{
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius)',
+          padding: 'var(--space-3)',
+          background: 'var(--color-surface)'
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            flexWrap: 'wrap'
+          }}
+        >
+          <span
+            style={estiloBadge(
+              venta.tipoPago === 'Crédito' ? 'var(--color-alert)' : 'var(--color-ok)',
+              venta.tipoPago === 'Crédito' ? 'var(--color-alert-bg)' : '#e7efe9'
+            )}
+          >
+            {venta.tipoPago}
+          </span>
+          <span className="font-data" style={{ fontWeight: 600 }}>
+            Total: Gs. {gs(venta.montoTotal)}
+          </span>
+        </div>
+
+        {venta.tipoPago === 'Crédito' && (
+          <>
+            <div
+              style={{
+                marginTop: 'var(--space-2)',
+                fontSize: 13,
+                display: 'flex',
+                gap: 'var(--space-3)',
+                flexWrap: 'wrap'
+              }}
+            >
+              {venta.fechaPagoPrevista && (
+                <span style={{ color: 'var(--color-text)' }}>
+                  Pago previsto:{' '}
+                  <span className="font-data" style={{ fontWeight: 600 }}>
+                    {venta.fechaPagoPrevista}
+                  </span>
+                </span>
+              )}
+              <span
+                className="font-data"
+                style={{
+                  fontWeight: 600,
+                  color: venta.saldoPendiente > 0 ? 'var(--color-alert)' : 'var(--color-ok)'
+                }}
+              >
+                {venta.saldoPendiente > 0
+                  ? `Saldo pendiente: Gs. ${gs(venta.saldoPendiente)}`
+                  : 'Pagado'}
+              </span>
+            </div>
+
+            <CobroCredito
+              credito={{
+                origen: 'venta',
+                ventaId: venta.id,
+                montoOriginal: Number(venta.montoTotal),
+                saldoPendiente: venta.saldoPendiente,
+                fechaPagoPrevista: venta.fechaPagoPrevista
+              }}
+              token={token}
+              onPagoRegistrado={() => onPagoRegistrado()}
+            />
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -509,7 +527,7 @@ export function VentasScreen(): React.JSX.Element {
   }
 
   // Tras registrar un pago (CobroCredito), se vuelve a pedir el detalle de esa
-  // venta para que el saldo pendiente/fecha prevista del ítem se actualicen
+  // venta para que el saldo pendiente/fecha prevista de la venta se actualicen
   // con el valor que calculó el servidor (fuente de verdad), en vez de
   // estimarlo en el cliente. No toca `ventas` (la fila del listado, con
   // `tieneSaldoPendiente`) — para eso todavía hace falta "↻ Actualizar".
@@ -769,6 +787,18 @@ export function VentasScreen(): React.JSX.Element {
                                 <span style={estiloBadge('var(--color-info)', '#e4ebed')}>
                                   {v.metodoPago}
                                 </span>
+
+                                {v.tipoPago === 'Crédito' && (
+                                  <span
+                                    style={
+                                      v.tieneSaldoPendiente
+                                        ? estiloBadge('var(--color-alert)', 'var(--color-alert-bg)')
+                                        : estiloBadge('var(--color-ok)', '#e7efe9')
+                                    }
+                                  >
+                                    {v.tieneSaldoPendiente ? 'Crédito · con saldo' : 'Crédito · pagado'}
+                                  </span>
+                                )}
 
                                 <div
                                   className="font-data"

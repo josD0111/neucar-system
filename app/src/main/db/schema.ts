@@ -110,10 +110,23 @@ export const ventas = pgTable('ventas', {
   // Columna agregada en Sprint 2 (24/10/2026), no estaba en el esquema original:
   // HU-19 pide registrar el método de pago de la venta (efectivo, tarjeta,
   // transferencia, QR) y no había dónde guardarlo. Vive a nivel de Venta (no
-  // por ítem) porque así lo redacta la HU. Para un ítem a crédito, este valor
-  // es el método "de referencia" al momento de la operación; el método real
-  // de cada cuota se registra en Pago.metodoPago al momento de cobrarla.
-  metodoPago: varchar('metodo_pago', { length: 30 }).notNull() // 'Efectivo' | 'Tarjeta' | 'Transferencia' | 'QR'
+  // por ítem) porque así lo redacta la HU. Para una venta a crédito, este
+  // valor es el método "de referencia" al momento de la operación; el método
+  // real de cada cuota se registra en Pago.metodoPago al momento de cobrarla.
+  metodoPago: varchar('metodo_pago', { length: 30 }).notNull(), // 'Efectivo' | 'Tarjeta' | 'Transferencia' | 'QR'
+  // Columnas movidas acá desde itemsVenta el 22/11/2026 (planificación técnica
+  // del Sprint 3, punto 1 — ver entidades-dominio.md, sección 12, y
+  // desiciones-alcance.md, sección 7.7): el crédito se decidió a nivel de
+  // Venta completa, no por ítem — mismo criterio que ya usa ordenesServicio.
+  // Esto es una decisión del equipo, todavía NO confirmada con el dueño:
+  // implica que una venta ya no admite mezclar ítems al contado y a crédito.
+  tipoPago: varchar('tipo_pago', { length: 20 }).notNull(), // 'Contado' | 'Crédito'
+  // Próxima fecha en la que se espera el pago (solo si tipoPago = 'Crédito').
+  // Es un valor sugerido y editable, no un vencimiento bloqueante — ver
+  // entidades-dominio.md, sección 12.1, y HU-10.2.
+  fechaPagoPrevista: date('fecha_pago_prevista')
+  // saldoPendiente NO se guarda como columna fija: se calcula en la capa de
+  // lógica de negocio a partir de (montoTotal - suma(pagos.monto)).
 })
 
 // 7.1 Ítem de Venta
@@ -139,20 +152,19 @@ export const itemsVenta = pgTable('items_venta', {
   // trazabilidad de HU-18 se perdería en cuanto alguien edite el producto.
   precioBase: numeric('precio_base', { precision: 12, scale: 2 }).notNull(),
   precioUnitario: numeric('precio_unitario', { precision: 12, scale: 2 }).notNull(),
-  garantiaOfrecida: integer('garantia_ofrecida'),
-  tipoPago: varchar('tipo_pago', { length: 20 }).notNull(), // 'Contado' | 'Crédito'
-  // Próxima fecha en la que se espera el pago (solo si tipoPago = 'Crédito').
-  // Es un valor sugerido y editable, no un vencimiento bloqueante — ver
-  // entidades-dominio.md, sección 12.1, y HU-10.2.
-  fechaPagoPrevista: date('fecha_pago_prevista')
-  // saldoPendiente NO se guarda como columna fija: se calcula en la capa de
-  // lógica de negocio a partir de (precioUnitario * cantidad) - suma(pagos).
+  garantiaOfrecida: integer('garantia_ofrecida')
+  // tipoPago, fechaPagoPrevista y saldoPendiente NO viven acá: se movieron a
+  // `ventas` el 22/11/2026 — ver la nota en la tabla `ventas` más arriba y
+  // entidades-dominio.md, sección 12.
 })
 
 // 7.2 Pago
 export const pagos = pgTable('pagos', {
   id: serial('id').primaryKey(),
-  itemVentaId: integer('item_venta_id').references(() => itemsVenta.id),
+  // Modificado 22/11/2026: antes era `itemVentaId` (referenciaba el Ítem de
+  // Venta puntual); ahora referencia la Venta completa, acompañando el
+  // cambio de `tipoPago` a nivel de Venta — ver entidades-dominio.md, sección 12.
+  ventaId: integer('venta_id').references(() => ventas.id),
   // Referencia circular a ordenesServicio (definida más abajo): se resuelve
   // con un callback (lazy reference), por lo que no importa el orden de
   // declaración entre ambas tablas. El tipo de retorno explícito (AnyPgColumn)
@@ -193,8 +205,9 @@ export const ordenesServicio = pgTable('ordenes_servicio', {
   tipoPago: varchar('tipo_pago', { length: 20 }).notNull(), // 'Contado' | 'Crédito', aplica a toda la orden
   montoTotal: numeric('monto_total', { precision: 12, scale: 2 }).notNull(),
   // Próxima fecha en la que se espera el pago (solo si tipoPago = 'Crédito').
-  // Mismo criterio que itemsVenta.fechaPagoPrevista — ver entidades-dominio.md,
-  // sección 12.1, y HU-10.2.
+  // Mismo criterio que ventas.fechaPagoPrevista (que desde el 22/11/2026
+  // adoptó este mismo patrón) — ver entidades-dominio.md, sección 12.1, y
+  // HU-10.2.
   fechaPagoPrevista: date('fecha_pago_prevista'),
   tipoComprobante: varchar('tipo_comprobante', { length: 30 })
   // NOTA: se eliminó `garantiaDias` (presente en una versión anterior de este

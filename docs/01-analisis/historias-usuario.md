@@ -4,6 +4,8 @@
 Actualizadas también al cierre del Sprint 2 (20/11/2026), en una revisión de consistencia entre esta documentación y el código real: se agregó HU-22.2 (catálogo de tipos de servicio, implementado durante el sprint sin historia previa) y se corrigió el criterio de aceptación de HU-20 sobre anulación de venta, que seguía redactado como pregunta abierta pese a estar ya resuelto (ver `desiciones-alcance.md`, sección 7.4).
 El mismo día, tras presentarle al dueño el trabajo del Sprint 2, se agregaron HU-36 a HU-41 (ver sección 6) a partir de su feedback (`docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md`): restricción de lectura del rol Empleado, marcas de producto, compras en sección separada, pago inicial obligatorio en crédito, rediseño del flujo de Ventas y kilometraje/próximo mantenimiento — estas dos últimas y el pago inicial con detalles todavía pendientes de confirmar (ver `desiciones-alcance.md`, sección 7.6).
 
+Actualizadas nuevamente el 22/11/2026, al planificar la implementación de HU-40 a partir de un prototipo HTML armado por el equipo: se completaron los criterios de aceptación de HU-40 (antes vacíos) y se cambió el alcance de HU-10 — el crédito pasa a definirse **por venta completa**, no por ítem — con el ajuste correspondiente en HU-10.1, HU-10.2, HU-11 y HU-39. Ver la nota de cambio de alcance en HU-10 para el detalle y la justificación.
+
 Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 
 ## 1. Productos y stock
@@ -65,44 +67,47 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 **HU-09**
 > Como Administrador o Empleado, quiero registrar los datos de un cliente (nombre, cédula, celular, RUC), para poder identificarlo en futuras compras o servicios.
 
-**HU-10**
-> Como Administrador, quiero registrar a crédito uno o más productos de una venta (independientemente de otros productos de la misma venta que se paguen al contado), para llevar el control de lo que me debe el cliente por cada producto.
+**HU-10** *(alcance cambiado 22/11/2026 — ver nota de cambio más abajo)*
+> Como Administrador, quiero registrar una venta completa a crédito, para llevar el control de lo que me debe el cliente por esa operación.
 
 **Criterios de aceptación:**
-- Dado que registro una venta con varios productos, cuando indico la forma de pago, entonces el sistema me permite definirla **por cada producto/ítem de la venta**, no para la venta completa (ej. 1 producto al contado y 2 a crédito, en la misma venta).
-- Dado un ítem de venta marcado como "a crédito", cuando lo guardo, entonces el sistema exige asociar la venta a un cliente registrado (no permite ítems a crédito en venta a cliente "casual" no registrado).
-- Dado un ítem de venta a crédito, cuando se guarda, entonces el sistema incrementa el saldo pendiente del cliente en el monto de ese ítem específico.
+- Dado que registro una venta con uno o más productos, cuando indico la forma de pago, entonces el sistema me permite definirla **una sola vez, para la venta completa** (Contado o Crédito) — no existe forma de marcar unos productos de una misma venta al contado y otros a crédito.
+- Dado una venta marcada como "a crédito", cuando la guardo, entonces el sistema exige asociarla a un cliente registrado (no permite ventas a crédito a cliente "casual" no registrado).
+- Dado una venta a crédito, cuando se guarda, entonces el sistema incrementa el saldo pendiente del cliente en el monto total de esa venta.
 - El crédito queda como saldo abierto hasta que se registren pagos suficientes (sin vencimiento duro). La fecha en la que se espera el próximo pago se maneja como un campo aparte (`fecha_pago_prevista`, sugerido por defecto y editable, sin bloquear la operación) — ver HU-10.2, que resuelve lo que acá quedaba como pregunta abierta.
-- Dado un empleado (rol Empleado) que intenta registrar una venta con algún ítem a crédito, cuando lo hace, entonces el sistema le permite hacerlo al precio base (sin descuento), ya que la restricción del rol Empleado es sobre descuentos, no sobre la forma de pago.
+- Dado un empleado (rol Empleado) que intenta registrar una venta a crédito, cuando lo hace, entonces el sistema le permite hacerlo al precio base (sin descuento), ya que la restricción del rol Empleado es sobre descuentos, no sobre la forma de pago.
+
+**Nota de cambio de alcance (22/11/2026):** la redacción original de esta historia (30/06/2026) definía la forma de pago **por cada ítem de la venta**, permitiendo mezclar en una misma venta productos al contado y a crédito. Al planificar la implementación del nuevo flujo de Ventas (Sprint 3, HU-40, a partir de un prototipo del equipo), se decidió simplificarlo a **crédito por venta completa**, igual que ya funciona en Órdenes de Servicio (HU-27, que ya trataba el crédito sobre el total de la visita, no por servicio individual) — así Ventas y Servicios quedan consistentes entre sí. Es una decisión del equipo, no un pedido explícito del dueño; conviene confirmarle que ya no podrá cargar una venta mixta (algunos productos al contado, otros a crédito) en una sola operación — si en la práctica eso le hace falta, tendría que registrar dos ventas separadas. Impacta el modelo de datos: `tipo_pago` y `fecha_pago_prevista` se mueven de Ítem de Venta a Venta (ver `entidades-dominio.md`, secciones 7 y 7.1, y `sprint-3-backlog.md`, punto 1).
 
 **Adenda 20/11/2026** *(feedback del dueño al cierre del Sprint 2 — no es una historia nueva, amplía HU-10; ver HU-39 más abajo)*
-> El taller no da crédito sin cobrar antes un pago inicial. Todo ítem (o, en Órdenes de Servicio, toda la visita) registrado a crédito debe llevar un pago inicial mayor a cero al momento de la venta. Ver HU-39.
+> El taller no da crédito sin cobrar antes un pago inicial. Toda venta (o, en Órdenes de Servicio, toda la visita) registrada a crédito debe llevar un pago inicial mayor a cero al momento de la venta. Ver HU-39.
 
-**HU-10.1**
-> Como Administrador, quiero registrar un pago (cuota) sobre un ítem de venta o una orden de servicio a crédito, para reflejar lo que el cliente va abonando y actualizar su saldo pendiente.
-
-**Criterios de aceptación:**
-- Dado un ítem de venta (o una orden de servicio) a crédito con saldo pendiente mayor a cero, cuando registro un pago por un monto menor o igual al saldo, entonces el sistema resta ese monto del saldo pendiente de ese ítem/orden específico, sin afectar el saldo de otros ítems u órdenes del mismo cliente.
-- Dado un ítem de venta a crédito, cuando la suma de sus pagos registrados iguala su monto original, entonces el sistema lo considera saldado (saldo pendiente = 0) y deja de contarlo en el saldo total del cliente.
-- Dado que un cliente tiene dos productos a crédito de una misma venta, cuando paga por completo uno de ellos, entonces el otro producto conserva su saldo pendiente sin modificaciones, y sus futuros pagos se siguen registrando de forma independiente.
-- Dado un intento de registrar un pago por un monto mayor al saldo pendiente del ítem/orden, el sistema **no rechaza la operación ni genera saldo a favor** (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): el `monto` del Pago que se guarda queda limitado al saldo pendiente exacto, dejando el ítem/orden en `saldo_pendiente = 0`. Si el cliente entrega un monto mayor, la diferencia se calcula y muestra en pantalla como "vuelto" al momento de cobrar, pero no se persiste.
-
-**HU-11**
-> Como Administrador, quiero ver el saldo pendiente de un cliente y el detalle de qué productos o servicios específicos lo componen (con su saldo individual), para gestionar los cobros.
+**HU-10.1** *(ajustada 22/11/2026 — ver nota de cambio de alcance en HU-10)*
+> Como Administrador, quiero registrar un pago (cuota) sobre una venta o una orden de servicio a crédito, para reflejar lo que el cliente va abonando y actualizar su saldo pendiente.
 
 **Criterios de aceptación:**
-- Dado un cliente con uno o más ítems de venta y/o órdenes de servicio a crédito, cuando consulto su ficha, entonces el sistema muestra el saldo total pendiente y el detalle de cada ítem/orden que lo compone, con su producto o tipo de servicio, fecha, monto original y saldo pendiente individual.
-- Dado un cliente con un ítem de venta ya saldado (pagos = monto original) y otro con saldo pendiente, cuando consulto su ficha, entonces el sistema solo muestra en el detalle de deuda el ítem que todavía tiene saldo pendiente.
+- Dado una venta (o una orden de servicio) a crédito con saldo pendiente mayor a cero, cuando registro un pago por un monto menor o igual al saldo, entonces el sistema resta ese monto del saldo pendiente de esa venta/orden específica, sin afectar el saldo de otras ventas u órdenes del mismo cliente.
+- Dado una venta a crédito, cuando la suma de sus pagos registrados iguala su monto total, entonces el sistema la considera saldada (saldo pendiente = 0) y deja de contarla en el saldo total del cliente.
+- Dado que un cliente tiene dos ventas a crédito distintas, cuando paga por completo una de ellas, entonces la otra conserva su saldo pendiente sin modificaciones, y sus futuros pagos se siguen registrando de forma independiente. *(Antes del cambio de alcance del 22/11/2026, esta independencia se garantizaba entre ítems de una misma venta; ahora se garantiza entre ventas distintas, ya que la venta completa es la unidad de crédito.)*
+- Dado un intento de registrar un pago por un monto mayor al saldo pendiente de la venta/orden, el sistema **no rechaza la operación ni genera saldo a favor** (decisión del equipo, 23/10/2026 — ver `desiciones-alcance.md`, sección 7.3): el `monto` del Pago que se guarda queda limitado al saldo pendiente exacto, dejando la venta/orden en `saldo_pendiente = 0`. Si el cliente entrega un monto mayor, la diferencia se calcula y muestra en pantalla como "vuelto" al momento de cobrar, pero no se persiste.
+
+**HU-11** *(ajustada 22/11/2026 — ver nota de cambio de alcance en HU-10)*
+> Como Administrador, quiero ver el saldo pendiente de un cliente y el detalle de qué ventas o servicios específicos lo componen (con su saldo individual y los productos/servicios que incluyen), para gestionar los cobros.
+
+**Criterios de aceptación:**
+- Dado un cliente con una o más ventas y/o órdenes de servicio a crédito, cuando consulto su ficha, entonces el sistema muestra el saldo total pendiente y el detalle de cada venta/orden que lo compone (fecha, monto total y saldo pendiente de esa venta/orden), pudiendo ver también los productos o servicios que incluyó.
+- Dado un cliente con una venta ya saldada (pagos = monto total) y otra con saldo pendiente, cuando consulto su ficha, entonces el sistema solo muestra en el detalle de deuda la venta que todavía tiene saldo pendiente.
 - Dado un cliente sin deudas pendientes, cuando consulto su ficha, entonces el sistema indica saldo cero, sin mostrar operaciones ya saldadas como pendientes.
+- *(Nota 22/11/2026: antes del cambio de alcance de HU-10, el saldo individual era por producto dentro de una venta; ahora es por venta completa. Esto ya no aplica — una venta no puede tener productos mixtos contado/crédito, así que no hay ambigüedad posible dentro de una misma venta.)*
 
-**HU-10.2** *(agregada tras entrevista 10/09/2026)*
-> Como Administrador, quiero registrar la fecha en la que el cliente debería venir a pagar su próxima cuota de un ítem de venta o una orden de servicio a crédito, y ver un listado de los que ya pasaron esa fecha sin pagarse, para poder hacer seguimiento de la mora.
+**HU-10.2** *(agregada tras entrevista 10/09/2026; ajustada 22/11/2026 — ver nota de cambio de alcance en HU-10)*
+> Como Administrador, quiero registrar la fecha en la que el cliente debería venir a pagar su próxima cuota de una venta o una orden de servicio a crédito, y ver un listado de las que ya pasaron esa fecha sin pagarse, para poder hacer seguimiento de la mora.
 
 **Criterios de aceptación:**
-- Dado un ítem de venta o una orden de servicio marcados como Crédito, cuando se registra o se abona, entonces el sistema permite indicar/actualizar una `fecha_pago_prevista` para la próxima cuota.
+- Dado una venta o una orden de servicio marcadas como Crédito, cuando se registra o se abona, entonces el sistema permite indicar/actualizar una `fecha_pago_prevista` para la próxima cuota.
 - Dado que el dueño no tiene una fecha límite fija (créditos de hasta 2 meses, normalmente divididos en 2 cuotas), el sistema debe proponer una fecha por defecto (ej. a 1 mes) pero permitir modificarla libremente, sin bloquear ni rechazar fechas más lejanas.
-- Dado un ítem/orden a crédito con `fecha_pago_prevista` anterior a hoy y `saldo_pendiente > 0`, el sistema debe mostrarlo en un listado/aviso de créditos vencidos, visible para el Administrador.
-- Dado un ítem/orden ya saldado, no debe aparecer en el listado de créditos vencidos aunque su `fecha_pago_prevista` haya pasado.
+- Dado una venta/orden a crédito con `fecha_pago_prevista` anterior a hoy y `saldo_pendiente > 0`, el sistema debe mostrarla en un listado/aviso de créditos vencidos, visible para el Administrador.
+- Dado una venta/orden ya saldada, no debe aparecer en el listado de créditos vencidos aunque su `fecha_pago_prevista` haya pasado.
 
 **HU-12**
 > Como Administrador, quiero imprimir el comprobante de saldo de un cliente, para que lo firme como respaldo de la deuda.
@@ -249,20 +254,24 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - Ese historial es filtrable (al menos por rango de fecha y proveedor), igual criterio que los demás historiales del sistema.
 - No cambia ninguna regla de negocio de Compras ya definida (HU-14, HU-15, HU-16, ni el mecanismo de lotes de stock de `entidades-dominio.md`, sección 6): es una reorganización de pantallas, no un cambio de modelo.
 
-**HU-39** *(agregada 20/11/2026)*
+**HU-39** *(agregada 20/11/2026; ajustada 22/11/2026 — ver nota de cambio de alcance en HU-10)*
 > Como dueño del taller, quiero que toda venta a crédito incluya un pago inicial al momento de registrarse, para asegurarme un compromiso mínimo del cliente antes de fiarle el resto.
 
 **Criterios de aceptación:**
-- Dado un ítem de venta (o, en Órdenes de Servicio, una orden completa) marcado como Crédito, cuando se registra, el sistema exige un pago inicial mayor a cero en el mismo momento — no se acepta un saldo pendiente igual al 100% del monto.
+- Dado una venta (o, en Órdenes de Servicio, una orden completa) marcada como Crédito, cuando se registra, el sistema exige un pago inicial mayor a cero en el mismo momento — no se acepta un saldo pendiente igual al 100% del monto.
 - El monto mínimo de ese pago inicial queda, por ahora, en "mayor a cero, sin piso específico" (decisión provisional del equipo, 20/11/2026, sin pasar por el dueño — ver `desiciones-alcance.md`, sección 7.6). Si el dueño confirma un mínimo distinto (ej. un porcentaje), esta historia debe actualizarse.
-- Esta historia no reemplaza el mecanismo de Pago ya existente (HU-10.1): el pago inicial es, técnicamente, el primer Pago registrado contra el ítem/orden recién creado, usando el mismo servicio.
+- Esta historia no reemplaza el mecanismo de Pago ya existente (HU-10.1): el pago inicial es, técnicamente, el primer Pago registrado contra la venta/orden recién creada, usando el mismo servicio.
+- En el flujo de carga (ver HU-40), el pago inicial y la `fecha_pago_prevista` se piden en un modal de confirmación que aparece al presionar "Guardar/Registrar venta", solo cuando la condición de la venta es Crédito — no son campos visibles todo el tiempo en el formulario principal.
 
-**HU-40** *(agregada 20/11/2026, amplía HU-17/HU-17.1/HU-18 — ver adenda ahí)*
-> Como Administrador o Empleado, quiero buscar un producto directamente y verlo en una tabla de ítems de la venta en curso, y al seleccionar una fila de esa tabla editar sus datos (cantidad, precio, lote, forma de pago) en una sección aparte, para cargar la venta de forma más parecida al sistema que ya conocemos.
+**HU-40** *(agregada 20/11/2026, amplía HU-17/HU-17.1/HU-18; criterios completados 22/11/2026 a partir de un prototipo HTML armado por el equipo — ver `sprint-3-backlog.md`, punto 1)*
+> Como Administrador o Empleado, quiero buscar un producto directamente y verlo en una tabla de ítems de la venta en curso, y al seleccionar una fila de esa tabla editar sus datos (cantidad, precio, lote, garantía) en una sección aparte, para cargar la venta de forma más parecida al sistema que ya conocemos.
 
 **Criterios de aceptación:**
-- Pendiente de definir junto con el dueño si la búsqueda es por nombre, por código de producto, o ambos (ver `desiciones-alcance.md`, sección 7.6) — no se agregan criterios de aceptación detallados hasta resolver esto, para no construir sobre un supuesto equivocado.
-- No cambia ninguna regla de negocio ya definida (selección manual de lote, bloqueo por stock insuficiente, permisos por rol): es un cambio de flujo de pantalla, no de lógica de negocio.
+- La búsqueda de productos filtra por **nombre, marca o código**, indistintamente (resuelve la pregunta abierta de `desiciones-alcance.md`, sección 7.6, a partir del prototipo del 22/11/2026) — no hace falta que el usuario indique en cuál de los tres está buscando.
+- La pantalla se organiza en 4 franjas: (A) búsqueda de productos + cliente y condición de la venta (Contado/Crédito, ver nota de cambio de alcance en HU-10); (B) edición del producto seleccionado (lote de compra, cantidad, precio unitario, garantía ofrecida); (C) tabla de ítems ya agregados a la venta, donde un clic en una fila la carga en (B) para editarla; (D) total y acciones (Cancelar venta / Guardar venta), junto con el método de pago de la venta (HU-19).
+- El pago inicial y la `fecha_pago_prevista` (solo si la venta es a Crédito) se piden en un modal aparte al presionar "Guardar venta", no en el formulario principal — ver HU-39.
+- Para el rol Empleado (HU-17), la misma pantalla oculta/deshabilita: el campo de precio editable en (B) (ve el precio base, sin poder modificarlo — HU-18), el botón "Guardar venta" en (D) y el selector de condición Contado/Crédito en (A) (ve el total calculado, sin poder confirmar la operación ni definir forma de pago). Se implementa como el mismo componente de pantalla condicionado por rol, no como dos pantallas separadas.
+- No cambia ninguna otra regla de negocio ya definida (selección manual de lote, bloqueo por stock insuficiente, permisos por rol, descuento solo-Administrador): es un cambio de flujo de pantalla, no de lógica de negocio adicional a lo ya descrito acá y en HU-10/HU-39.
 
 **HU-41** *(agregada 20/11/2026 — SIN modelo de datos definido, ver nota)*
 > Como Administrador, quiero registrar el kilometraje del vehículo en los servicios de mantenimiento y saber a qué kilometraje correspondería el próximo, para poder avisarle al cliente cuándo le toca volver.
@@ -291,12 +300,12 @@ Roles considerados: **Administrador** (dueño / esposa) y **Empleado** (Rey).
 - HU-08 se incorporó al MVP el 12/10/2026 (ver nota en la historia); ya no está marcada como futura.
 - El resto de las historias (HU-01 a HU-30, salvo las marcadas como futuro o descartadas) se consideran parte del alcance del MVP, incluyendo las agregadas tras la entrevista del 10/09/2026 (HU-10.2, HU-22.1), la agregada el 12/10/2026 (HU-01.1), la agregada el 23/10/2026 (HU-17.1) y la agregada el 20/11/2026 al cierre del Sprint 2 (HU-22.2, catálogo de tipos de servicio — documenta en retrospectiva una decisión ya tomada durante la implementación).
 - HU-17 fue corregida el 23/10/2026 (ver nota en la historia): el Empleado deja de registrar la venta y pasa a solo calcularla; el registro queda en la nueva HU-17.1. HU-05 recibió una adenda la misma fecha (filtro en la impresión de existencias).
-- **HU-36 a HU-41** se agregaron el 20/11/2026, a partir del feedback del dueño al cierre del Sprint 2 (ver sección 6 y `desiciones-alcance.md`, sección 9), y corresponden al alcance planificado para el Sprint 3. A diferencia del resto de historias "agregadas tras feedback", **HU-39 (pago inicial), HU-40 (buscador de Ventas) y HU-41 (kilometraje)** dependen de reglas de negocio que el dueño no terminó de precisar — ver las preguntas abiertas correspondientes en `desiciones-alcance.md`, sección 7.6, antes de darlas por cerradas.
+- **HU-36 a HU-41** se agregaron el 20/11/2026, a partir del feedback del dueño al cierre del Sprint 2 (ver sección 6 y `desiciones-alcance.md`, sección 9), y corresponden al alcance planificado para el Sprint 3. A diferencia del resto de historias "agregadas tras feedback", **HU-39 (pago inicial) y HU-41 (kilometraje)** dependen de reglas de negocio que el dueño no terminó de precisar — ver las preguntas abiertas correspondientes en `desiciones-alcance.md`, sección 7.6, antes de darlas por cerradas. **HU-40 (flujo de Ventas)** se completó el 22/11/2026 a partir de un prototipo del equipo; de paso, al planificar su implementación se decidió cambiar el alcance de HU-10 (crédito por venta completa en vez de por ítem — ver la nota de cambio ahí), una decisión de diseño del equipo, no un pedido del dueño, pendiente de comunicarle.
 - Falta definir el orden de implementación (sprints/iteraciones) de las historias del MVP; se recomienda abordarlo en `docs/03-gestion-proyecto/`.
 
 ### Notas sobre criterios de aceptación
 
-Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-05 (adenda), HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-17.1, HU-18, HU-20, HU-22.1, HU-24, HU-27, HU-36, HU-37, HU-38 y HU-39**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo, marcas, pago inicial). **HU-40 y HU-41 deliberadamente no tienen criterios de aceptación todavía** — ver la nota en cada una: depende de precisar con el dueño el flujo de búsqueda (HU-40) y el modelo de kilometraje (HU-41) antes de poder redactarlos sin arriesgarse a inventar una regla de negocio que el dueño no pidió.
+Se agregaron criterios de aceptación únicamente a las historias identificadas como ambiguas o con reglas de negocio no triviales: **HU-01.1, HU-05 (adenda), HU-06, HU-08, HU-10, HU-10.1, HU-10.2, HU-11, HU-17, HU-17.1, HU-18, HU-20, HU-22.1, HU-24, HU-27, HU-36, HU-37, HU-38, HU-39 y HU-40**. Estas son las historias donde una interpretación distinta entre desarrolladores podría llevar a un comportamiento distinto al esperado por el dueño (garantías, crédito/saldo, pagos parciales, fechas de pago previstas, permisos por rol, descuento de stock, detalle de servicios, categorías, stock mínimo, marcas, pago inicial, flujo de ventas). **HU-41 deliberadamente no tiene criterios de aceptación todavía** — ver la nota ahí: depende de precisar con el dueño o el equipo el modelo de kilometraje antes de poder redactarlos sin arriesgarse a inventar una regla de negocio que el dueño no pidió. HU-40 sí los completó el 22/11/2026, a partir de un prototipo del equipo (ver la historia y `sprint-3-backlog.md`, punto 1) — es una decisión de diseño del equipo, no del dueño, salvo en la parte de búsqueda por nombre/marca/código que surge directamente del prototipo.
 
 *HU-10.1 se agregó a partir de la revisión del modelo de datos (ver `entidades-dominio.md`, sección 12), al detectar que faltaba una historia explícita para el registro de pagos/cuotas parciales sobre un ítem a crédito.*
 

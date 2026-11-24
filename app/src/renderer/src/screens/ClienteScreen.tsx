@@ -6,7 +6,7 @@
 //
 // Saldo pendiente, detalle de deudas y créditos vencidos (HU-10.2, HU-11,
 // HU-12) ya están conectados a la API real (ver api/creditos.ts). El saldo
-// mezcla Ítems de Venta y Órdenes de Servicio a crédito (ver
+// mezcla Ventas y Órdenes de Servicio a crédito (ver
 // src/main/services/saldoClientes.ts). Desde el 16/11/2026, las dos se
 // pueden cobrar directamente acá mismo, en la tabla de "Saldo pendiente"
 // (ver CobroCredito — componente compartido también con VentasScreen.tsx e
@@ -269,7 +269,7 @@ export function ClienteScreen(): React.JSX.Element {
     <div>
       <h2 style={{ marginTop: 0 }}>Clientes</h2>
 
-      {/* Aviso de créditos vencidos (HU-10.2): ítems de venta y órdenes de
+      {/* Aviso de créditos vencidos (HU-10.2): ventas y órdenes de
           servicio a crédito cuya fecha de pago prevista ya pasó. Clic en una
           fila abre la ficha de ese cliente. */}
       {!cargandoCreditos && creditosVencidos.length > 0 && (
@@ -559,7 +559,7 @@ export function ClienteScreen(): React.JSX.Element {
                     {saldo.deudas.map((d) => {
                       const vencido =
                         d.fechaPagoPrevista !== null && d.fechaPagoPrevista < new Date().toISOString().slice(0, 10)
-                      const clave = `${d.tipo}-${d.tipo === 'venta' ? d.itemVentaId : d.ordenServicioId}`
+                      const clave = `${d.tipo}-${d.tipo === 'venta' ? d.ventaId : d.ordenServicioId}`
                       return (
                         // Dos filas por deuda, no una: el cobro (botón + formulario +
                         // historial de pagos) necesita todo el ancho de la tabla para no
@@ -570,7 +570,7 @@ export function ClienteScreen(): React.JSX.Element {
                           <tr style={{ borderTop: '1px solid var(--color-border)' }}>
                             <td style={{ padding: 8, paddingBottom: 4, verticalAlign: 'top' }}>
                               {d.tipo === 'venta'
-                                ? `Venta #${d.ventaId} — ${d.productoNombre}`
+                                ? `Venta #${d.ventaId} — ${d.productos.join(', ')}`
                                 : `Orden de servicio #${d.ordenServicioId}`}
                             </td>
                             <td className="font-data" style={{ padding: 8, paddingBottom: 4, verticalAlign: 'top' }}>
@@ -598,9 +598,9 @@ export function ClienteScreen(): React.JSX.Element {
                                 credito={
                                   d.tipo === 'venta'
                                     ? {
-                                        origen: 'item',
-                                        itemVentaId: d.itemVentaId,
-                                        montoOriginal: d.montoItem,
+                                        origen: 'venta',
+                                        ventaId: d.ventaId,
+                                        montoOriginal: d.montoTotal,
                                         saldoPendiente: d.saldoPendiente,
                                         fechaPagoPrevista: d.fechaPagoPrevista
                                       }

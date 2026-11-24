@@ -157,40 +157,30 @@ export function ventasRouter(db: Db): Router {
       doc.text(`Cliente: ${venta.clienteNombre ?? 'Cliente casual'}`)
       doc.text(`Atendido por: ${venta.usuarioNombre}`)
       doc.text(`Método de pago: ${venta.metodoPago}`)
+      // Forma de pago de la venta completa (cambio de alcance 22/11/2026:
+      // antes era por ítem — ver entidades-dominio.md, sección 12).
+      doc.text(`Forma de pago: ${venta.tipoPago}`)
       doc.moveDown(1)
 
-      // --- Detalle de ítems ---
-      const anchoProducto = 170
-      const anchoCantidad = 50
-      const anchoPrecio = 80
-      const anchoForma = 70
-      const anchoGarantia = 55
-      const anchoSaldo =
-        anchoPagina - anchoProducto - anchoCantidad - anchoPrecio - anchoForma - anchoGarantia
-      // Corrección (07/11/2026): "Precio unit." quedaba pegado a "Pago" —
-      // al alinear el precio a la derecha dentro de su columna, el texto se
-      // empuja hasta el borde derecho de esa columna, que es exactamente
-      // donde arranca (a la izquierda) la columna siguiente. Sin un margen
-      // de por medio, un precio corto termina tocando la palabra de al
-      // lado. Se usa esta constante para angostar un poco el ancho que se
-      // le pasa a .text() en las columnas alineadas a la derecha que tienen
-      // otra columna pegada a su derecha (acá, Precio), sin mover las
-      // posiciones reales de las columnas (xForma, etc. quedan iguales).
+      // --- Detalle de ítems --- (ya sin columnas de "Pago"/"Saldo" por
+      // ítem: esa información ahora es de toda la Venta, ver más abajo)
+      const anchoProducto = 220
+      const anchoCantidad = 60
+      const anchoPrecio = 110
+      const anchoGarantia = 90
+      // Corrección (07/11/2026): ver nota histórica — se mantiene el gutter
+      // para que un precio alineado a la derecha no toque la columna siguiente.
       const GUTTER = 8
       const xCantidad = xIzq + anchoProducto
       const xPrecio = xCantidad + anchoCantidad
-      const xForma = xPrecio + anchoPrecio
-      const xGarantia = xForma + anchoForma
-      const xSaldo = xGarantia + anchoGarantia
+      const xGarantia = xPrecio + anchoPrecio
 
       const y0 = doc.y
       doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR_TEXTO_MUTED)
       doc.text('Producto', xIzq, y0, { width: anchoProducto })
       doc.text('Cant.', xCantidad, y0, { width: anchoCantidad, align: 'right' })
       doc.text('Precio unit.', xPrecio, y0, { width: anchoPrecio - GUTTER, align: 'right' })
-      doc.text('Pago', xForma, y0, { width: anchoForma })
       doc.text('Garantía', xGarantia, y0, { width: anchoGarantia })
-      doc.text('Saldo', xSaldo, y0, { width: anchoSaldo, align: 'right' })
       doc.y = y0 + 14
       doc
         .moveTo(xIzq, doc.y)
@@ -219,26 +209,12 @@ export function ventasRouter(db: Db): Router {
         doc
           .fontSize(descuentoAplicado ? 7.5 : 9)
           .text(lineaPrecio, xPrecio, y, { width: anchoPrecio - GUTTER, align: 'right' })
-        doc.fontSize(9).text(item.tipoPago, xForma, y, { width: anchoForma })
-        doc.text(
+        doc.fontSize(9).text(
           item.garantiaOfrecida != null ? `${item.garantiaOfrecida} meses` : '—',
           xGarantia,
           y,
-          {
-            width: anchoGarantia
-          }
+          { width: anchoGarantia }
         )
-        doc
-          .font(item.saldoPendiente > 0 ? 'Helvetica-Bold' : 'Helvetica')
-          .fillColor(item.saldoPendiente > 0 ? COLOR_ALERTA : COLOR_OK)
-          .text(
-            item.saldoPendiente > 0
-              ? `Gs. ${item.saldoPendiente.toLocaleString('es-PY')}`
-              : 'Pagado',
-            xSaldo,
-            y,
-            { width: anchoSaldo, align: 'right' }
-          )
 
         doc.y = Math.max(doc.y, y + 16)
         if (i < venta.items.length - 1) {
@@ -259,15 +235,22 @@ export function ventasRouter(db: Db): Router {
         .fillColor(COLOR_TEXTO)
         .text(`Total: Gs. ${Number(venta.montoTotal).toLocaleString('es-PY')}`, { align: 'right' })
 
-      const totalPendiente = venta.items.reduce((acc, it) => acc + it.saldoPendiente, 0)
-      if (totalPendiente > 0) {
+      // Saldo pendiente de toda la Venta (cambio de alcance 22/11/2026: antes
+      // se sumaba el saldo de cada ítem — ver entidades-dominio.md, sección 12).
+      if (venta.saldoPendiente > 0) {
         doc
           .font('Helvetica-Bold')
           .fontSize(11)
           .fillColor(COLOR_ALERTA)
-          .text(`Saldo pendiente: Gs. ${totalPendiente.toLocaleString('es-PY')}`, {
+          .text(`Saldo pendiente: Gs. ${venta.saldoPendiente.toLocaleString('es-PY')}`, {
             align: 'right'
           })
+      } else if (venta.tipoPago === 'Crédito') {
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(11)
+          .fillColor(COLOR_OK)
+          .text('Crédito saldado', { align: 'right' })
       }
 
       doc.end()

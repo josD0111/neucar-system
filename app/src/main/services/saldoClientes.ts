@@ -5,29 +5,35 @@
 // tareas-ventas-creditopagos-deudatecnica.md.
 //
 // Decisión de diseño: el saldo de un Cliente es la suma del saldo pendiente
-// de sus Ítems de Venta a Crédito MÁS sus Órdenes de Servicio a Crédito (ver
+// de sus Ventas a Crédito MÁS sus Órdenes de Servicio a Crédito (ver
 // entidades-dominio.md, sección 7.2 y 12.1).
 //
-// Las fórmulas de saldo pendiente (tanto de Ítem de Venta como de Orden de
-// Servicio, ya con sus Pagos de la Fase 5 descontados) se reutilizan de
-// services/pagos.ts (calcularSaldoPendienteItem / calcularSaldoPendienteOrden)
+// Las fórmulas de saldo pendiente (tanto de Venta como de Orden de Servicio,
+// ya con sus Pagos de la Fase 5 descontados) se reutilizan de
+// services/pagos.ts (calcularSaldoPendienteVenta / calcularSaldoPendienteOrden)
 // para no duplicarlas ni arriesgarse a que queden desincronizadas.
+//
+// Cambio de alcance (22/11/2026, ver entidades-dominio.md, sección 12): el
+// crédito de Venta pasó de Ítem de Venta a Venta completa. La "deuda" que
+// antes era por Ítem de Venta ahora es por Venta completa (con sus
+// productos listados, para no perder el detalle que mostraba HU-11).
 
 import { and, eq, isNotNull, lt } from 'drizzle-orm'
 import type { Db } from '../api/server'
 import { clientes, itemsVenta, ordenesServicio, productos, ventas } from '../db/schema'
-import { calcularSaldoPendienteItem, calcularSaldoPendienteOrden } from './pagos'
+import { calcularSaldoPendienteVenta, calcularSaldoPendienteOrden } from './pagos'
 
 export type Resultado<T> = { ok: true; data: T } | { ok: false; status: number; mensaje: string }
 
-// Deuda pendiente de un Ítem de Venta (producto vendido a crédito).
+// Deuda pendiente de una Venta a crédito. `productos` lista los nombres de
+// los productos incluidos, para no perder el detalle que antes daba el
+// desglose por Ítem de Venta.
 export interface DeudaItemVenta {
   tipo: 'venta'
-  itemVentaId: number
   ventaId: number
-  productoNombre: string
+  productos: string[]
   fecha: string
-  montoItem: number
+  montoTotal: number
   saldoPendiente: number
   fechaPagoPrevista: string | null
 }
@@ -51,13 +57,13 @@ export interface SaldoCliente {
   deudas: DeudaPendiente[]
 }
 
-// Una fila del listado global de créditos vencidos (HU-10.2): mezcla Ítems
-// de Venta y Órdenes de Servicio, siempre con el cliente ya resuelto (un
-// cliente casual, sin clienteId, no tiene ficha donde avisarle, así que se
-// descarta del listado).
+// Una fila del listado global de créditos vencidos (HU-10.2): mezcla Ventas
+// y Órdenes de Servicio, siempre con el cliente ya resuelto (un cliente
+// casual, sin clienteId, no tiene ficha donde avisarle, así que se descarta
+// del listado).
 export interface CreditoVencido {
   tipo: 'venta' | 'orden'
-  id: number // itemVentaId u ordenServicioId según `tipo`
+  id: number // ventaId u ordenServicioId según `tipo`
   clienteId: number
   clienteNombre: string
   fechaPagoPrevista: string
@@ -83,47 +89,46 @@ export async function calcularSaldoCliente(db: Db, clienteId: number): Promise<R
   const [cliente] = await db.select().from(clientes).where(eq(clientes.id, clienteId))
   if (!cliente) return { ok: false, status: 404, mensaje: 'Cliente no encontrado.' }
 
-  // --- Ítems de Venta a crédito de este cliente ---
-  const filasItems = await db
+  // --- Ventas a crédito de este cliente (cambio de alcance 22/11/2026: antes
+  // se consultaba por Ítem de Venta — ver nota al principio del archivo) ---
+  const filasVentas = await db
     .select({
-      itemVentaId: itemsVenta.id,
-      ventaId: itemsVenta.ventaId,
-      precioUnitario: itemsVenta.precioUnitario,
-      cantidad: itemsVenta.cantidad,
-      fechaPagoPrevista: itemsVenta.fechaPagoPrevista,
-      fechaVenta: ventas.fecha,
-      productoNombre: productos.nombre
+      ventaId: ventas.id,
+      montoTotal: ventas.montoTotal,
+      fechaPagoPrevista: ventas.fechaPagoPrevista,
+      fecha: ventas.fecha
     })
-    .from(itemsVenta)
-    .innerJoin(ventas, eq(itemsVenta.ventaId, ventas.id))
-    .innerJoin(productos, eq(itemsVenta.productoId, productos.id))
-    .where(and(eq(ventas.clienteId, clienteId), eq(itemsVenta.tipoPago, 'Crédito')))
+    .from(ventas)
+    .where(and(eq(ventas.clienteId, clienteId), eq(ventas.tipoPago, 'Crédito')))
     // Sin esto, el orden de las filas no está garantizado (puede cambiar
     // entre llamadas, por ejemplo después de un INSERT en otra tabla como
     // `pagos` — no hace falta que toque esta tabla para que el motor decida
-    // devolver las filas en otro orden). Dos Ítems de una misma Venta tienen
-    // la misma `fecha` (la de la Venta), así que el `.sort()` de abajo no
-    // alcanza para desempatarlos: por eso se vio, el 16/11/2026, una fila
-    // "saltando" de posición después de cobrar la otra.
-    .orderBy(itemsVenta.id)
+    // devolver las filas en otro orden) — mismo motivo que ya motivó este
+    // mismo .orderBy() el 16/11/2026.
+    .orderBy(ventas.id)
 
   const deudasItems: DeudaItemVenta[] = []
-  for (const f of filasItems) {
-    const saldo = await calcularSaldoPendienteItem(db, {
-      id: f.itemVentaId,
-      precioUnitario: f.precioUnitario,
-      cantidad: f.cantidad
-    })
-    if (saldo <= 0) continue // ya saldado: no se muestra como deuda
+  for (const v of filasVentas) {
+    const saldo = await calcularSaldoPendienteVenta(db, { id: v.ventaId, montoTotal: v.montoTotal })
+    if (saldo <= 0) continue // ya saldada: no se muestra como deuda
+
+    // Nombres de los productos de la venta, para no perder el detalle que
+    // antes daba el desglose por Ítem de Venta en el saldo del cliente.
+    const filasProductos = await db
+      .select({ productoNombre: productos.nombre })
+      .from(itemsVenta)
+      .innerJoin(productos, eq(itemsVenta.productoId, productos.id))
+      .where(eq(itemsVenta.ventaId, v.ventaId))
+      .orderBy(itemsVenta.id)
+
     deudasItems.push({
       tipo: 'venta',
-      itemVentaId: f.itemVentaId,
-      ventaId: f.ventaId,
-      productoNombre: f.productoNombre,
-      fecha: f.fechaVenta.toISOString(),
-      montoItem: Number(f.precioUnitario) * f.cantidad,
+      ventaId: v.ventaId,
+      productos: filasProductos.map((p) => p.productoNombre),
+      fecha: v.fecha.toISOString(),
+      montoTotal: Number(v.montoTotal),
       saldoPendiente: saldo,
-      fechaPagoPrevista: f.fechaPagoPrevista
+      fechaPagoPrevista: v.fechaPagoPrevista
     })
   }
 
@@ -174,37 +179,33 @@ export async function listarCreditosVencidos(db: Db): Promise<CreditoVencido[]> 
   const hoy = hoyIso()
   const resultado: CreditoVencido[] = []
 
-  const filasItems = await db
+  // Cambio de alcance 22/11/2026: se consulta `ventas` directamente, no
+  // `itemsVenta` — ver nota al principio del archivo.
+  const filasVentas = await db
     .select({
-      itemVentaId: itemsVenta.id,
-      precioUnitario: itemsVenta.precioUnitario,
-      cantidad: itemsVenta.cantidad,
-      fechaPagoPrevista: itemsVenta.fechaPagoPrevista,
+      ventaId: ventas.id,
+      montoTotal: ventas.montoTotal,
+      fechaPagoPrevista: ventas.fechaPagoPrevista,
       clienteId: ventas.clienteId,
       clienteNombre: clientes.nombre
     })
-    .from(itemsVenta)
-    .innerJoin(ventas, eq(itemsVenta.ventaId, ventas.id))
+    .from(ventas)
     .leftJoin(clientes, eq(ventas.clienteId, clientes.id))
     .where(
       and(
-        eq(itemsVenta.tipoPago, 'Crédito'),
-        isNotNull(itemsVenta.fechaPagoPrevista),
-        lt(itemsVenta.fechaPagoPrevista, hoy)
+        eq(ventas.tipoPago, 'Crédito'),
+        isNotNull(ventas.fechaPagoPrevista),
+        lt(ventas.fechaPagoPrevista, hoy)
       )
     )
 
-  for (const f of filasItems) {
+  for (const f of filasVentas) {
     if (f.clienteId === null) continue // cliente casual: sin ficha donde avisar
-    const saldo = await calcularSaldoPendienteItem(db, {
-      id: f.itemVentaId,
-      precioUnitario: f.precioUnitario,
-      cantidad: f.cantidad
-    })
+    const saldo = await calcularSaldoPendienteVenta(db, { id: f.ventaId, montoTotal: f.montoTotal })
     if (saldo <= 0) continue
     resultado.push({
       tipo: 'venta',
-      id: f.itemVentaId,
+      id: f.ventaId,
       clienteId: f.clienteId,
       clienteNombre: f.clienteNombre ?? '—',
       fechaPagoPrevista: f.fechaPagoPrevista as string,

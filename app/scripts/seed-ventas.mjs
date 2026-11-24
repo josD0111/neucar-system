@@ -5,6 +5,12 @@
 // pensado para poder probar el Historial de ventas: el agrupado por día, la
 // paginación ("Cargar 7 días anteriores") y el módulo de Pagos/Cobro.
 //
+// Actualizado 22/11/2026 (cambio de alcance de HU-10, ver entidades-dominio.md,
+// sección 12): tipo_pago/fecha_pago_prevista ahora son por VENTA completa, no
+// por ítem — ya no se puede mezclar Contado y Crédito dentro de la misma
+// venta, así que acá el sorteo de "esCredito" pasó de ser por ítem a ser por
+// venta.
+//
 // A DIFERENCIA de scripts/seed.mjs (productos/categorías/proveedores), este
 // script NO pasa por la API HTTP — escribe directo en la base con SQL. Es
 // la única forma de controlar la `fecha` de una venta: POST /api/ventas
@@ -165,13 +171,17 @@ async function main() {
             contadorGlobal % 4 === 0 ? null : clientes[contadorGlobal % clientes.length]
           const metodoPago = METODOS[contadorGlobal % METODOS.length]
 
+          // tipo_pago es por VENTA completa desde el 22/11/2026 (ver nota al
+          // principio del archivo): se sortea una sola vez por venta, no por
+          // ítem — ya no se puede mezclar Contado y Crédito en una misma venta.
+          const esCredito = contadorGlobal % 3 === 0 // ~1 de cada 3 ventas a crédito
+
           const cantidadItems = 1 + (contadorGlobal % 2) // 1 o 2 ítems
           const itemsAInsertar = []
           for (let i = 0; i < cantidadItems; i++) {
             const compra = compras[(contadorGlobal + i) % compras.length]
             if (compra.cantidadDisponible < 1) continue // sin stock, se omite este ítem
-            const esCredito = (contadorGlobal + i) % 3 === 0 // ~1 de cada 3 ítems a crédito
-            itemsAInsertar.push({ compra, esCredito })
+            itemsAInsertar.push({ compra })
             compra.cantidadDisponible -= 1 // reservado en memoria para el resto del script
           }
           if (itemsAInsertar.length === 0) continue // ninguna compra con stock disponible
@@ -180,34 +190,36 @@ async function main() {
             (acc, it) => acc + Number(it.compra.precioBase),
             0
           )
+          const fechaPagoPrevista = esCredito
+            ? fechaISO10(fechaHaceNDias(dia - 30, 12, 0)) // 30 días después de la venta
+            : null
 
           const { rows: ventaInsertada } = await db.query(
-            `INSERT INTO ventas (cliente_id, usuario_id, fecha, monto_total, metodo_pago, tipo_comprobante)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-            [cliente?.id ?? null, usuarioId, fecha, montoTotal, metodoPago, MARCADOR]
+            `INSERT INTO ventas
+               (cliente_id, usuario_id, fecha, monto_total, metodo_pago, tipo_comprobante, tipo_pago, fecha_pago_prevista)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+            [
+              cliente?.id ?? null,
+              usuarioId,
+              fecha,
+              montoTotal,
+              metodoPago,
+              MARCADOR,
+              esCredito ? 'Crédito' : 'Contado',
+              fechaPagoPrevista
+            ]
           )
           const ventaId = ventaInsertada[0].id
 
-          for (const { compra, esCredito } of itemsAInsertar) {
+          for (const { compra } of itemsAInsertar) {
             const precio = Number(compra.precioBase)
-            const fechaPagoPrevista = esCredito
-              ? fechaISO10(fechaHaceNDias(dia - 30, 12, 0)) // 30 días después de la venta
-              : null
 
-            const { rows: itemInsertado } = await db.query(
+            await db.query(
               `INSERT INTO items_venta
-                 (venta_id, producto_id, compra_id, cantidad, precio_base, precio_unitario, tipo_pago, fecha_pago_prevista)
-               VALUES ($1, $2, $3, 1, $4, $4, $5, $6) RETURNING id`,
-              [
-                ventaId,
-                compra.productoId,
-                compra.id,
-                precio,
-                esCredito ? 'Crédito' : 'Contado',
-                fechaPagoPrevista
-              ]
+                 (venta_id, producto_id, compra_id, cantidad, precio_base, precio_unitario)
+               VALUES ($1, $2, $3, 1, $4, $4)`,
+              [ventaId, compra.productoId, compra.id, precio]
             )
-            const itemId = itemInsertado[0].id
 
             // Descuenta el stock real, igual que haría registrarVenta.
             await db.query(
@@ -217,34 +229,34 @@ async function main() {
             await db.query('UPDATE productos SET stock = stock - 1 WHERE id = $1', [
               compra.productoId
             ])
+          }
 
-            if (!esCredito) {
-              // Contado: pago automático por el total, mismo día (ver
-              // entidades-dominio.md, 7.2).
+          if (!esCredito) {
+            // Contado: pago automático por el total de la venta, mismo día
+            // (ver entidades-dominio.md, 7.2 y 12).
+            await db.query(
+              'INSERT INTO pagos (venta_id, monto, fecha, metodo_pago) VALUES ($1, $2, $3, $4)',
+              [ventaId, montoTotal, fecha, metodoPago]
+            )
+          } else {
+            const patron = PATRONES_CREDITO[contadorGlobal % PATRONES_CREDITO.length]
+            if (patron === 'parcial') {
               await db.query(
-                'INSERT INTO pagos (item_venta_id, monto, fecha, metodo_pago) VALUES ($1, $2, $3, $4)',
-                [itemId, precio, fecha, metodoPago]
+                'INSERT INTO pagos (venta_id, monto, fecha, metodo_pago) VALUES ($1, $2, $3, $4)',
+                [
+                  ventaId,
+                  Math.round(montoTotal / 2),
+                  fechaHaceNDias(Math.max(dia - 10, 0), 10, 0),
+                  'Efectivo'
+                ]
               )
-            } else {
-              const patron = PATRONES_CREDITO[contadorGlobal % PATRONES_CREDITO.length]
-              if (patron === 'parcial') {
-                await db.query(
-                  'INSERT INTO pagos (item_venta_id, monto, fecha, metodo_pago) VALUES ($1, $2, $3, $4)',
-                  [
-                    itemId,
-                    Math.round(precio / 2),
-                    fechaHaceNDias(Math.max(dia - 10, 0), 10, 0),
-                    'Efectivo'
-                  ]
-                )
-              } else if (patron === 'pagado') {
-                await db.query(
-                  'INSERT INTO pagos (item_venta_id, monto, fecha, metodo_pago) VALUES ($1, $2, $3, $4)',
-                  [itemId, precio, fechaHaceNDias(Math.max(dia - 15, 0), 10, 0), 'Efectivo']
-                )
-              }
-              // 'sin_pago': no se inserta nada, queda con saldo pendiente completo.
+            } else if (patron === 'pagado') {
+              await db.query(
+                'INSERT INTO pagos (venta_id, monto, fecha, metodo_pago) VALUES ($1, $2, $3, $4)',
+                [ventaId, montoTotal, fechaHaceNDias(Math.max(dia - 15, 0), 10, 0), 'Efectivo']
+              )
             }
+            // 'sin_pago': no se inserta nada, queda con saldo pendiente completo.
           }
 
           ventasCreadas++

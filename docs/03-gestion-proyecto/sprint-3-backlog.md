@@ -4,6 +4,10 @@
 
 **Nota sobre el estado de este backlog:** a diferencia de `sprint-1-backlog.md` y `sprint-2-backlog.md`, que arrancaban sobre historias de usuario ya cerradas con el dueño, varios puntos de este backlog dependen de reglas de negocio que el dueño no terminó de precisar en la reunión de cierre (ver `desiciones-alcance.md`, sección 7.6). Esos puntos están marcados explícitamente como **bloqueados** más abajo — conviene no empezar a programarlos hasta resolver la pregunta abierta correspondiente, para no repetir el problema que motivó la revisión de documentación del 20/11/2026 (decisiones tomadas "sobre la marcha" sin dejar rastro).
 
+---
+
+**Actualización 23/11/2026 — 24/11/2026:** El punto 1 (Ventas) quedó completamente implementado y verificado (typecheck 0 errores). El cambio de modelo de datos (crédito a nivel de Venta) se realizó el 23/11/2026. La pantalla `VentaScreen.tsx` y todos sus componentes auxiliares se ensamblaron y validaron durante los días 23 y 24/11/2026. Refinamientos de UX adicionales aplicados el 24/11/2026: formato Gs. en precio unitario con miles en vivo, restricción `+Nuevo cliente` exclusiva para Administrador, y helper compartido `formatoMoneda.ts` (funciones `gs` y `posicionTrasNDigitos`).
+
 ## Objetivo del sprint
 
 Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo flujo de carga para Ventas más parecido al sistema que ya usa, separar Compras de Control de Stock, agregar marcas de producto, acotar más el rol Empleado a solo-lectura, mejorar la presentación visual, y dejar encaminado (sin necesariamente cerrar del todo) el pedido de kilometraje/próximo mantenimiento.
@@ -17,12 +21,25 @@ Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo fluj
 
 ## 1. Ventas — nuevo flujo y pago inicial obligatorio (HU-39, HU-40)
 
-- [ ] **Bloqueado parcialmente** (ver `desiciones-alcance.md`, sección 7.6): confirmar con el dueño (o decidir en equipo, dejándolo registrado) si la búsqueda de producto en el nuevo flujo es por nombre, por código, o ambos, antes de construir la pantalla.
-- [ ] Rediseñar `VentaScreen.tsx` sobre un patrón de buscador: campo de búsqueda de producto → tabla de ítems de la venta en curso → al seleccionar una fila, editar sus datos (cantidad, lote, precio, forma de pago) en una sección aparte. No cambia ninguna regla de negocio ya implementada (selección manual de lote, bloqueo por stock insuficiente, permisos por rol — HU-17/HU-17.1/HU-18/HU-20), solo el flujo de pantalla.
-- [ ] Sección aparte para datos del cliente, visible/activa cuando algún ítem de la venta es a crédito (reemplaza el campo de cliente actual, que no está separado visualmente del resto del formulario).
-- [ ] Validar en el servicio (`services/ventas.ts`) que un ítem a crédito tenga un pago inicial mayor a cero registrado en la misma transacción de alta — reutilizando el mecanismo de Pago ya existente, no uno nuevo (HU-39). Mismo criterio para Órdenes de Servicio a crédito (`services/ordenesServicio.ts`/`services/pagos.ts`), ya que el pedido del dueño no distinguió entre ventas de productos y servicios.
-- [ ] Reflejar el pago inicial en el formulario: un campo de monto, con su propia forma de pago, que se envía junto con la venta/orden.
-- [ ] Revisar el comprobante de venta (HU-21, PDF) para que, si corresponde, muestre el pago inicial recibido y el saldo restante — a confirmar si hace falta un ajuste acá o alcanza con lo que ya genera `calcularSaldoPendienteItem`.
+*Planificado en detalle el 22/11/2026 sobre un prototipo HTML construido por el equipo (ver HU-40 en `historias-usuario.md` para los criterios de aceptación completos, y `desiciones-alcance.md`, sección 7.7, para las decisiones que salieron de esa planificación). La búsqueda de producto, antes bloqueada (sección 7.6), queda resuelta: por nombre, marca o código.*
+
+**Cambio de modelo de datos (previo a tocar la pantalla):**
+- [x] Mover `tipo_pago`, `fecha_pago_prevista` y `saldo_pendiente` (calculado) de `itemsVenta` a `ventas` en `schema.ts` — revierte la decisión del 23/10/2026 de manejar el crédito por ítem (ver `entidades-dominio.md`, sección 12). Implica una migración: estos tres conceptos pasan a aplicar a toda la Venta, no por producto.
+- [x] Cambiar `pagos.itemVentaId` por `pagos.ventaId` (la referencia circular lazy con `AnyPgColumn` se mantiene, pero apunta a `ventas` en vez de `itemsVenta`).
+- [x] Actualizar `services/ventas.ts`: `registrarVenta` pasa a recibir un único `tipoPago` para toda la venta (no por ítem), valida que un `tipoPago = 'Crédito'` venga con pago inicial > 0, y genera el Pago automático de contado sobre la Venta completa, no por ítem.
+- [x] Actualizar `services/pagos.ts` y `services/saldoClientes.ts` para calcular `saldoPendiente` sobre `ventas` en vez de `itemsVenta` (mismo cálculo que ya usan para `ordenesServicio`, que no cambia).
+- [x] Actualizar los endpoints en `api/server.ts`/`api/routes` que hoy asumen `tipo_pago` por ítem.
+- [ ] **Importante, a comunicarle al dueño antes de cerrar este punto:** con este cambio, una venta ya no admite mezclar productos al contado y a crédito en la misma operación (si eso pasara en la práctica, habría que registrar dos ventas separadas) — ver `desiciones-alcance.md`, sección 7.7.
+
+**Pantalla (`VentaScreen.tsx`), siguiendo la estructura del prototipo:**
+- [x] **Franja A — búsqueda y condición:** A1) buscador de producto por nombre/marca/código con tabla de resultados (producto, marca, stock, precio base); A2) sección de Cliente y Condición de la venta completa (toggle Contado/Crédito a nivel de toda la venta, búsqueda de cliente existente + botón "+Nuevo" con modal de alta rápida — cédula y RUC como campos separados, más teléfono). Botón "+Nuevo" solo visible para Administrador (refinamiento 24/11/2026).
+- [x] **Franja B — edición del ítem seleccionado:** al elegir un producto (de la búsqueda) o una fila de la tabla de detalle (Franja C), se carga una sección de edición aparte con: código/producto (solo lectura), selector de lote de Compra (mostrando `cantidad_disponible` y `garantía_proveedor` de cada lote — selección manual, no FIFO, sin cambios respecto de Sprint 2), precio unitario editable con formato Gs. y miles en vivo para Administrador / solo lectura formateado para Empleado (refinamiento 24/11/2026), cantidad editable, garantía ofrecida, y botones Agregar/Actualizar ítem + Cancelar edición. Foco inteligente con Enter entre campos.
+- [x] **Franja C — tabla de detalle de la venta:** productos agregados hasta el momento (columnas: Lote legible con proveedor y fecha, Garantía, Cant., Precio unit., Subtotal), click en una fila para editarla en la Franja B, botón de eliminar por fila, cabecera sticky.
+- [x] **Franja D — footer:** método de pago de la venta (HU-19, ya existente a nivel de Venta, sin cambios de alcance), total a pagar en Gs., botones Cancelar Venta / Guardar Venta.
+- [x] **Modal de confirmación al guardar una venta a crédito:** si `tipoPago = Crédito`, al presionar "Guardar Venta" se abre un modal pidiendo el pago inicial (monto + forma de pago, validado > 0 — HU-39) y la `fecha_pago_prevista` (con la fecha sugerida por defecto, editable — HU-10.2). Si es al contado, se guarda directo, sin modal. Pago inicial formateado con miles en vivo y saldo pendiente calculado en tiempo real.
+- [x] **Rol Empleado:** mismo componente `VentaScreen.tsx`, no uno aparte — se condiciona por props/rol para que el Empleado solo pueda usarlo en modo "calculadora" (HU-17/HU-17.1), sin poder confirmar el registro de la venta. Sin acceso a "+Nuevo cliente" ni a precio editable.
+- [x] No cambia ninguna otra regla de negocio ya implementada (selección manual de lote, bloqueo por stock insuficiente, permisos de descuento — HU-17/HU-18/HU-20), solo el flujo de pantalla y el nivel al que vive el crédito.
+- [ ] Revisar el comprobante de venta (HU-21, PDF) para que, si corresponde, muestre el pago inicial recibido y el saldo restante de la Venta — a confirmar si hace falta un ajuste acá o alcanza con lo que ya genera el cálculo de saldo pendiente (ahora a nivel de Venta).
 
 ## 2. Compras — sección propia, con historial separado (HU-38)
 

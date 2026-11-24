@@ -1,8 +1,8 @@
 // src/main/services/pagos.ts
 //
-// Servicio de negocio de Pagos sobre Ítems de Venta (Fase 3 del reparto —
-// ver docs/03-gestion-proyecto/tareas-ventas-creditopagos-deudatecnica.md)
-// y sobre Órdenes de Servicio (Fase 5, agregada el 15/11/2026 — ver
+// Servicio de negocio de Pagos sobre Ventas (Fase 3 del reparto — ver
+// docs/03-gestion-proyecto/tareas-ventas-creditopagos-deudatecnica.md) y
+// sobre Órdenes de Servicio (Fase 5, agregada el 15/11/2026 — ver
 // entidades-dominio.md, sección 7.2). Ambos comparten archivo porque son el
 // mismo concepto (un abono contra un saldo pendiente) con dos orígenes
 // distintos; cada bloque de funciones está separado más abajo.
@@ -10,8 +10,8 @@
 // Decisiones de diseño aplicadas acá:
 //
 // - `saldo_pendiente` NO se guarda como columna: se calcula siempre como
-//   (precioUnitario * cantidad) − suma(pagos.monto) del ítem (ver
-//   entidades-dominio.md, secciones 7.1 y 7.2).
+//   (montoTotal) − suma(pagos.monto) de la Venta/Orden (ver
+//   entidades-dominio.md, sección 7 y 12).
 // - Pago que excede el saldo pendiente (HU-10.1): no se rechaza, pero
 //   tampoco genera saldo a favor. El `monto` que se persiste queda limitado
 //   (clamp) al saldo pendiente exacto. El "vuelto" (lo que sobra) es
@@ -24,17 +24,24 @@
 //   diseño pendiente de entidades-dominio.md, sección 7.2: así
 //   `saldo_pendiente` se calcula exactamente igual para Contado y Crédito,
 //   sin casos especiales. Por eso acá alcanza con mirar si todavía queda
-//   saldo pendiente > 0, en vez de distinguir el tipo de pago del ítem.
+//   saldo pendiente > 0, en vez de distinguir el tipo de pago.
+//
+// Cambio de alcance (22/11/2026, planificación técnica del Sprint 3, punto
+// 1 — ver entidades-dominio.md, sección 12): el crédito de Venta se movió
+// de Ítem de Venta a Venta completa, mismo criterio que ya usaba Orden de
+// Servicio. `calcularSaldoPendienteItem`/`registrarPagoItem`/`listarPagosItem`
+// (por Ítem de Venta) se reemplazan acá por `calcularSaldoPendienteVenta`/
+// `registrarPagoVenta`/`listarPagosVenta` (por Venta completa).
 
 import { eq } from 'drizzle-orm'
 import type { Db } from '../api/server'
-import { itemsVenta, ordenesServicio, pagos } from '../db/schema'
+import { ordenesServicio, pagos, ventas } from '../db/schema'
 
 const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'QR'] as const
 export type MetodoPago = (typeof METODOS_PAGO)[number]
 
 export type Pago = typeof pagos.$inferSelect
-type ItemVenta = typeof itemsVenta.$inferSelect
+type Venta = typeof ventas.$inferSelect
 type OrdenServicioFila = typeof ordenesServicio.$inferSelect
 
 export interface PagoInput {
@@ -91,38 +98,38 @@ function validarForma(body: unknown): Resultado<PagoInput> {
   return { ok: true, data: { monto, metodoPago, fechaPagoPrevista } }
 }
 
-// Saldo pendiente de un Ítem de Venta: (precioUnitario * cantidad) - pagos.
-// Expuesto para que otras capas (Fase 6, saldo de cliente) lo reutilicen sin
-// duplicar la fórmula. Nunca negativo: un pago nunca puede generar saldo a
-// favor (ver nota de diseño arriba), así que en condiciones normales nunca
-// baja de 0 — se protege igual por las dudas (redondeos).
-export async function calcularSaldoPendienteItem(
+// Saldo pendiente de una Venta: montoTotal - pagos (cambio de alcance
+// 22/11/2026: antes era por Ítem de Venta — ver nota al principio del
+// archivo). Expuesto para que otras capas (Fase 6, saldo de cliente) lo
+// reutilicen sin duplicar la fórmula. Nunca negativo: un pago nunca puede
+// generar saldo a favor (ver nota de diseño arriba), así que en condiciones
+// normales nunca baja de 0 — se protege igual por las dudas (redondeos).
+export async function calcularSaldoPendienteVenta(
   db: Db,
-  item: Pick<ItemVenta, 'id' | 'precioUnitario' | 'cantidad'>
+  venta: Pick<Venta, 'id' | 'montoTotal'>
 ): Promise<number> {
-  const montoItem = Number(item.precioUnitario) * item.cantidad
-  const pagosDelItem = await db.select().from(pagos).where(eq(pagos.itemVentaId, item.id))
-  const pagado = pagosDelItem.reduce((acc, p) => acc + Number(p.monto), 0)
-  const saldo = montoItem - pagado
+  const pagosDeVenta = await db.select().from(pagos).where(eq(pagos.ventaId, venta.id))
+  const pagado = pagosDeVenta.reduce((acc, p) => acc + Number(p.monto), 0)
+  const saldo = Number(venta.montoTotal) - pagado
   return saldo > 0 ? saldo : 0
 }
 
-// Pagos registrados sobre un Ítem de Venta puntual, más recientes primero.
-export async function listarPagosItem(db: Db, itemVentaId: number): Promise<Resultado<Pago[]>> {
-  const [item] = await db.select().from(itemsVenta).where(eq(itemsVenta.id, itemVentaId))
-  if (!item) return { ok: false, status: 404, mensaje: 'Ítem de venta no encontrado.' }
+// Pagos registrados sobre una Venta puntual, más recientes primero.
+export async function listarPagosVenta(db: Db, ventaId: number): Promise<Resultado<Pago[]>> {
+  const [venta] = await db.select().from(ventas).where(eq(ventas.id, ventaId))
+  if (!venta) return { ok: false, status: 404, mensaje: 'Venta no encontrada.' }
 
-  const filas = await db.select().from(pagos).where(eq(pagos.itemVentaId, itemVentaId))
+  const filas = await db.select().from(pagos).where(eq(pagos.ventaId, ventaId))
   return { ok: true, data: filas.sort((a, b) => b.fecha.getTime() - a.fecha.getTime()) }
 }
 
-// Registra un pago (abono/cuota) sobre un Ítem de Venta a crédito. Una venta
+// Registra un pago (abono/cuota) sobre una Venta a crédito. Una venta
 // Contado ya quedó pagada al registrarse (ver nota de diseño arriba), así
 // que acá se rechaza explícitamente para ese caso, con un mensaje claro en
 // vez de dejar que el clamp a saldo-0 lo explique indirectamente.
-export async function registrarPagoItem(
+export async function registrarPagoVenta(
   db: Db,
-  itemVentaId: number,
+  ventaId: number,
   body: unknown
 ): Promise<Resultado<Pago>> {
   const v = validarForma(body)
@@ -131,24 +138,23 @@ export async function registrarPagoItem(
 
   try {
     const pago = await db.transaction(async (tx) => {
-      const [item] = await tx.select().from(itemsVenta).where(eq(itemsVenta.id, itemVentaId))
-      if (!item) {
-        throw new ErrorValidacionPago(404, 'Ítem de venta no encontrado.')
+      const [venta] = await tx.select().from(ventas).where(eq(ventas.id, ventaId))
+      if (!venta) {
+        throw new ErrorValidacionPago(404, 'Venta no encontrada.')
       }
-      if (item.tipoPago === 'Contado') {
+      if (venta.tipoPago === 'Contado') {
         throw new ErrorValidacionPago(
           400,
-          'Este ítem fue vendido al contado: ya quedó pagado al registrarse la venta.'
+          'Esta venta fue registrada al contado: ya quedó pagada al registrarse.'
         )
       }
 
-      const pagosDelItem = await tx.select().from(pagos).where(eq(pagos.itemVentaId, itemVentaId))
-      const pagado = pagosDelItem.reduce((acc, p) => acc + Number(p.monto), 0)
-      const montoItem = Number(item.precioUnitario) * item.cantidad
-      const saldoPendiente = Math.max(montoItem - pagado, 0)
+      const pagosDeVenta = await tx.select().from(pagos).where(eq(pagos.ventaId, ventaId))
+      const pagado = pagosDeVenta.reduce((acc, p) => acc + Number(p.monto), 0)
+      const saldoPendiente = Math.max(Number(venta.montoTotal) - pagado, 0)
 
       if (saldoPendiente <= 0) {
-        throw new ErrorValidacionPago(400, 'Este ítem ya no tiene saldo pendiente.')
+        throw new ErrorValidacionPago(400, 'Esta venta ya no tiene saldo pendiente.')
       }
 
       // Clamp (HU-10.1, ver nota de diseño arriba): el excedente entregado
@@ -158,11 +164,11 @@ export async function registrarPagoItem(
 
       const [filaPago] = await tx
         .insert(pagos)
-        .values({ itemVentaId, monto: String(montoAPersistir), metodoPago })
+        .values({ ventaId, monto: String(montoAPersistir), metodoPago })
         .returning()
 
       if (fechaPagoPrevista !== undefined) {
-        await tx.update(itemsVenta).set({ fechaPagoPrevista }).where(eq(itemsVenta.id, itemVentaId))
+        await tx.update(ventas).set({ fechaPagoPrevista }).where(eq(ventas.id, ventaId))
       }
 
       return filaPago

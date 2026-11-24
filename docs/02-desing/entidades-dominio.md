@@ -129,7 +129,7 @@ Registra la adquisición de uno o más unidades de un Producto a un Proveedor, e
 
 ## 7. Venta
 
-Registra la venta de uno o más Productos a un Cliente (o cliente casual). El tipo de pago (contado/crédito) **ya no vive acá**, sino en cada Ítem de Venta — ver la corrección explicada más abajo (sección 12).
+Registra la venta de uno o más Productos a un Cliente (o cliente casual). El tipo de pago (contado/crédito) vive acá, a nivel de la Venta completa — **no por Ítem**, mismo criterio que usa Orden de Servicio (sección 9). *Nota histórica: entre el 23/10/2026 y el 22/11/2026 este documento tuvo el tipo de pago a nivel de Ítem de Venta (ver el recorrido completo, ya superado, en la sección 12); se revirtió a nivel de Venta completa — ver sección 12 para el detalle de por qué.*
 
 | Atributo | Descripción |
 |---|---|
@@ -139,16 +139,20 @@ Registra la venta de uno o más Productos a un Cliente (o cliente casual). El ti
 | fecha | Fecha de la operación |
 | monto_total | Suma de los ítems vendidos |
 | tipo_comprobante | Factura común \| Factura electrónica (futuro) |
-| método_pago | Efectivo \| Tarjeta \| Transferencia \| QR (HU-19). Columna agregada durante la implementación del Sprint 2 (24/10/2026), sin reflejarse antes en este documento. Vive a nivel de Venta completa, no por Ítem, porque así lo pide la HU; para un ítem a crédito es el método "de referencia" de la operación, y el método real de cada cuota se registra aparte en `Pago.método_pago` al cobrarla |
+| método_pago | Efectivo \| Tarjeta \| Transferencia \| QR (HU-19). Columna agregada durante la implementación del Sprint 2 (24/10/2026), sin reflejarse antes en este documento. Vive a nivel de Venta completa, no por Ítem, porque así lo pide la HU; para una venta a crédito es el método "de referencia" de la operación, y el método real de cada cuota se registra aparte en `Pago.método_pago` al cobrarla |
+| tipo_pago | Contado \| Crédito (HU-10). **Agregado 22/11/2026**, movido desde Ítem de Venta (ver nota ahí): el crédito se decidió a nivel de la venta completa, no por ítem — mismo criterio que ya usa Orden de Servicio (sección 9, `tipo_pago`). Una venta no puede tener ítems mixtos contado/crédito |
+| fecha_pago_prevista | Fecha sugerida (editable) para la próxima cuota, solo si `tipo_pago = 'Crédito'` (HU-10.2). **Agregado 22/11/2026**, movido desde Ítem de Venta por el mismo motivo que `tipo_pago` |
+| saldo_pendiente | No se guarda como columna fija: se calcula en la capa de lógica de negocio a partir de (`monto_total` − suma de `Pago.monto` asociados a esta Venta), solo si `tipo_pago = 'Crédito'`. **Agregado 22/11/2026**, movido desde Ítem de Venta |
 
 **Relaciones:**
 - Una Venta **pertenece** a (opcionalmente) un Cliente.
 - Una Venta **es registrada por** un Usuario.
 - Una Venta tiene muchos **Ítems de Venta**.
+- Una Venta (cuando es a crédito) tiene muchos **Pagos**. **Agregado 22/11/2026**: antes era el Ítem de Venta el que tenía esta relación — ver nota de cambio en sección 12 y en sección 7.1.
 
 ### 7.1 Ítem de Venta
 
-Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Productos). **El tipo de pago se define acá, por ítem**, para poder resolver casos como "compré 3 productos, 1 al contado y 2 a crédito" (ver sección 12). **Siempre referencia el lote de Compra específico del cual se descontó stock**, ya que el propio mecanismo de descuento de stock lo requiere (ver corrección detallada en sección 14) — no es una decisión opcional de negocio, sino una consecuencia de cómo se modela el stock.
+Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Productos). El tipo de pago **no se define acá**: vive a nivel de toda la Venta (sección 7) — ver nota de cambio en sección 12. **Siempre referencia el lote de Compra específico del cual se descontó stock**, ya que el propio mecanismo de descuento de stock lo requiere (ver corrección detallada en sección 14) — no es una decisión opcional de negocio, sino una consecuencia de cómo se modela el stock.
 
 | Atributo | Descripción |
 |---|---|
@@ -160,9 +164,8 @@ Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Pro
 | precio_base | Snapshot del `precio_base` del Producto vigente al momento de la venta. Columna agregada durante la implementación del Sprint 2 (24/10/2026), sin reflejarse antes en este documento. Necesaria porque `Producto.precio_base` puede editarse después, y el dueño no pidió un histórico de cambios de precio (ver `desiciones-alcance.md`, sección 7.1) — sin este snapshot, la trazabilidad de precio base vs. precio final que exige HU-18 se perdería en cuanto alguien edite el producto. |
 | precio_unitario | Precio aplicado (puede diferir del precio_base si hubo descuento — ver HU-18) |
 | garantía_ofrecida | Garantía otorgada al cliente para ese producto en esa venta. No debe superar la `garantía_proveedor` del lote referenciado en `compra_id` — ver HU-06. Si ese lote no tiene garantía de proveedor cargada (producto sin garantía aplicable), este campo queda a criterio del Administrador. |
-| tipo_pago | Contado \| Crédito — aplica a este ítem puntual, no a toda la Venta |
-| saldo_pendiente | Calculado: (precio_unitario × cantidad) − suma de Pagos asociados a este ítem. Si tipo_pago es Contado, siempre es 0. |
-| fecha_pago_prevista | Fecha en la que el cliente debería venir a pagar (toda o la próxima cuota) cuando tipo_pago es Crédito. Nulo si es Contado. Ver nota de diseño en sección 12.1 |
+
+*Nota — campos removidos (22/11/2026): este detalle tuvo, entre el 23/10/2026 y el 22/11/2026, sus propios `tipo_pago`, `saldo_pendiente` y `fecha_pago_prevista` a nivel de ítem individual. Se revirtió esa decisión y esos tres campos ahora viven únicamente en Venta (sección 7) — ver el porqué en la sección 12.*
 
 **Relaciones:**
 - Un Ítem de Venta **pertenece** a una Venta.
@@ -170,25 +173,24 @@ Detalle de cada producto dentro de una Venta (una Venta puede incluir varios Pro
 - Un Ítem de Venta **referencia** una Compra (obligatorio: el lote específico de origen de la unidad vendida).
 
 *Nota — reparto entre lotes (actualizada 23/10/2026, ver resolución en sección 14): si la cantidad solicitada de un Producto en una Venta supera la `cantidad_disponible` de un solo lote, hacen falta **más de un Ítem de Venta** para ese mismo Producto dentro de la misma Venta, uno por cada lote del cual efectivamente se descontó stock, cada uno con su propio `compra_id` y la porción de `cantidad` correspondiente a ese lote. Se resolvió que esto **no es automático**: el equipo decidió selección manual de lote (no PEPS/FIFO), así que es el Administrador quien arma, ítem por ítem, de qué Compra sale cada porción — viendo en pantalla las Compras disponibles con su `cantidad_disponible` y `garantía_proveedor`.*
-- Un Ítem de Venta (cuando es a crédito) tiene muchos **Pagos**.
 
 ## 7.2 Pago
 
-Registra cada abono/cuota que un cliente realiza para saldar una deuda, ya sea de un Ítem de Venta o de una Orden de Servicio. Es la pieza que faltaba para poder registrar pagos parciales en el tiempo.
+Registra cada abono/cuota que un cliente realiza para saldar una deuda, ya sea de una Venta o de una Orden de Servicio. Es la pieza que faltaba para poder registrar pagos parciales en el tiempo.
 
 | Atributo | Descripción |
 |---|---|
 | id | Identificador único |
-| item_venta_id | Ítem de Venta que se está pagando (nulo si el pago corresponde a una Orden de Servicio) |
-| orden_servicio_id | Orden de Servicio que se está pagando (nulo si el pago corresponde a un Ítem de Venta) |
+| venta_id | Venta que se está pagando (nulo si el pago corresponde a una Orden de Servicio). **Modificado 22/11/2026**: antes era `item_venta_id` (referenciaba el Ítem de Venta puntual); ahora referencia la Venta completa, acompañando el cambio de `tipo_pago` a nivel de Venta — ver sección 12 |
+| orden_servicio_id | Orden de Servicio que se está pagando (nulo si el pago corresponde a una Venta) |
 | monto | Monto abonado en este pago |
 | fecha | Fecha del pago |
 | método_pago | Efectivo, tarjeta, transferencia, QR |
 
 **Relaciones:**
-- Un Pago **pertenece** a (excluyentemente) un Ítem de Venta **o** una Orden de Servicio, nunca ambos ni ninguno.
+- Un Pago **pertenece** a (excluyentemente) una Venta **o** una Orden de Servicio, nunca ambos ni ninguno.
 
-**Resuelto por el equipo (25/10/2026) — Pago automático en ítems al contado:** se optó por la segunda alternativa que dejaba abierta la nota original: un Ítem de Venta al contado genera automáticamente, dentro de la misma transacción de `registrarVenta`, un Pago por su monto total completo (ver `services/ventas.ts`). Motivo: con un único mecanismo, `saldo_pendiente` (= monto − suma de Pagos) se calcula exactamente igual para Contado y Crédito, sin que `services/pagos.ts` ni ninguna pantalla posterior (Fase 6, saldo de cliente) tenga que distinguir el `tipo_pago` del ítem como caso especial. La contrapartida (un Pago "de sistema" por cada venta al contado, no uno que el cliente entregó en mano en ese momento como abono) se consideró aceptable frente a la simplicidad de tener una sola fórmula de saldo.
+**Resuelto por el equipo (25/10/2026) — Pago automático en ventas al contado:** una Venta al contado genera automáticamente, dentro de la misma transacción de `registrarVenta`, un Pago por su monto total completo (ver `services/ventas.ts`). Motivo: con un único mecanismo, `saldo_pendiente` (= monto_total − suma de Pagos) se calcula exactamente igual para Contado y Crédito, sin que `services/pagos.ts` ni ninguna pantalla posterior (Fase 6, saldo de cliente) tenga que distinguir el `tipo_pago` como caso especial. La contrapartida (un Pago "de sistema" por cada venta al contado, no uno que el cliente entregó en mano en ese momento como abono) se consideró aceptable frente a la simplicidad de tener una sola fórmula de saldo. *(Nota 22/11/2026: esta regla originalmente se aplicaba por Ítem de Venta; con el cambio de alcance de HU-10 pasa a aplicarse a la Venta completa — ver sección 12.)*
 
 ## 8. Vehículo
 
@@ -236,7 +238,7 @@ Representa la **visita** del cliente al taller. Agrupa los datos que son comunes
 - Una Orden de Servicio tiene uno o muchos **Servicios** (detalle).
 - Una Orden de Servicio (cuando es a crédito) tiene muchos **Pagos**.
 
-*Nota: a diferencia de la Venta (donde `tipo_pago` vive por Ítem — ver sección 12), en la Orden de Servicio el crédito es sobre el total de la visita, no por Servicio individual. Esto es coherente con cómo el dueño maneja el crédito en la práctica: no se mencionó en la entrevista que quiera cobrar una tarea al contado y otra a crédito dentro de la misma visita, sino que el acuerdo de "fiar" se hace sobre el trabajo completo. Si esa necesidad surgiera más adelante, el mismo ajuste que se hizo en Venta (mover `tipo_pago` al detalle) podría replicarse en Servicio.*
+*Nota: en la Orden de Servicio el crédito es sobre el total de la visita, no por Servicio individual — mismo criterio que, desde el 22/11/2026, también usa Venta (ver sección 12). Esto es coherente con cómo el dueño maneja el crédito en la práctica: no se mencionó en la entrevista que quiera cobrar una tarea al contado y otra a crédito dentro de la misma visita, sino que el acuerdo de "fiar" se hace sobre el trabajo completo. Si esa necesidad surgiera más adelante (cobrar un Servicio individual al contado y otro a crédito dentro de la misma Orden), haría falta mover `tipo_pago` de la Orden al Servicio de detalle — el mismo tipo de ajuste que, para Venta, se probó y luego se revirtió (ver sección 12).*
 
 *Nota — eliminación de `garantía_dias` (actualizado tras entrevista 10/09/2026): el modelo original incluía un campo `garantía_dias` opcional sobre el trabajo completo de la visita. La entrevista del 10/09/2026 aclaró explícitamente que **no es necesario registrar la garantía de los servicios ofrecidos**: cuando se termina una orden, se prueba el vehículo con el cliente en el momento, y los pocos casos de reclamo posterior los gestiona el dueño directamente, sin que el sistema necesite llevar un control formal de vigencia de garantía. Por eso se quita el campo del modelo. Lo que sí se mantiene (y es lo que el dueño pidió explícitamente) es el **historial de servicios aplicados al vehículo** — ver sección 9.1 y HU-26 — para poder consultar qué se hizo y cuándo, sin necesidad de una garantía formal asociada.*
 
@@ -307,32 +309,35 @@ Durante el análisis surgió una tensión que no está resuelta y que **afecta d
 
 **Actualización (entrevista 10/09/2026) — dilema parcialmente resuelto a favor del detalle:** el dueño confirmó, sin que se le preguntara puntualmente por este dilema, que *sí* le interesa el detalle: *"Al dueño le interesa poder ver el detalle de una orden de servicio. Saber los servicios realizados, los precios unitario de cada servicio, las partes afectadas."* Esto valida el enfoque elegido (Orden de Servicio + Servicio como detalle granular) y además confirma que detallar servicio por servicio, con su monto individual, **no le genera carga adicional** — es justamente lo que pidió. Lo que sigue sin confirmarse es el alcance exacto del campo `detalle`/"partes afectadas" (ver campo `detalle` agregado en sección 9.1): no quedó claro en qué servicios aplica y con qué estructura, más allá del ejemplo de cantidad de ruedas en alineación/balanceo.
 
-## 12. Validación del modelo: caso de pagos mixtos y parciales
+## 12. Validación del modelo: caso de pagos mixtos y parciales — y su posterior reversión (22/11/2026)
 
-Este caso puso en evidencia una falla real del modelo anterior, que ya se corrigió arriba (secciones 7, 7.1, 7.2). Se documenta el recorrido completo para dejar registro de por qué se hizo el cambio y cómo queda resuelto.
+Esta sección documenta un recorrido en dos pasos: primero se detectó una falla real (23/10/2026) y se resolvió moviendo el crédito a nivel de Ítem de Venta; después, al planificar el Sprint 3 contra el prototipo de pantalla de Ventas, el equipo decidió **revertir** ese cambio y volver el crédito a nivel de Venta completa (22/11/2026). Se mantiene el recorrido completo (en vez de borrar el paso intermedio) para que quede registro de por qué se tomó, y por qué se deshizo.
 
-**Caso planteado:** un cliente compra 3 productos distintos en una misma visita. Paga 1 al contado. Para los otros 2 llega a un acuerdo de crédito con el dueño, y los va pagando de a cuotas. Más adelante, junta dinero extra y termina de pagar por completo uno de los dos productos a crédito, mientras que el otro sigue con cuotas pendientes.
+**Caso planteado (23/10/2026):** un cliente compra 3 productos distintos en una misma visita. Paga 1 al contado. Para los otros 2 llega a un acuerdo de crédito con el dueño, y los va pagando de a cuotas. Más adelante, junta dinero extra y termina de pagar por completo uno de los dos productos a crédito, mientras que el otro sigue con cuotas pendientes.
 
-**Por qué el modelo anterior fallaba:**
+**Por qué el modelo original (anterior al 23/10/2026) fallaba:**
 - `tipo_pago` estaba en **Venta**, no por producto → no se podía tener 1 producto contado y 2 a crédito dentro de la misma Venta.
 - No existía ninguna entidad para registrar pagos parciales → no había forma de reflejar "abonó 30.000 Gs. de este producto" ni de saber cuánto queda pendiente.
 
-**Cómo queda resuelto con el modelo corregido:**
+**Cómo se resolvió entre el 23/10/2026 y el 22/11/2026 (modelo ya superado, se deja como referencia):** se movió `tipo_pago`, `saldo_pendiente` y `fecha_pago_prevista` de Venta a Ítem de Venta, permitiendo que cada producto de una misma venta tuviera su propia condición de pago (Ítem 1 contado, Ítems 2 y 3 a crédito, cada uno con su propio `saldo_pendiente` y sus propios Pagos vía `item_venta_id`).
 
-1. Se crea **una Venta** con **3 Ítems de Venta** (uno por producto).
-2. Ítem 1 (contado): `tipo_pago = Contado`, `saldo_pendiente = 0` desde el inicio.
-3. Ítem 2 y 3 (crédito): `tipo_pago = Crédito`, `saldo_pendiente = precio_unitario × cantidad` al momento de la venta.
-4. Cada vez que el cliente abona una cuota de, por ejemplo, el Ítem 2, se crea un registro de **Pago** con `item_venta_id` = Ítem 2 y el `monto` abonado. El `saldo_pendiente` del Ítem 2 se recalcula automáticamente restando ese pago.
-5. Cuando el cliente termina de pagar el Ítem 2 por completo (sea con varias cuotas normales o con un pago grande de golpe), la suma de sus Pagos iguala su monto original → `saldo_pendiente = 0`. El Ítem 2 queda saldado, sin afectar en nada al Ítem 3, que sigue teniendo su propio `saldo_pendiente` independiente y sus propios Pagos.
-6. El **saldo total del Cliente** (HU-11) se calcula sumando el `saldo_pendiente` de todos sus Ítems de Venta y Órdenes de Servicio a crédito — en este punto del ejemplo, sería únicamente lo que falta del Ítem 3.
-7. Para mostrar **a qué corresponde** ese saldo, se lista cada Ítem de Venta/Orden de Servicio a crédito con saldo > 0, junto con su producto/servicio, fecha y monto original — información que ya está disponible en el modelo sin necesidad de campos adicionales.
+**Por qué se revirtió (22/11/2026):** al planificar el Sprint 3, el equipo encaró el rediseño de la pantalla de Ventas (ver `sprint-3-backlog.md`, punto 1) junto con un prototipo construido por el equipo. Dos motivos llevaron a decidir volver el crédito a nivel de Venta completa, no por ítem:
+- **Consistencia con Orden de Servicio:** Orden de Servicio nunca adoptó el crédito por detalle individual (ver sección 13) — el dueño nunca pidió fiar una tarea sí y otra no dentro de la misma visita. Mantener Venta con crédito por ítem, mientras Servicio lo tiene por visita completa, era una asimetría sin justificación de negocio clara, que además complicaba la pantalla (un combo de pago distinto por fila en vez de uno solo para toda la operación).
+- **El caso real que motivó el cambio original no fue pedido por el dueño:** el escenario de "3 productos, 1 contado y 2 a crédito en la misma visita" fue una hipótesis de validación del equipo (sección de análisis), no un requerimiento que el dueño haya planteado en una entrevista. Al no haber evidencia de que el dueño necesite mezclar contado/crédito dentro de una misma venta, se priorizó la opción más simple y consistente con Servicio.
 
-**Conclusión:** el modelo corregido soporta el caso completo: pagos mixtos dentro de una misma venta, pagos parciales en el tiempo, y saldar un ítem sin afectar a los demás. Esto también impacta las historias de usuario **HU-10** y **HU-11**, que deberían actualizarse para reflejar que el crédito se maneja por ítem y no por venta completa (ver nota abajo).
+**Esta es una decisión del equipo, no confirmada todavía con el dueño** — implica que, a partir de ahora, una venta con productos a crédito y al contado mezclados **ya no es posible en una sola operación**: el cliente tendría que hacerse como dos ventas separadas si quisiera esa mezcla. Queda pendiente comunicárselo en la próxima reunión y confirmar que esto no choca con cómo trabaja en la práctica — ver `desiciones-alcance.md`, sección 9.
 
-**Pendiente de trasladar a `historias-usuario.md`:**
-- HU-10 debería aclarar que el crédito se define por ítem/producto, no por venta completa.
-- HU-11 debería aclarar que el saldo mostrado incluye el detalle de qué ítems están pendientes y su saldo individual.
-- Convendría agregar una historia nueva ("Como Administrador quiero registrar un pago/cuota de un ítem a crédito, para actualizar el saldo pendiente del cliente").
+**Cómo queda resuelto con el modelo vigente (a partir del 22/11/2026):**
+
+1. Se crea **una Venta** con sus **Ítems de Venta** (uno por producto), y un único `tipo_pago` para toda la Venta (Contado o Crédito).
+2. Si `tipo_pago = Contado`: `saldo_pendiente = 0` desde el inicio (se genera un Pago automático por el monto total — ver sección 7.2).
+3. Si `tipo_pago = Crédito`: `saldo_pendiente = monto_total` al momento de la venta, sin importar cuántos productos tenga.
+4. Cada vez que el cliente abona una cuota, se crea un registro de **Pago** con `venta_id` apuntando a esa Venta y el `monto` abonado. El `saldo_pendiente` de la Venta se recalcula automáticamente restando ese pago.
+5. Cuando la suma de Pagos iguala el `monto_total`, la Venta queda saldada (`saldo_pendiente = 0`), sin importar cuántos productos distintos incluía.
+6. El **saldo total del Cliente** (HU-11) se calcula sumando el `saldo_pendiente` de todas sus Ventas y Órdenes de Servicio a crédito.
+7. Para mostrar **a qué corresponde** ese saldo, se lista cada Venta/Orden de Servicio a crédito con saldo > 0, junto con sus productos/servicios, fecha y monto original — información que ya está disponible en el modelo sin necesidad de campos adicionales.
+
+**Conclusión:** el modelo vigente soporta pagos parciales en el tiempo y saldar una venta sin afectar a las demás, al costo de ya no permitir mezclar contado y crédito dentro de la misma venta (trade-off aceptado por el equipo, pendiente de confirmar con el dueño). Esto impacta las historias de usuario **HU-10**, **HU-10.1**, **HU-10.2** y **HU-11**, ya actualizadas en `historias-usuario.md` para reflejar el crédito por venta completa.
 
 ## 12.1 Incorporación: fecha de pago prevista y aviso de mora (entrevista 10/09/2026)
 
@@ -343,10 +348,10 @@ La entrevista del 10/09/2026 agregó dos requisitos nuevos sobre el manejo del c
 
 También se confirmaron datos que antes eran una pregunta abierta: los créditos se pagan de forma mensual, no suelen superar los **2 meses**, y normalmente el monto se divide a la mitad para pagar en 2 cuotas. Un cliente con 2 cuotas puede cancelar todo en el primer pago si quiere.
 
-**Decisión de diseño — campo simple en vez de una entidad "Cuota":** en lugar de modelar un cronograma completo de cuotas futuras (una entidad `Cuota` separada de `Pago`), se agrega un único campo `fecha_pago_prevista` directamente en **Ítem de Venta** (sección 7.1) y en **Orden de Servicio** (sección 9), junto a `saldo_pendiente`. Representa la próxima fecha en la que se espera que el cliente venga a pagar (toda la deuda o la siguiente cuota). Se prefirió este enfoque más simple porque:
+**Decisión de diseño — campo simple en vez de una entidad "Cuota":** en lugar de modelar un cronograma completo de cuotas futuras (una entidad `Cuota` separada de `Pago`), se agrega un único campo `fecha_pago_prevista` directamente en **Venta** (sección 7) y en **Orden de Servicio** (sección 9), junto a `saldo_pendiente`. *(Nota 22/11/2026: originalmente este campo se agregó en Ítem de Venta, no en Venta — ver el recorrido completo en sección 12. Se mantiene aquí con la ubicación vigente.)* Representa la próxima fecha en la que se espera que el cliente venga a pagar (toda la deuda o la siguiente cuota). Se prefirió este enfoque más simple porque:
 
 - El dueño no maneja cronogramas de cuotas fijas de antemano — el monto y la fecha de la próxima cuota se acuerdan "en el momento" con el cliente, igual que ya ocurre con la garantía (sin reglas fijas).
-- En la práctica son como máximo 1-2 pagos por ítem/orden, no un plan de cuotas largo, por lo que una entidad `Cuota` agregaría complejidad sin necesidad real.
+- En la práctica son como máximo 1-2 pagos por venta/orden, no un plan de cuotas largo, por lo que una entidad `Cuota` agregaría complejidad sin necesidad real.
 - Es coherente con el pedido explícito del dueño de que el sistema sea simple.
 
 **Flujo:** al registrar un ítem/orden a crédito, el Administrador puede indicar `fecha_pago_prevista` (con un valor sugerido por defecto — ver más abajo). Al registrar un Pago parcial, el sistema puede pedir (opcionalmente) una nueva `fecha_pago_prevista` para la cuota siguiente, si todavía queda saldo pendiente.
@@ -369,11 +374,11 @@ Se revisó si el mismo mecanismo de `Pago` soporta el caso equivalente para serv
 2. `saldo_pendiente` de la Orden arranca en `monto_total` (nada pagado aún).
 3. Cada cuota que el cliente abona genera un registro de **Pago** con `orden_servicio_id` apuntando a esa Orden. El `saldo_pendiente` se recalcula restando los Pagos acumulados.
 4. Cuando la suma de Pagos iguala el `monto_total`, la Orden queda saldada (`saldo_pendiente = 0`) y deja de aparecer en el detalle de deuda del cliente (HU-11).
-5. El **saldo total del Cliente** ya contempla esto, porque su fórmula (sección Cliente) suma tanto los saldos de Ítems de Venta a crédito como los de Órdenes de Servicio a crédito.
+5. El **saldo total del Cliente** ya contempla esto, porque su fórmula (sección Cliente) suma tanto los saldos de Ventas a crédito como los de Órdenes de Servicio a crédito.
 
-**Diferencia importante respecto del caso de Venta:** en la Orden de Servicio, el crédito es **sobre el total de la visita**, no service por service — no se puede, por ejemplo, pagar la alineación al contado y dejar el balanceo a crédito dentro de la misma Orden. Esto es intencional (ver nota en sección 9) porque en la entrevista no surgió esa necesidad; si en el futuro el dueño quisiera fiar solo una parte de los servicios de una visita, habría que mover `tipo_pago` de la Orden al Servicio de detalle, tal como se hizo con Venta → Ítem de Venta.
+**Coherencia con el caso de Venta:** en la Orden de Servicio, el crédito es **sobre el total de la visita**, no servicio por servicio — no se puede, por ejemplo, pagar la alineación al contado y dejar el balanceo a crédito dentro de la misma Orden. Esto es intencional (ver nota en sección 9) porque en la entrevista no surgió esa necesidad. Desde el 22/11/2026, Venta adoptó exactamente este mismo criterio (crédito sobre toda la operación, no por producto individual) — ver el recorrido completo en sección 12.
 
-**Conclusión:** el modelo soporta el caso de servicios a crédito con pagos parciales sin necesidad de cambios adicionales — reutiliza exactamente la misma entidad `Pago` ya creada para Ítem de Venta, gracias a que se diseñó con las dos referencias (`item_venta_id` / `orden_servicio_id`) desde el principio.
+**Conclusión:** el modelo soporta el caso de servicios a crédito con pagos parciales sin necesidad de cambios adicionales — reutiliza exactamente la misma entidad `Pago` ya creada para Venta, gracias a que se diseñó con las dos referencias (`venta_id` / `orden_servicio_id`) desde el principio.
 
 ## 14. Corrección: trazabilidad de la garantía del proveedor al momento de la venta
 

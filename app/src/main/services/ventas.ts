@@ -21,19 +21,26 @@
 //   agregado del producto, porque la selección de lote es manual.
 // - Pago que supera el saldo pendiente: no aplica acá (ver services/pagos.ts,
 //   Fase 3 del reparto) — este servicio solo registra la venta.
-// - Ítem a crédito: nunca genera un Pago acá — queda con saldo pendiente
+// - Venta a crédito: nunca genera un Pago acá — queda con saldo pendiente
 //   completo hasta que se cobre una cuota (ver services/pagos.ts).
-// - Ítem al contado: SÍ genera acá, en la misma transacción, un Pago
-//   automático por el monto total del ítem (decisión cerrada 25/10/2026,
+// - Venta al contado: SÍ genera acá, en la misma transacción, un Pago
+//   automático por el monto total de la Venta (decisión cerrada 25/10/2026,
 //   ver entidades-dominio.md, sección 7.2, y tarea 15 del reparto). Así
 //   `saldo_pendiente` (monto − suma(pagos)) da 0 para Contado sin necesidad
-//   de que services/pagos.ts distinga el tipo de pago del ítem.
+//   de que services/pagos.ts distinga el tipo de pago.
+//
+// Cambio de alcance (22/11/2026, planificación técnica del Sprint 3, punto
+// 1 — ver entidades-dominio.md, sección 12, y desiciones-alcance.md, sección
+// 7.7): el crédito (`tipoPago`/`fechaPagoPrevista`/`saldoPendiente`) se movió
+// de Ítem de Venta a Venta completa. Una Venta ya NO admite mezclar ítems al
+// contado y a crédito — decisión del equipo, todavía no confirmada con el
+// dueño.
 
 import { and, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import type { Db } from '../api/server'
 import { compras, productos, itemsVenta, pagos, ventas, clientes, usuarios } from '../db/schema'
 import type { Rol } from './auth'
-import { calcularSaldoPendienteItem } from './pagos'
+import { calcularSaldoPendienteVenta } from './pagos'
 
 export type TipoPago = 'Contado' | 'Crédito'
 const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'QR'] as const
@@ -66,10 +73,11 @@ export interface ProductoStockBajo {
 export type VentaListado = Venta & {
   clienteNombre: string | null // null tanto si es cliente casual como si el cliente fue dado de baja
   cantidadItems: number
-  // true si ALGÚN ítem de la venta todavía tiene saldo pendiente (siempre
-  // false para ítems Contado, que quedan pagados solos al registrarse — ver
-  // entidades-dominio.md, sección 7.2). Para el filtro "Solo con saldo
-  // pendiente" del historial de ventas (módulo de Pagos).
+  // true si la Venta (a nivel completo, desde el 22/11/2026 — ver nota al
+  // principio del archivo) todavía tiene saldo pendiente (siempre false para
+  // Contado, que queda pagada sola al registrarse — ver entidades-dominio.md,
+  // sección 7.2). Para el filtro "Solo con saldo pendiente" del historial de
+  // ventas (módulo de Pagos).
   tieneSaldoPendiente: boolean
 }
 
@@ -103,14 +111,16 @@ export interface PaginaVentas {
 
 // Detalle de una venta puntual (GET /api/ventas/:id): cada ítem viaja con el
 // nombre del producto (la pantalla de historial no tiene por qué pedir todo
-// el catálogo aparte solo para traducir productoId) y su saldoPendiente ya
-// calculado, reutilizando la misma fórmula que services/pagos.ts (HU-10.1,
-// HU-11) en vez de duplicarla en el cliente.
-export type ItemVentaDetalle = ItemVenta & { productoNombre: string; saldoPendiente: number }
+// el catálogo aparte solo para traducir productoId). El saldo pendiente ya
+// NO es por ítem (ver cambio de alcance 22/11/2026 al principio del
+// archivo): es un único valor a nivel de la Venta completa, reutilizando la
+// misma fórmula que services/pagos.ts (HU-10.1, HU-11).
+export type ItemVentaDetalle = ItemVenta & { productoNombre: string }
 export type VentaDetalle = Venta & {
   clienteNombre: string | null
   usuarioNombre: string
   items: ItemVentaDetalle[]
+  saldoPendiente: number
 }
 
 export interface ItemVentaInput {
@@ -123,16 +133,32 @@ export interface ItemVentaInput {
   // precio": el Empleado nunca llega a esta función.
   precioUnitario?: number | string
   garantiaOfrecida?: number | null
-  tipoPago: TipoPago
-  // Solo tiene sentido si tipoPago = 'Crédito'. Si no se manda, se calcula
-  // un valor sugerido (hoy + 1 mes) — ver HU-10.2.
-  fechaPagoPrevista?: string | null
+}
+
+// Pago inicial obligatorio de una venta a crédito (HU-39, Sprint 3 punto 1).
+// `metodoPago` es opcional: si no se manda, se usa el mismo método de pago
+// de la Venta (`VentaInput.metodoPago`) — en la práctica suelen coincidir
+// (ej. "pagó la seña en efectivo, lo mismo que puso en el total"), y no
+// tiene sentido obligar al Administrador a repetirlo si es igual.
+export interface PagoInicialInput {
+  monto: number | string
+  metodoPago?: string
 }
 
 export interface VentaInput {
   clienteId?: number | null
   metodoPago: string
   tipoComprobante?: string | null
+  // tipoPago y fechaPagoPrevista viven acá (a nivel de toda la Venta) desde
+  // el 22/11/2026 — ver nota de cambio de alcance al principio del archivo.
+  tipoPago: TipoPago
+  // Solo tiene sentido si tipoPago = 'Crédito'. Si no se manda, se calcula
+  // un valor sugerido (hoy + 1 mes) — ver HU-10.2.
+  fechaPagoPrevista?: string | null
+  // Obligatorio si tipoPago = 'Crédito' (HU-39): el taller no da crédito sin
+  // cobrar algo primero. Se ignora si tipoPago = 'Contado' (esa venta ya
+  // genera su propio Pago automático por el total — ver más abajo).
+  pagoInicial?: PagoInicialInput | null
   items: ItemVentaInput[]
 }
 
@@ -180,6 +206,25 @@ function validarForma(body: unknown): Resultado<VentaInput> {
       ? b.tipoComprobante.trim()
       : null
 
+  // tipoPago vive a nivel de toda la Venta desde el 22/11/2026 — ver nota de
+  // cambio de alcance al principio del archivo.
+  const tipoPago = b.tipoPago
+  if (tipoPago !== 'Contado' && tipoPago !== 'Crédito') {
+    return {
+      ok: false,
+      status: 400,
+      mensaje: 'La forma de pago de la venta debe ser Contado o Crédito.'
+    }
+  }
+
+  let fechaPagoPrevista: string | null | undefined
+  if (b.fechaPagoPrevista !== undefined && b.fechaPagoPrevista !== null) {
+    if (typeof b.fechaPagoPrevista !== 'string' || !fechaValida(b.fechaPagoPrevista)) {
+      return { ok: false, status: 400, mensaje: 'La fecha de pago prevista no es válida.' }
+    }
+    fechaPagoPrevista = b.fechaPagoPrevista
+  }
+
   if (!Array.isArray(b.items) || b.items.length === 0) {
     return { ok: false, status: 400, mensaje: 'La venta debe tener al menos un ítem.' }
   }
@@ -205,15 +250,6 @@ function validarForma(body: unknown): Resultado<VentaInput> {
       return { ok: false, status: 400, mensaje: `Ítem ${i + 1}: la cantidad debe ser mayor a 0.` }
     }
 
-    const tipoPago = it.tipoPago
-    if (tipoPago !== 'Contado' && tipoPago !== 'Crédito') {
-      return {
-        ok: false,
-        status: 400,
-        mensaje: `Ítem ${i + 1}: la forma de pago debe ser Contado o Crédito.`
-      }
-    }
-
     let precioUnitario: number | undefined
     if (it.precioUnitario !== undefined && it.precioUnitario !== null) {
       const p = Number(it.precioUnitario)
@@ -236,39 +272,61 @@ function validarForma(body: unknown): Resultado<VentaInput> {
       garantiaOfrecida = g
     }
 
-    let fechaPagoPrevista: string | null | undefined
-    if (it.fechaPagoPrevista !== undefined && it.fechaPagoPrevista !== null) {
-      if (typeof it.fechaPagoPrevista !== 'string' || !fechaValida(it.fechaPagoPrevista)) {
-        return {
-          ok: false,
-          status: 400,
-          mensaje: `Ítem ${i + 1}: la fecha de pago prevista no es válida.`
-        }
-      }
-      fechaPagoPrevista = it.fechaPagoPrevista
-    }
-
     items.push({
       productoId,
       compraId,
       cantidad,
       precioUnitario,
-      garantiaOfrecida,
-      tipoPago,
-      fechaPagoPrevista
+      garantiaOfrecida
     })
   }
 
-  // HU-10: un ítem a crédito exige cliente registrado (rechaza cliente casual).
-  if (!clienteId && items.some((it) => it.tipoPago === 'Crédito')) {
+  // HU-10: una venta a crédito exige cliente registrado (rechaza cliente casual).
+  if (!clienteId && tipoPago === 'Crédito') {
     return {
       ok: false,
       status: 400,
-      mensaje: 'Una venta con algún ítem a crédito debe estar asociada a un cliente registrado.'
+      mensaje: 'Una venta a crédito debe estar asociada a un cliente registrado.'
     }
   }
 
-  return { ok: true, data: { clienteId, metodoPago, tipoComprobante, items } }
+  // HU-39 (Sprint 3, 20/11/2026): toda venta a crédito exige un pago inicial
+  // mayor a cero — el taller no da crédito sin cobrar algo primero. "Mayor a
+  // cero" es la decisión PROVISIONAL del equipo (sin mínimo específico,
+  // todavía sin confirmar con el dueño — ver desiciones-alcance.md, sección
+  // 7.6): si el dueño pide un mínimo distinto (ej. 30%), este es el único
+  // lugar que hace falta tocar. No se valida acá que el monto no supere el
+  // total de la Venta: eso requiere el precio final de cada ítem, que recién
+  // se resuelve dentro de la transacción (ver registrarVenta).
+  let pagoInicial: PagoInicialInput | null = null
+  if (tipoPago === 'Crédito') {
+    const pi = (b.pagoInicial ?? {}) as Record<string, unknown>
+    const monto = Number(pi.monto)
+    if (!Number.isFinite(monto) || monto <= 0) {
+      return {
+        ok: false,
+        status: 400,
+        mensaje: 'Una venta a crédito exige un pago inicial mayor a cero.'
+      }
+    }
+    let metodoPagoInicial = metodoPago // por defecto, el mismo método que la Venta
+    if (pi.metodoPago !== undefined && pi.metodoPago !== null) {
+      if (typeof pi.metodoPago !== 'string' || !METODOS_PAGO.includes(pi.metodoPago as MetodoPago)) {
+        return {
+          ok: false,
+          status: 400,
+          mensaje: `La forma de pago del pago inicial debe ser una de: ${METODOS_PAGO.join(', ')}.`
+        }
+      }
+      metodoPagoInicial = pi.metodoPago
+    }
+    pagoInicial = { monto, metodoPago: metodoPagoInicial }
+  }
+
+  return {
+    ok: true,
+    data: { clienteId, metodoPago, tipoComprobante, tipoPago, fechaPagoPrevista, pagoInicial, items }
+  }
 }
 
 // Registra la Venta completa dentro de una transacción. Solo puede invocarlo
@@ -289,7 +347,13 @@ export async function registrarVenta(
 
   const v = validarForma(body)
   if (!v.ok) return v
-  const { clienteId, metodoPago, tipoComprobante, items } = v.data
+  const { clienteId, metodoPago, tipoComprobante, tipoPago, pagoInicial, items } = v.data
+
+  // tipoPago = Contado nunca guarda fecha_pago_prevista, aunque venga en el
+  // body (coherencia del dato, ver entidades-dominio.md, sección 7). Vive a
+  // nivel de Venta desde el 22/11/2026 — ver nota al principio del archivo.
+  const fechaPagoPrevista =
+    tipoPago === 'Crédito' ? (v.data.fechaPagoPrevista ?? hoyMasUnMes()) : null
 
   try {
     const resultado = await db.transaction(async (tx) => {
@@ -307,8 +371,6 @@ export async function registrarVenta(
         precioBase: string
         precioUnitario: string
         garantiaOfrecida: number | null
-        tipoPago: TipoPago
-        fechaPagoPrevista: string | null
       }> = []
 
       let montoTotal = 0
@@ -365,11 +427,6 @@ export async function registrarVenta(
             ? Number(item.precioUnitario)
             : Number(producto.precioBase)
 
-        // tipoPago = Contado nunca guarda fecha_pago_prevista, aunque venga
-        // en el body (coherencia del dato, ver entidades-dominio.md 7.1).
-        const fechaPagoPrevista =
-          item.tipoPago === 'Crédito' ? (item.fechaPagoPrevista ?? hoyMasUnMes()) : null
-
         montoTotal += precioUnitario * item.cantidad
 
         itemsAInsertar.push({
@@ -378,9 +435,7 @@ export async function registrarVenta(
           cantidad: item.cantidad,
           precioBase: producto.precioBase,
           precioUnitario: String(precioUnitario),
-          garantiaOfrecida: item.garantiaOfrecida ?? null,
-          tipoPago: item.tipoPago,
-          fechaPagoPrevista
+          garantiaOfrecida: item.garantiaOfrecida ?? null
         })
       }
 
@@ -391,7 +446,9 @@ export async function registrarVenta(
           usuarioId: usuario.id,
           montoTotal: String(montoTotal),
           tipoComprobante,
-          metodoPago
+          metodoPago,
+          tipoPago,
+          fechaPagoPrevista
         })
         .returning()
 
@@ -414,18 +471,42 @@ export async function registrarVenta(
           .update(productos)
           .set({ stock: sql`${productos.stock} - ${item.cantidad}` })
           .where(eq(productos.id, item.productoId))
+      }
 
-        // Ítem al contado → se considera pagado al momento de la venta: se
-        // genera automáticamente su Pago por el monto total (ver nota de
-        // diseño al principio del archivo).
-        if (item.tipoPago === 'Contado') {
-          const montoItem = Number(item.precioUnitario) * item.cantidad
-          await tx.insert(pagos).values({
-            itemVentaId: fila.id,
-            monto: String(montoItem),
-            metodoPago
-          })
+      // Venta al contado → se considera pagada al momento de registrarse: se
+      // genera automáticamente UN Pago por el monto total de la Venta (ver
+      // nota de diseño al principio del archivo). Cambio de alcance
+      // 22/11/2026: antes era un Pago por cada ítem al contado; ahora es un
+      // único Pago a nivel de la Venta completa.
+      if (tipoPago === 'Contado') {
+        await tx.insert(pagos).values({
+          ventaId: ventaCreada.id,
+          monto: String(montoTotal),
+          metodoPago
+        })
+      }
+
+      // Venta a crédito → el pago inicial (HU-39) se registra acá, en la
+      // MISMA transacción que la Venta: si algo de esto falla, no queda una
+      // venta a crédito "fantasma" sin su pago inicial. `pagoInicial` nunca
+      // es null acá porque `validarForma` ya lo exige para tipoPago =
+      // 'Crédito' — el chequeo contra `montoTotal` SÍ tiene que ser acá, no
+      // en validarForma, porque el precio final de cada ítem (y por lo
+      // tanto el total) recién se conoce una vez resueltos los lotes/precios
+      // arriba en esta misma función.
+      if (tipoPago === 'Crédito' && pagoInicial) {
+        const montoInicial = Number(pagoInicial.monto)
+        if (montoInicial > montoTotal) {
+          throw new ErrorValidacionVenta(
+            `El pago inicial ($${montoInicial.toFixed(2)}) no puede superar el total de la venta ` +
+              `($${montoTotal.toFixed(2)}).`
+          )
         }
+        await tx.insert(pagos).values({
+          ventaId: ventaCreada.id,
+          monto: String(montoInicial),
+          metodoPago: pagoInicial.metodoPago ?? metodoPago
+        })
       }
 
       // Aviso de stock bajo (HU-08): se mira DESPUÉS de todos los descuentos
@@ -473,12 +554,7 @@ async function enriquecerVentas(db: Db, filas: Venta[]): Promise<VentaListado[]>
 
   const idsVentas = filas.map((v) => v.id)
   const filasItems = await db
-    .select({
-      id: itemsVenta.id,
-      ventaId: itemsVenta.ventaId,
-      precioUnitario: itemsVenta.precioUnitario,
-      cantidad: itemsVenta.cantidad
-    })
+    .select({ id: itemsVenta.id, ventaId: itemsVenta.ventaId })
     .from(itemsVenta)
     .where(inArray(itemsVenta.ventaId, idsVentas))
   const cantidadPorVenta = new Map<number, number>()
@@ -486,27 +562,28 @@ async function enriquecerVentas(db: Db, filas: Venta[]): Promise<VentaListado[]>
     cantidadPorVenta.set(it.ventaId, (cantidadPorVenta.get(it.ventaId) ?? 0) + 1)
   }
 
-  // tieneSaldoPendiente por venta: se resuelve el saldo de cada ítem en
-  // bloque (misma fórmula que calcularSaldoPendienteItem, de
-  // services/pagos.ts, pero sin un round-trip por ítem) y se marca la venta
-  // si algún ítem suyo quedó con saldo > 0.
-  const idsItems = filasItems.map((it) => it.id)
-  const filasPagos = idsItems.length
+  // tieneSaldoPendiente por venta (cambio de alcance 22/11/2026: antes se
+  // resolvía por ítem — ver nota al principio del archivo): se resuelve el
+  // saldo de cada Venta a crédito del lote en bloque (misma fórmula que
+  // calcularSaldoPendienteVenta, de services/pagos.ts, pero sin un
+  // round-trip por venta).
+  const idsVentasCredito = filas.filter((v) => v.tipoPago === 'Crédito').map((v) => v.id)
+  const filasPagos = idsVentasCredito.length
     ? await db
-        .select({ itemVentaId: pagos.itemVentaId, monto: pagos.monto })
+        .select({ ventaId: pagos.ventaId, monto: pagos.monto })
         .from(pagos)
-        .where(inArray(pagos.itemVentaId, idsItems))
+        .where(inArray(pagos.ventaId, idsVentasCredito))
     : []
-  const pagadoPorItem = new Map<number, number>()
+  const pagadoPorVenta = new Map<number, number>()
   for (const p of filasPagos) {
-    if (p.itemVentaId === null) continue
-    pagadoPorItem.set(p.itemVentaId, (pagadoPorItem.get(p.itemVentaId) ?? 0) + Number(p.monto))
+    if (p.ventaId === null) continue
+    pagadoPorVenta.set(p.ventaId, (pagadoPorVenta.get(p.ventaId) ?? 0) + Number(p.monto))
   }
   const ventaConSaldo = new Set<number>()
-  for (const it of filasItems) {
-    const montoItem = Number(it.precioUnitario) * it.cantidad
-    const pagado = pagadoPorItem.get(it.id) ?? 0
-    if (montoItem - pagado > 0) ventaConSaldo.add(it.ventaId)
+  for (const v of filas) {
+    if (v.tipoPago !== 'Crédito') continue
+    const pagado = pagadoPorVenta.get(v.id) ?? 0
+    if (Number(v.montoTotal) - pagado > 0) ventaConSaldo.add(v.id)
   }
 
   return filas.map((v) => ({
@@ -612,14 +689,13 @@ export async function listarVentas(
   // si hay más viniendo más atrás en el tiempo. Se probó contra una base
   // real (ver abajo de este archivo en el historial de la tarea) antes de
   // dejarlo así.
+  // Cambio de alcance (22/11/2026): el saldo pendiente ya no se evalúa por
+  // ítem, sino sobre la Venta completa (monto_total vs. pagos de la venta) —
+  // ver nota al principio del archivo.
   if (filtros.soloConSaldoPendiente) {
-    condiciones.push(sql`EXISTS (
-      SELECT 1 FROM ${itemsVenta}
-      WHERE ${itemsVenta.ventaId} = ${ventas.id}
-        AND (${itemsVenta.precioUnitario} * ${itemsVenta.cantidad}) > COALESCE(
-          (SELECT SUM(${pagos.monto}) FROM ${pagos} WHERE ${pagos.itemVentaId} = ${itemsVenta.id}),
-          0
-        )
+    condiciones.push(sql`${ventas.tipoPago} = 'Crédito' AND ${ventas.montoTotal} > COALESCE(
+      (SELECT SUM(${pagos.monto}) FROM ${pagos} WHERE ${pagos.ventaId} = ${ventas.id}),
+      0
     )`)
   }
 
@@ -702,16 +778,24 @@ export async function obtenerVenta(db: Db, id: number): Promise<Resultado<VentaD
     .from(usuarios)
     .where(eq(usuarios.id, venta.usuarioId))
 
-  const itemsConDetalle: ItemVentaDetalle[] = await Promise.all(
-    items.map(async (it) => ({
-      ...it,
-      productoNombre: nombrePorProducto.get(it.productoId) ?? `Producto #${it.productoId}`,
-      saldoPendiente: await calcularSaldoPendienteItem(db, it)
-    }))
-  )
+  const itemsConDetalle: ItemVentaDetalle[] = items.map((it) => ({
+    ...it,
+    productoNombre: nombrePorProducto.get(it.productoId) ?? `Producto #${it.productoId}`
+  }))
+
+  // Saldo pendiente a nivel de toda la Venta (cambio de alcance 22/11/2026 —
+  // ver nota al principio del archivo), reutilizando la misma fórmula que
+  // Orden de Servicio.
+  const saldoPendiente = await calcularSaldoPendienteVenta(db, venta)
 
   return {
     ok: true,
-    data: { ...venta, clienteNombre, usuarioNombre: u?.nombre ?? '—', items: itemsConDetalle }
+    data: {
+      ...venta,
+      clienteNombre,
+      usuarioNombre: u?.nombre ?? '—',
+      items: itemsConDetalle,
+      saldoPendiente
+    }
   }
 }
