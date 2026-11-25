@@ -7,13 +7,11 @@
 // VentaScreen.tsx — evita el bug ya resuelto de filtrar sobre una copia
 // local paginada del catálogo.
 //
-// Pendiente (bloqueado por HU-37, Sprint 3 punto 3, todavía sin
-// implementar en el esquema): el prototipo busca y muestra por
-// nombre/marca/código, pero `Producto` todavía no tiene `marca` ni
-// `codigo`. Por ahora se busca y se muestra solo por nombre; el backend
-// de `GET /api/productos?q=` ya acepta `q` como texto libre, así que
-// cuando `marca`/`codigo` existan en el esquema, este componente solo
-// necesita sumar la columna — no cambia su forma de pedir datos.
+// Marca: se muestra resuelta (marcaId -> nombre) vía la prop `nombreMarca`,
+// que arma VentaScreen.tsx una sola vez con useMarcas(token) — mismo patrón
+// que ya usa StockScreen.tsx. La búsqueda en sí sigue siendo solo por
+// nombre: el filtro `q` del backend (routes/productos.ts) todavía no hace
+// OR contra marcas.nombre, y `codigo` sigue sin existir en el esquema.
 
 import { useEffect, useState } from 'react'
 import { productosApi } from '../api/productos'
@@ -40,12 +38,17 @@ interface BuscadorProductosProps {
   // VentaScreen.tsx después de registrar una venta: sin esto, el stock que
   // se ve acá quedaba desactualizado hasta cambiar de pantalla y volver.
   refrescarTrigger?: number
+  // Resuelve marcaId -> nombre de marca (o null si no tiene). La arma
+  // VentaScreen.tsx una sola vez con useMarcas(token) y se pasa acá para no
+  // duplicar el pedido a GET /api/marcas.
+  nombreMarca?: (marcaId: number | null) => string | null
 }
 
 export function BuscadorProductos({
   onSeleccionar,
   soloConStock = false,
-  refrescarTrigger = 0
+  refrescarTrigger = 0,
+  nombreMarca
 }: BuscadorProductosProps): React.JSX.Element {
   const [texto, setTexto] = useState('')
   const textoRetardado = useRetardo(texto, 300)
@@ -118,6 +121,7 @@ export function BuscadorProductos({
           <thead>
             <tr style={{ background: 'var(--color-bg)' }}>
               <th style={celdaCabecera}>Producto</th>
+              <th style={{ ...celdaCabecera, width: 120 }}>Marca</th>
               <th style={{ ...celdaCabecera, textAlign: 'center', width: 80 }}>Stock</th>
               <th style={{ ...celdaCabecera, textAlign: 'right', width: 110 }}>Precio base</th>
             </tr>
@@ -125,14 +129,14 @@ export function BuscadorProductos({
           <tbody>
             {error && (
               <tr>
-                <td colSpan={3} style={{ ...celda, textAlign: 'center', color: 'var(--color-alert)' }}>
+                <td colSpan={4} style={{ ...celda, textAlign: 'center', color: 'var(--color-alert)' }}>
                   {error}
                 </td>
               </tr>
             )}
             {!error && !cargando && resultados.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ ...celda, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                <td colSpan={4} style={{ ...celda, textAlign: 'center', color: 'var(--color-text-muted)' }}>
                   {texto ? `No se encontraron productos con "${texto}".` : 'Sin productos para mostrar.'}
                 </td>
               </tr>
@@ -148,6 +152,9 @@ export function BuscadorProductos({
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                 >
                   <td style={celda}>{p.nombre}</td>
+                  <td style={{ ...celda, color: 'var(--color-text-muted)' }}>
+                    {nombreMarca?.(p.marcaId) ?? '—'}
+                  </td>
                   <td
                     style={{
                       ...celda,

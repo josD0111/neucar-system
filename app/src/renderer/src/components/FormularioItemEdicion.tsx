@@ -61,13 +61,18 @@ interface FormularioItemEdicionProps {
   // para que la Franja C lo muestre igual sin tener que recalcularlo.
   onConfirmar: (item: ItemEdicion, loteTexto: string | null) => void
   onCancelarEdicion: () => void
+  // Resuelve marcaId -> nombre de marca (o null si no tiene), armado una
+  // sola vez en VentaScreen.tsx con useMarcas(token) — mismo patrón que
+  // BuscadorProductos.tsx y TablaDetalleVenta.tsx.
+  nombreMarca?: (marcaId: number | null) => string | null
 }
 
 export function FormularioItemEdicion({
   itemEnEdicion,
   esAdmin,
   onConfirmar,
-  onCancelarEdicion
+  onCancelarEdicion,
+  nombreMarca
 }: FormularioItemEdicionProps): React.JSX.Element {
   const [lotes, setLotes] = useState<Compra[]>([])
   const [cargandoLotes, setCargandoLotes] = useState(false)
@@ -163,19 +168,25 @@ export function FormularioItemEdicion({
       .obtener(itemEnEdicion.producto.id)
       .then((p) => {
         if (cancelado) return
-        const disponibles = p.lotes.filter((l) => l.cantidadDisponible > 0)
+        // Orden por antigüedad (fecha de compra ascendente): el primero de
+        // la lista es el lote más viejo, que es el que se sugiere por
+        // defecto más abajo (FIFO como sugerencia, no como regla estricta
+        // — ver nota en el selector de lote, más abajo en este archivo).
+        const disponibles = p.lotes
+          .filter((l) => l.cantidadDisponible > 0)
+          .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
         setLotes(disponibles)
 
         if (!esProductoNuevo) return // editando fila existente: no se toca el lote ni el foco
 
-        if (disponibles.length === 1) {
-          // Único lote posible: se autoselecciona y se sigue directo a Cantidad.
+        if (disponibles.length > 0) {
+          // Se sugiere siempre el lote más antiguo (FIFO), haya uno o
+          // varios disponibles. El Administrador puede cambiarlo en el
+          // selector antes de confirmar — no es una regla estricta, solo
+          // un valor por defecto para no interrumpir el flujo en el caso
+          // común (ver nota de diseño en el selector de lote).
           setCompraId(disponibles[0].id)
           window.setTimeout(enfocarCantidad, 0)
-        } else if (disponibles.length > 1) {
-          // Varios lotes posibles: no hay autoselección (selección manual,
-          // no PEPS/FIFO) — se lleva el foco al selector para elegir ahí.
-          window.setTimeout(enfocarYAbrirLote, 0)
         } else {
           // Sin lotes disponibles: no hay nada para elegir, foco a Cantidad.
           window.setTimeout(enfocarCantidad, 0)
@@ -194,10 +205,12 @@ export function FormularioItemEdicion({
   const stockInsuficiente =
     esAdmin && loteElegido !== null && cantidad > loteElegido.cantidadDisponible
 
-  // Cuando el producto tiene más de un lote posible y todavía no se eligió
-  // ninguno, no alcanza con cantidad/precio/garantía: hace falta que el
-  // Administrador elija el lote de forma manual (no hay PEPS/FIFO).
-  const requiereElegirLote = esAdmin && compraId === '' && lotes.length > 1
+  // Con la sugerencia automática por antigüedad (FIFO), compraId debería
+  // venir siempre cargado si hay algún lote disponible. Este caso solo se
+  // da si el Administrador lo vacía a mano desde el selector (o en un
+  // estado inconsistente) — se mantiene como resguardo, no como el flujo
+  // esperado.
+  const requiereElegirLote = esAdmin && compraId === '' && lotes.length > 0
 
   const puedeConfirmar =
     itemEnEdicion !== null &&
@@ -309,7 +322,14 @@ export function FormularioItemEdicion({
         <Campo label="Producto / repuesto">
           <input
             readOnly
-            value={vacio ? 'Elegí un producto en el buscador...' : itemEnEdicion.producto.nombre}
+            value={
+              vacio
+                ? 'Elegí un producto en el buscador...'
+                : (() => {
+                    const marca = nombreMarca?.(itemEnEdicion.producto.marcaId)
+                    return marca ? `${itemEnEdicion.producto.nombre} — ${marca}` : itemEnEdicion.producto.nombre
+                  })()
+            }
             style={estiloReadOnly}
           />
         </Campo>
@@ -337,9 +357,10 @@ export function FormularioItemEdicion({
               }}
             >
               <option value="">{cargandoLotes ? 'Cargando...' : '-- Elegir lote --'}</option>
-              {lotes.map((l) => (
+              {lotes.map((l, idx) => (
                 <option key={l.id} value={l.id}>
                   #{l.id} - ({formatearFechaCorta(l.fecha)}) - {nombreProveedor(l.proveedorId)}
+                  {idx === 0 && lotes.length > 1 ? ' — sugerido (más antiguo)' : ''}
                 </option>
               ))}
             </select>
@@ -446,7 +467,7 @@ export function FormularioItemEdicion({
 
       {requiereElegirLote && (
         <div style={{ fontSize: 12, color: 'var(--color-alert)' }}>
-          Este producto tiene varios lotes disponibles: elegí de cuál sale antes de agregarlo.
+          Elegí de qué lote sale este producto antes de agregarlo.
         </div>
       )}
 

@@ -8,6 +8,8 @@
 
 **Actualización 23/11/2026 — 24/11/2026:** El punto 1 (Ventas) quedó completamente implementado y verificado (typecheck 0 errores). El cambio de modelo de datos (crédito a nivel de Venta) se realizó el 23/11/2026. La pantalla `VentaScreen.tsx` y todos sus componentes auxiliares se ensamblaron y validaron durante los días 23 y 24/11/2026. Refinamientos de UX adicionales aplicados el 24/11/2026: formato Gs. en precio unitario con miles en vivo, restricción `+Nuevo cliente` exclusiva para Administrador, y helper compartido `formatoMoneda.ts` (funciones `gs` y `posicionTrasNDigitos`).
 
+**Actualización 25/11/2026:** revisión del avance del compañero de equipo en los puntos 2, 3 y 6 (código bajado y revisado hoy). Puntos 3 completo y 2 casi completo — detalle en cada sección. **Alerta sobre el punto 6:** estaba marcado como *bloqueado por completo* a la espera de definir con el dueño las reglas de negocio, pero el código ya trae esas reglas definidas e implementadas de punta a punta, sin que `entidades-dominio.md` ni `desiciones-alcance.md` se hayan actualizado todavía para reflejarlas — es decir, se tomaron las decisiones de negocio "sobre la marcha" otra vez, exactamente el patrón que este mismo backlog pedía no repetir (ver nota introductoria y la Definición de Hecho, que exige la documentación actualizada *antes* de cerrar un punto bloqueado). Queda marcado como pendiente de regularizar documentación, no como cerrado, hasta confirmar con el compañero si esas decisiones se consultaron con el dueño o quedaron a criterio propio.
+
 ## Objetivo del sprint
 
 Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo flujo de carga para Ventas más parecido al sistema que ya usa, separar Compras de Control de Stock, agregar marcas de producto, acotar más el rol Empleado a solo-lectura, mejorar la presentación visual, y dejar encaminado (sin necesariamente cerrar del todo) el pedido de kilometraje/próximo mantenimiento.
@@ -33,7 +35,7 @@ Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo fluj
 
 **Pantalla (`VentaScreen.tsx`), siguiendo la estructura del prototipo:**
 - [x] **Franja A — búsqueda y condición:** A1) buscador de producto por nombre/marca/código con tabla de resultados (producto, marca, stock, precio base); A2) sección de Cliente y Condición de la venta completa (toggle Contado/Crédito a nivel de toda la venta, búsqueda de cliente existente + botón "+Nuevo" con modal de alta rápida — cédula y RUC como campos separados, más teléfono). Botón "+Nuevo" solo visible para Administrador (refinamiento 24/11/2026).
-- [x] **Franja B — edición del ítem seleccionado:** al elegir un producto (de la búsqueda) o una fila de la tabla de detalle (Franja C), se carga una sección de edición aparte con: código/producto (solo lectura), selector de lote de Compra (mostrando `cantidad_disponible` y `garantía_proveedor` de cada lote — selección manual, no FIFO, sin cambios respecto de Sprint 2), precio unitario editable con formato Gs. y miles en vivo para Administrador / solo lectura formateado para Empleado (refinamiento 24/11/2026), cantidad editable, garantía ofrecida, y botones Agregar/Actualizar ítem + Cancelar edición. Foco inteligente con Enter entre campos.
+- [x] **Franja B — edición del ítem seleccionado:** al elegir un producto (de la búsqueda) o una fila de la tabla de detalle (Franja C), se carga una sección de edición aparte con: código/producto (solo lectura), selector de lote de Compra (mostrando `cantidad_disponible` y `garantía_proveedor` de cada lote), precio unitario editable con formato Gs. y miles en vivo para Administrador / solo lectura formateado para Empleado (refinamiento 24/11/2026), cantidad editable, garantía ofrecida, y botones Agregar/Actualizar ítem + Cancelar edición. Foco inteligente con Enter entre campos. **Ajuste 24/11/2026 (ver `desiciones-alcance.md`, sección 7.8):** el lote ya no arranca vacío esperando elección manual — se sugiere automáticamente el más antiguo (FIFO no estricto), editable igual que antes. Sigue sin ser reparto automático entre lotes para una misma cantidad, eso sigue siendo manual.
 - [x] **Franja C — tabla de detalle de la venta:** productos agregados hasta el momento (columnas: Lote legible con proveedor y fecha, Garantía, Cant., Precio unit., Subtotal), click en una fila para editarla en la Franja B, botón de eliminar por fila, cabecera sticky.
 - [x] **Franja D — footer:** método de pago de la venta (HU-19, ya existente a nivel de Venta, sin cambios de alcance), total a pagar en Gs., botones Cancelar Venta / Guardar Venta.
 - [x] **Modal de confirmación al guardar una venta a crédito:** si `tipoPago = Crédito`, al presionar "Guardar Venta" se abre un modal pidiendo el pago inicial (monto + forma de pago, validado > 0 — HU-39) y la `fecha_pago_prevista` (con la fecha sugerida por defecto, editable — HU-10.2). Si es al contado, se guarda directo, sin modal. Pago inicial formateado con miles en vivo y saldo pendiente calculado en tiempo real.
@@ -45,22 +47,24 @@ Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo fluj
 
 *Ajustado 21/11/2026, a pedido del compañero de equipo: seguir el mismo patrón que ya existe para Ventas (`VentaScreen.tsx` = cargar, `VentasScreen.tsx` = historial) y Servicios (`OrdenServicioScreen.tsx` = cargar, `HistorialServiciosScreen.tsx` = historial) — dos pantallas de sidebar separadas, no una sola pantalla con el historial mezclado. Así, "Compras" queda dedicada solo a registrar, igual que "Nueva venta" y "Nueva orden" hoy.*
 
-- [ ] Crear `CompraScreen.tsx` (singular, para mantener la convención de nombres ya usada — `VentaScreen`/`OrdenServicioScreen`), separada de `StockScreen.tsx`, dedicada exclusivamente al alta de una nueva Compra.
-- [ ] Mover a esa pantalla el formulario de alta de Compra que hoy vive en `StockScreen.tsx` (`FormularioCompra`), sin cambiar su lógica de negocio (selección/alta de producto, cálculo de lote, etc. — Sprint 1).
-- [ ] Crear `HistorialComprasScreen.tsx` (plural/historial, siguiendo la convención de `VentasScreen`/`HistorialServiciosScreen`), como pantalla propia del sidebar, separada de `CompraScreen.tsx` — no una pestaña ni sección dentro de la misma pantalla.
-- [ ] Ese historial necesita un endpoint de listado nuevo (`GET /api/compras`, con sus filtros — ver `api/routes/ventas.ts`/`api/routes/ordenesServicio.ts` como referencia de paginado y filtros por fecha) y el servicio correspondiente en `services/compras.ts`, ya que hoy no existe ningún listado de Compras más allá de lo que se resuelve al detalle de un Producto puntual.
-- [ ] Filtros mínimos del historial: rango de fecha y proveedor, mismo criterio que los historiales ya existentes de Ventas y Servicios.
-- [ ] Agregar ambas pantallas (`CompraScreen`, `HistorialComprasScreen`) como entradas separadas del `Sidebar.tsx`, reemplazando la entrada actual que lleva a `StockScreen.tsx` para el alta de compra.
-- [ ] Dejar `StockScreen.tsx`/Control de Stock enfocada en consulta y alta de Productos únicamente, sin el formulario de Compra ni su historial.
-- [ ] No se requieren cambios de modelo de datos (HU-14, HU-15, HU-16 y el mecanismo de lotes de `entidades-dominio.md`, sección 6, se mantienen igual): es una reorganización de pantallas.
+- [x] Crear `CompraScreen.tsx` (singular, para mantener la convención de nombres ya usada — `VentaScreen`/`OrdenServicioScreen`), dedicada exclusivamente al alta de una nueva Compra (producto existente, buscado por nombre, o producto nuevo).
+- [x] Reusar en esa pantalla el formulario de alta de Compra que vivía en `StockScreen.tsx` (`FormularioCompra`, y `FormularioProductoNuevo` para el alta de producto nuevo), sin cambiar su lógica de negocio — `CompraScreen.tsx` los importa directamente desde `StockScreen.tsx` en vez de duplicarlos.
+- [x] Crear `HistorialComprasScreen.tsx`, como pantalla propia del sidebar, separada de `CompraScreen.tsx`.
+- [x] Endpoint de listado nuevo (`GET /api/compras`, solo Administrador) con filtros, y servicio `listarCompras` en `services/compras.ts` — pagina por días calendario completos, mismo criterio que el historial de Ventas.
+- [x] Filtros mínimos del historial: rango de fecha y proveedor (`HistorialComprasScreen.tsx`).
+- [x] Agregar ambas pantallas (`CompraScreen`, `HistorialComprasScreen`) como entradas separadas del `Sidebar.tsx` (`soloAdmin`), enrutadas en `App.tsx`.
+- [ ] **Pendiente — no se completó:** dejar `StockScreen.tsx`/Control de Stock enfocada en consulta y alta de Productos únicamente, sin el formulario de Compra. Hoy `StockScreen.tsx` todavía tiene, por cada producto, el botón "+ Registrar compra" que abre `FormularioCompra` inline (mismo componente que ahora también usa `CompraScreen.tsx`), por lo que quedó duplicado en dos pantallas en vez de exclusivo de `CompraScreen.tsx`. Falta sacarlo de `StockScreen.tsx`.
+- [ ] No evaluado todavía si corresponde agregar la Marca a la impresión de listado de existencias (HU-05, adenda — ver punto 3): no se encontró ninguna función de impresión en `StockScreen.tsx`, así que esto sigue sin resolverse (puede que ni exista todavía esa función, a confirmar con el compañero).
+- [x] No se requirieron cambios de modelo de datos (HU-14, HU-15, HU-16 y el mecanismo de lotes se mantienen igual): fue una reorganización de pantallas.
 
 ## 3. Marcas de producto (HU-37, adenda HU-01)
 
-- [ ] Tabla `marcas` en el esquema (`schema.ts`), análoga a `categorias`: `id`, `nombre` (único).
-- [ ] Servicio de negocio (`services/marcas.ts`) y rutas (`api/routes/marcas.ts`, montadas en `/api/marcas`) con el mismo patrón CRUD que Categorías (Sprint 1): crear, editar, eliminar — gestión exclusiva del Administrador; lectura para ambos roles.
-- [ ] Agregar `marca_id` (nullable) a `productos`, y su selector correspondiente en el formulario de alta/edición de Producto (`StockScreen.tsx`).
-- [ ] **Pendiente de confirmar con el dueño** (ver `desiciones-alcance.md`, sección 7.6): si `marca_id` debería ser obligatorio. Mientras no se confirme, se implementa como opcional.
-- [ ] Agregar filtro por marca al listado de productos (mismo criterio que el filtro por categoría ya existente, HU-02), y evaluar si corresponde también en la impresión de listado de existencias (HU-05, adenda).
+- [x] Tabla `marcas` en el esquema (`schema.ts`), análoga a `categorias`: `id`, `nombre` (único).
+- [x] Servicio de negocio (`services/marcas.ts`) y rutas (`api/routes/marcas.ts`, montadas en `/api/marcas`) con el mismo patrón CRUD que Categorías: crear, editar, eliminar solo Administrador; lectura para ambos roles. Pantalla propia `MarcaScreen.tsx`, entrada `soloAdmin` en el Sidebar.
+- [x] Agregado `marca_id` (nullable) a `productos`, con su selector en el formulario de alta/edición de Producto (`StockScreen.tsx`) y también en el alta de producto nuevo desde `CompraScreen.tsx`/`api/routes/compras.ts` (valida que la marca exista si se indica).
+- [x] Implementado como opcional, tal como quedó pendiente de confirmar con el dueño — sigue sin confirmarse, no se endureció a obligatorio.
+- [x] Filtro por marca agregado al listado de productos (`StockScreen.tsx`, mismo criterio que el filtro por categoría).
+- [ ] Sin resolver todavía si corresponde sumar la Marca a la impresión de listado de existencias (HU-05, adenda) — ver nota en el punto 2, no se encontró una función de impresión en el código para evaluarlo.
 
 ## 4. Rol Empleado — restricciones de lectura (HU-36)
 
@@ -76,8 +80,16 @@ Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo fluj
 
 ## 6. Servicios — kilometraje y próximo mantenimiento (HU-41)
 
-- [ ] **Bloqueado por completo** (ver `desiciones-alcance.md`, sección 7.6, e `historias-usuario.md`, HU-41): no hay modelo de datos ni criterios de aceptación todavía. Antes de programar nada acá, resolver con el dueño o en equipo: dónde se registra el kilometraje (¿por visita, como dato del Vehículo, o ambos?), cómo se calcula el intervalo de "próximo mantenimiento" (¿fijo para todo, o por tipo de servicio?), y a qué tipos de servicio aplica.
-- [ ] Una vez resuelto lo anterior, actualizar `entidades-dominio.md` (sección 10) y el DER *antes* de implementar — no repetir el patrón de este mismo sprint2 de documentar en retrospectiva.
+**Estado al 25/11/2026 — código implementado, pero el desbloqueo no quedó documentado (ver alerta en la actualización del 25/11/2026 al principio de este archivo).** El código bajado del compañero resuelve las tres preguntas que tenían este punto bloqueado, con esta solución concreta:
+- El kilometraje se registra **por visita**, como campo opcional en `ordenesServicio` (`kilometraje`, entero, validado entre 0 y un tope — HU-41), no como dato fijo del Vehículo.
+- El intervalo de "próximo mantenimiento" es **por tipo de servicio** (`intervaloKm` en `tiposServicio`, editable desde `TiposServicioScreen.tsx`; `null` = ese tipo no genera aviso), no un valor fijo único.
+- Aplica a cualquier tipo de servicio al que se le cargue un `intervaloKm`, no está restringido a "mantenimiento" como categoría separada.
+- `services/ordenesServicio.ts` calcula `proximoMantenimientoKm` (kilometraje actual + el intervalo más corto entre los tipos de servicio de la orden que tengan uno cargado) y avisa si el kilometraje cargado es menor al de la visita anterior del mismo vehículo (posible error de tipeo). `OrdenServicioScreen.tsx` muestra ambos datos al confirmar.
+
+- [ ] **Falta antes de dar este punto por cerrado:** confirmar con el compañero si estas tres decisiones (dónde se registra el km, intervalo por tipo de servicio, a qué tipos aplica) se consultaron con el dueño o se tomaron en equipo/a criterio propio — la Definición de Hecho de este sprint exige que la pregunta abierta quede resuelta y trasladada a la documentación *antes* de cerrar un punto bloqueado, no después.
+- [ ] Actualizar `entidades-dominio.md` (sección 10, hoy todavía dice "sin modelo propuesto todavía") con el modelo real ya implementado, y el DER correspondiente.
+- [ ] Actualizar `desiciones-alcance.md` (secciones 7.6 y 158) retirando esto de "preguntas sin resolver" y dejando asentada la decisión tomada, con fecha.
+- [ ] Revisar si corresponde actualizar `historias-usuario.md` (HU-41) con los criterios de aceptación ya cumplidos por el código, ya que el backlog decía que todavía no existían.
 
 ## Fuera de este sprint
 

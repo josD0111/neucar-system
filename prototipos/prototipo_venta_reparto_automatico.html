@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neucar — Venta con reparto automático de lotes (propuesta alternativa)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    /* ==========================================================================
+       Mismo sistema de variables que los otros dos prototipos de Ventas
+       (para que la comparación entre los tres flujos sea pareja en la reunión)
+       ========================================================================== */
+    :root {
+      --bg-app: #f1f5f9;
+      --bg-surface: #ffffff;
+      --bg-surface-subtle: #f8fafc;
+      --bg-hover: #f1f5f9;
+      --bg-input: #ffffff;
+      --bg-table-header: #f8fafc;
+
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --text-on-brand: #ffffff;
+
+      --border-color: #e2e8f0;
+      --border-focus: #2563eb;
+
+      --brand-primary: #2563eb;
+      --brand-primary-hover: #1d4ed8;
+      --brand-primary-soft: #eff6ff;
+
+      --success-bg: #16a34a;
+      --success-hover: #15803d;
+      --success-soft: #dcfce7;
+      --success-text: #166534;
+
+      --danger-bg: #dc2626;
+      --danger-hover: #b91c1c;
+      --danger-soft: #fee2e2;
+      --danger-text: #991b1b;
+
+      --warning-soft: #fef3c7;
+      --warning-text: #92400e;
+      --warning-border: #f59e0b;
+
+      --group-tint-a: #f8fafc;
+      --group-tint-b: #ffffff;
+      --group-accent: #94a3b8;
+
+      --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07);
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .scroll-box { overflow-y: auto; }
+
+    .panel-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      position: relative;
+    }
+
+    .form-control {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+      padding: 0.45rem 0.7rem;
+      font-size: 0.875rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--brand-primary-soft);
+    }
+    .form-control:disabled, .form-control[readonly] {
+      background-color: var(--bg-surface-subtle);
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.48rem 0.95rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-primary { background-color: var(--brand-primary); color: var(--text-on-brand); }
+    .btn-primary:hover { background-color: var(--brand-primary-hover); }
+
+    .btn-success { background-color: var(--success-bg); color: var(--text-on-brand); }
+    .btn-success:hover { background-color: var(--success-hover); }
+
+    .btn-outline-danger { background-color: transparent; border-color: var(--border-color); color: var(--danger-text); }
+    .btn-outline-danger:hover { background-color: var(--danger-soft); border-color: var(--danger-bg); }
+
+    .btn-secondary { background-color: var(--bg-surface-subtle); border-color: var(--border-color); color: var(--text-primary); }
+    .btn-secondary:hover { background-color: var(--bg-hover); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .detail-table th, .product-list-table th {
+      background-color: var(--bg-table-header);
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .detail-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
+    .detail-table tbody tr { cursor: pointer; transition: background-color 0.12s ease; }
+    .detail-table tbody tr:hover { filter: brightness(0.98); }
+    .detail-table tbody tr.editing-row { outline: 1px solid var(--brand-primary); outline-offset: -1px; }
+
+    /* Agrupación visual por producto: franja lateral de color + fondo alterno por grupo */
+    .detail-table tbody tr.group-row { border-left: 3px solid var(--group-accent); }
+    .detail-table tbody tr.group-tint-a { background-color: var(--group-tint-a); }
+    .detail-table tbody tr.group-tint-b { background-color: var(--group-tint-b); }
+    .detail-table tbody tr.group-first td.product-cell { font-weight: 600; }
+    .detail-table tbody tr.group-rest td.product-cell { color: var(--text-muted); font-size: 0.78rem; padding-left: 1.5rem; }
+    .detail-table tbody tr.group-rest { border-left: 3px solid var(--group-accent); border-left-style: dashed; }
+
+    .lote-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.1rem 0.45rem;
+      border-radius: 9999px;
+      background-color: var(--brand-primary-soft);
+      color: var(--brand-primary);
+    }
+
+    .garantia-cliente-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      background-color: var(--success-soft);
+      color: var(--success-text);
+    }
+
+    .product-list-table td { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border-color); font-size: 0.8125rem; }
+    .product-list-table tbody tr { cursor: pointer; transition: background-color 0.12s ease; }
+    .product-list-table tbody tr:hover { background-color: var(--brand-primary-soft); }
+
+    .condition-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .condition-btn {
+      padding: 0.3rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      border: none;
+      cursor: pointer;
+    }
+    .condition-btn.active { background-color: var(--brand-primary); color: var(--text-on-brand); }
+
+    .proto-banner {
+      background-color: var(--warning-soft);
+      color: var(--warning-text);
+      border-bottom: 1px solid var(--warning-border);
+      font-size: 0.72rem;
+      padding: 0.3rem 1rem;
+      text-align: center;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .section-title { margin-bottom: 0.5rem; }
+
+    .split-preview-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.78rem;
+      padding: 0.4rem 0.65rem;
+      border-radius: var(--radius-md);
+      background-color: var(--bg-surface-subtle);
+      border: 1px solid var(--border-color);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="proto-banner">
+    <i class="ph-bold ph-flask"></i>
+    PROTOTIPO C — Reparto automático y transparente entre lotes (FIFO): el vendedor carga la cantidad total, revisa proveedor y garantía de cada lote, y define la garantía unificada al cliente.
+  </div>
+
+  <header class="shrink-0 px-4 py-2.5 flex items-center justify-between" style="background-color: var(--bg-surface); border-bottom: 1px solid var(--border-color);">
+    <div class="flex items-center gap-2">
+      <i class="ph-bold ph-wrench text-xl" style="color: var(--brand-primary);"></i>
+      <span class="font-bold text-sm tracking-tight">Neucar — Nueva Venta</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
+      <i class="ph-bold ph-user"></i>
+      <span>Admin — Pedro (Administrador)</span>
+    </div>
+  </header>
+
+  <main class="flex flex-col gap-5 p-5 max-w-[1400px] w-full mx-auto">
+
+    <!-- =====================================================================
+         FRANJA A
+         ===================================================================== -->
+    <section class="grid grid-cols-12 gap-5 items-stretch">
+
+      <!-- A1: Búsqueda de producto -->
+      <div class="col-span-7 panel-card p-4 flex flex-col gap-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 section-title" style="color: var(--text-secondary);">
+          <i class="ph-bold ph-magnifying-glass text-sm" style="color: var(--brand-primary);"></i>
+          BUSCAR PRODUCTO (nombre, marca o código)
+        </h2>
+
+        <div class="relative">
+          <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color: var(--text-muted);"></i>
+          <input
+            type="text"
+            id="productSearchInput"
+            class="form-control pl-8 pr-8"
+            placeholder="Ej: filtro, Bosch, FLT-104..."
+            autocomplete="off"
+            autofocus
+          >
+          <button
+            type="button"
+            id="clearProductSearchBtn"
+            class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full items-center justify-center text-xs hover:opacity-80"
+            style="background-color: var(--bg-hover); color: var(--text-secondary);"
+            title="Limpiar búsqueda"
+          >
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <div class="scroll-box border rounded-lg" style="border-color: var(--border-color); height: 220px;">
+          <table class="w-full text-left border-collapse product-list-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="w-28">Marca</th>
+                <th class="w-20 text-center">Lotes</th>
+                <th class="w-24 text-center">Stock Tot.</th>
+                <th class="w-24 text-right">Precio Base</th>
+              </tr>
+            </thead>
+            <tbody id="productSearchResults"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- A2: Cliente y Condición -->
+      <div class="col-span-5 panel-card p-4 flex flex-col gap-3.5">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-user-circle text-sm" style="color: var(--brand-primary);"></i>
+            CLIENTE Y CONDICIÓN
+          </h2>
+          <div class="condition-toggle" role="group" aria-label="Condición de venta">
+            <button type="button" id="condContadoBtn" class="condition-btn active">Contado</button>
+            <button type="button" id="condCreditoBtn" class="condition-btn">Crédito</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 relative">
+          <div class="relative flex-1">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color: var(--text-muted);"></i>
+            <input type="text" id="clientSearchInput" class="form-control pl-8 pr-8" placeholder="Buscar cliente por nombre o cédula..." autocomplete="off">
+            <button type="button" id="clearClientSearchBtn" class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full items-center justify-center text-xs hover:opacity-80" style="background-color: var(--bg-hover); color: var(--text-secondary);" title="Limpiar búsqueda de cliente">
+              <i class="ph-bold ph-x"></i>
+            </button>
+            <div id="clientDropdown" class="hidden absolute left-0 right-0 top-full mt-1 rounded-lg border shadow-lg max-h-40 overflow-y-auto z-30" style="background-color: var(--bg-surface); border-color: var(--border-color);"></div>
+          </div>
+          <button type="button" id="openNewClientModalBtn" class="btn btn-primary px-3 py-2 text-xs shrink-0" title="Registrar un nuevo cliente (solo Administrador)">
+            <i class="ph-bold ph-user-plus text-sm"></i>
+            <span>+ Nuevo</span>
+          </button>
+        </div>
+
+        <div id="clientStateContainer" class="rounded-lg border p-3 flex items-center transition-colors" style="background-color: var(--bg-surface-subtle); border-color: var(--border-color); min-height: 90px;"></div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA B — sin selector de lote: se tipea cantidad total, se visualiza
+         el reparto con proveedor y garantía de proveedor, y se puede definir
+         opcionalmente una garantía unificada para el cliente.
+         ===================================================================== -->
+    <section aria-label="Sección B: Datos del producto seleccionado" class="panel-card p-4 shrink-0">
+      <form id="addProductForm" class="grid grid-cols-12 gap-3 items-end">
+        <div class="col-span-1">
+          <label class="form-label" for="selProdCode">Código</label>
+          <input type="text" id="selProdCode" class="form-control font-mono text-xs" placeholder="---" readonly>
+        </div>
+
+        <div class="col-span-3">
+          <label class="form-label" for="selProdName">Producto / Repuesto</label>
+          <input type="text" id="selProdName" class="form-control" placeholder="Seleccione un producto arriba..." readonly>
+        </div>
+
+        <div class="col-span-1">
+          <label class="form-label text-center" for="selProdStock">Stock</label>
+          <input type="text" id="selProdStock" class="form-control text-center font-semibold" placeholder="0" readonly>
+        </div>
+
+        <div class="col-span-2">
+          <label class="form-label text-right" for="selProdPrice">Precio Unit. (Gs.)</label>
+          <input type="text" inputmode="numeric" id="selProdPrice" class="form-control text-right" placeholder="0">
+        </div>
+
+        <div class="col-span-1">
+          <label class="form-label text-center" for="selProdQty">Cant. Total</label>
+          <input type="number" id="selProdQty" class="form-control text-center font-semibold" min="1" value="1">
+        </div>
+
+        <div class="col-span-2">
+          <label class="form-label text-center" for="selProdClientWarranty" title="Opcional: garantía unificada que se ofrece al cliente por este producto">
+            Garantía Cliente (meses)
+          </label>
+          <input type="number" id="selProdClientWarranty" class="form-control text-center" min="0" placeholder="Opcional (ej: 12)">
+        </div>
+
+        <div class="col-span-2 flex items-center gap-1.5">
+          <button type="submit" id="submitProdBtn" class="btn btn-primary flex-1 px-2.5">
+            <i id="submitProdIcon" class="ph-bold ph-plus-circle text-base"></i>
+            <span id="submitProdText">Agregar</span>
+          </button>
+          <button type="button" id="cancelEditItemBtn" class="hidden btn btn-secondary px-2.5" title="Cancelar edición">
+            <i class="ph-bold ph-x text-base"></i>
+          </button>
+        </div>
+      </form>
+
+      <!-- Vista previa del reparto automático, se arma en vivo al tipear cantidad -->
+      <div id="splitPreviewContainer" class="hidden mt-3 pt-3 border-t" style="border-color: var(--border-color);">
+        <p class="text-[11px] font-bold uppercase tracking-wider mb-1.5" style="color: var(--text-secondary);">
+          <i class="ph-bold ph-stack"></i> Desglose de lotes disponibles que cubrirán el pedido (más antiguo primero):
+        </p>
+        <div id="splitPreviewList" class="flex flex-col gap-1.5"></div>
+      </div>
+
+      <p class="text-[11px] mt-3 pt-3 border-t" style="color: var(--text-muted); border-color: var(--border-color);">
+        <i class="ph-bold ph-info"></i>
+        El sistema reparte automáticamente empezando por el lote más antiguo (FIFO). Revisá la garantía que ofrece el proveedor en cada lote involucrado para decidir la garantía unificada que se le dará al cliente.
+      </p>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA C — detalle agrupado por producto, una fila por lote usado
+         ===================================================================== -->
+    <section aria-label="Sección C: Detalle de la venta" class="panel-card flex flex-col">
+      <div class="px-3.5 py-2 border-b flex items-center justify-between shrink-0" style="border-color: var(--border-color);">
+        <div class="flex items-center gap-2">
+          <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-list-bullets text-sm" style="color: var(--brand-primary);"></i>
+            ÍTEMS EN EL DETALLE DE VENTA
+          </h2>
+          <span class="text-[11px]" style="color: var(--text-muted);">(Clic en un grupo para editar cantidad o garantía al cliente)</span>
+        </div>
+        <span id="itemsCountBadge" class="text-xs font-medium px-2 py-0.5 rounded-full" style="background-color: var(--brand-primary-soft); color: var(--brand-primary);">0 productos</span>
+      </div>
+
+      <div class="scroll-box" style="max-height: 340px;">
+        <table class="w-full text-left border-collapse detail-table">
+          <thead>
+            <tr>
+              <th class="w-24">Código</th>
+              <th>Producto / Repuesto</th>
+              <th class="w-32">Lote (fecha)</th>
+              <th class="w-40">Proveedor</th>
+              <th class="w-28">Garantía Prov.</th>
+              <th class="w-32">Garantía Cliente</th>
+              <th class="w-16 text-center">Cant.</th>
+              <th class="w-24 text-right">Precio Unit.</th>
+              <th class="w-24 text-right">Subtotal</th>
+              <th class="w-16 text-center">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="saleDetailBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA D
+         ===================================================================== -->
+    <footer aria-label="Sección D: Acciones y Total" class="panel-card px-4 py-3 shrink-0 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <button type="button" id="cancelSaleBtn" class="btn btn-outline-danger">
+          <i class="ph-bold ph-x-circle text-base"></i>
+          <span>Cancelar Venta</span>
+        </button>
+        <div>
+          <label class="form-label" for="paymentMethod">Método de pago</label>
+          <select id="paymentMethod" class="form-control text-xs" style="width: 160px;">
+            <option>Efectivo</option>
+            <option>Tarjeta</option>
+            <option>Transferencia</option>
+            <option>QR</option>
+          </select>
+        </div>
+        <button type="button" id="saveSaleBtn" class="btn btn-success px-5 self-end">
+          <i class="ph-bold ph-check-circle text-base"></i>
+          <span>Guardar Venta</span>
+        </button>
+      </div>
+
+      <div class="text-right">
+        <span class="block text-xs uppercase font-bold tracking-wider" style="color: var(--text-secondary);">Total a Pagar</span>
+        <span id="totalDisplay" class="text-2xl font-bold tracking-tight" style="color: var(--brand-primary);">Gs. 0</span>
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- =======================================================================
+       MODAL: REGISTRO RÁPIDO DE NUEVO CLIENTE
+       ======================================================================= -->
+  <div id="newClientModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(15, 23, 42, 0.55);">
+    <div class="panel-card w-full max-w-md p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="newClientModalTitle">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--border-color);">
+        <h3 id="newClientModalTitle" class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+          <i class="ph-bold ph-user-plus text-base" style="color: var(--brand-primary);"></i>
+          Registrar Nuevo Cliente
+        </h3>
+        <button type="button" id="closeNewClientModalBtn" class="w-7 h-7 rounded-md flex items-center justify-center hover:opacity-80" style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+      <form id="newClientForm" class="space-y-3">
+        <div>
+          <label class="form-label" for="newClientName">Nombre Completo / Razón Social *</label>
+          <input type="text" id="newClientName" class="form-control" placeholder="Ej: Juan Pérez" required>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label" for="newClientCedula">Cédula</label>
+            <input type="text" id="newClientCedula" class="form-control" placeholder="Ej: 4123456">
+          </div>
+          <div>
+            <label class="form-label" for="newClientRuc">RUC</label>
+            <input type="text" id="newClientRuc" class="form-control" placeholder="Ej: 80045120-4">
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="newClientPhone">Teléfono</label>
+          <input type="text" id="newClientPhone" class="form-control" placeholder="Ej: 0981-123456">
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-3 mt-2 border-t" style="border-color: var(--border-color);">
+          <button type="button" id="cancelNewClientBtn" class="btn btn-secondary text-xs">Cancelar</button>
+          <button type="submit" class="btn btn-primary text-xs">
+            <i class="ph-bold ph-check"></i>
+            <span>Guardar y Asignar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       MODAL: CONFIRMACIÓN DE VENTA A CRÉDITO
+       ======================================================================= -->
+  <div id="creditConfirmModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(15, 23, 42, 0.55);">
+    <div class="panel-card w-full max-w-md p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="creditModalTitle">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--border-color);">
+        <h3 id="creditModalTitle" class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+          <i class="ph-bold ph-hand-coins text-base" style="color: var(--brand-primary);"></i>
+          Confirmar Venta a Crédito
+        </h3>
+        <button type="button" id="closeCreditModalBtn" class="w-7 h-7 rounded-md flex items-center justify-center hover:opacity-80" style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+      <form id="creditConfirmForm" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label" for="creditInitialPayment">Pago inicial (Gs.) *</label>
+            <input type="text" inputmode="numeric" id="creditInitialPayment" class="form-control" placeholder="0" required>
+          </div>
+          <div>
+            <label class="form-label" for="creditInitialMethod">Forma de pago</label>
+            <select id="creditInitialMethod" class="form-control">
+              <option>Efectivo</option>
+              <option>Tarjeta</option>
+              <option>Transferencia</option>
+              <option>QR</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="creditDueDate">Fecha prevista de próximo pago</label>
+          <input type="date" id="creditDueDate" class="form-control">
+        </div>
+        <div class="rounded-lg border p-2.5 flex items-center justify-between" style="background-color: var(--bg-surface-subtle); border-color: var(--border-color);">
+          <span class="text-xs font-bold uppercase" style="color: var(--text-secondary);">Saldo pendiente</span>
+          <span id="creditPendingBalance" class="text-base font-bold" style="color: var(--danger-text);">Gs. 0</span>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-3 mt-2 border-t" style="border-color: var(--border-color);">
+          <button type="button" id="cancelCreditModalBtn" class="btn btn-secondary text-xs">Cancelar</button>
+          <button type="submit" class="btn btn-success text-xs">
+            <i class="ph-bold ph-check"></i>
+            <span>Confirmar y Guardar Venta</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="fixed bottom-20 right-5 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-2 z-50" style="background-color: var(--text-primary); color: var(--bg-surface);">
+    <i id="toastIcon" class="ph-bold ph-info text-base"></i>
+    <span id="toastMessage">Mensaje</span>
+  </div>
+
+  <script>
+    // =========================================================================
+    // DATOS DE EJEMPLO — productos CON lotes
+    // =========================================================================
+    const catalogProducts = [
+      {
+        code: 'FLT-104', name: 'Filtro de Aceite P3274', brand: 'Bosch', price: 15.00,
+        lotes: [
+          { id: 'L-201', fecha: '2026-08-02', cantidadDisponible: 10, proveedor: 'Autopartes Oviedo', garantiaMeses: 3 },
+          { id: 'L-215', fecha: '2026-10-14', cantidadDisponible: 14, proveedor: 'Repuestos CDE', garantiaMeses: 6 }
+        ]
+      },
+      {
+        code: 'ACE-5W30', name: 'Aceite Sintético 5W-30 (4L)', brand: 'Mobil 1', price: 50.00,
+        lotes: [
+          { id: 'L-198', fecha: '2026-09-10', cantidadDisponible: 15, proveedor: 'Lubricantes del Este', garantiaMeses: 0 }
+        ]
+      },
+      {
+        code: 'PST-882', name: 'Juego Pastillas de Freno Delanteras', brand: 'Brembo', price: 62.00,
+        lotes: [
+          { id: 'L-176', fecha: '2026-07-20', cantidadDisponible: 8, proveedor: 'Frenos Paraguay SA', garantiaMeses: 12 }
+        ]
+      },
+      {
+        code: 'BUJ-409', name: 'Bujía Iridium Laser (Unidad)', brand: 'NGK', price: 12.50,
+        lotes: [
+          { id: 'L-190', fecha: '2026-08-28', cantidadDisponible: 40, proveedor: 'Autopartes Oviedo', garantiaMeses: 6 }
+        ]
+      },
+      {
+        // Caso del ejemplo discutido: 2 lotes con 3 disponibles cada uno,
+        // con garantías de proveedor DISTINTAS para que el usuario decida
+        // qué garantía unificada otorgar al cliente.
+        code: 'BAT-12V', name: 'Batería 12V 65Ah Libre Mantenimiento', brand: 'Moura', price: 115.00,
+        lotes: [
+          { id: 'L-140', fecha: '2026-06-05', cantidadDisponible: 3, proveedor: 'Baterías del Sur', garantiaMeses: 18 },
+          { id: 'L-182', fecha: '2026-09-22', cantidadDisponible: 3, proveedor: 'Distribuidora Central', garantiaMeses: 12 }
+        ]
+      },
+      {
+        code: 'LMP-019', name: 'Líquido Refrigerante Concentrado 1L', brand: 'Paraflu', price: 9.50,
+        lotes: [
+          { id: 'L-205', fecha: '2026-09-01', cantidadDisponible: 19, proveedor: 'Lubricantes del Este', garantiaMeses: 0 }
+        ]
+      }
+    ];
+
+    const registeredClients = [
+      { id: 1, name: 'Carlos Mendoza', doc: '4.521.890', phone: '0981-555123' },
+      { id: 2, name: 'María Fernanda Benítez', doc: '3.890.112', phone: '0971-442890' },
+      { id: 3, name: 'Transporte Oviedo S.A.', doc: '80045120-4', phone: '0521-202450' },
+      { id: 4, name: 'Roberto Gómez', doc: '2.945.671', phone: '0982-331908' }
+    ];
+
+    // Cada "grupo" representa un producto agregado a la venta; "filas" es el
+    // desglose por lote que arma el reparto automático, y "garantiaClienteMeses"
+    // es la garantía unificada opcional definida por el usuario para todo el grupo.
+    let saleGroups = [];
+    let groupIdSeq = 1;
+
+    let selectedProduct = null;
+    let editingGroupId = null;
+    let selectedClient = null;
+    let saleCondition = 'contado';
+
+    // --- Referencias DOM ---
+    const searchInput = document.getElementById('productSearchInput');
+    const clearProductSearchBtn = document.getElementById('clearProductSearchBtn');
+    const searchResultsContainer = document.getElementById('productSearchResults');
+    const selProdCode = document.getElementById('selProdCode');
+    const selProdName = document.getElementById('selProdName');
+    const selProdStock = document.getElementById('selProdStock');
+    const selProdPrice = document.getElementById('selProdPrice');
+    const selProdQty = document.getElementById('selProdQty');
+    const selProdClientWarranty = document.getElementById('selProdClientWarranty');
+    const addProductForm = document.getElementById('addProductForm');
+    const submitProdIcon = document.getElementById('submitProdIcon');
+    const submitProdText = document.getElementById('submitProdText');
+    const cancelEditItemBtn = document.getElementById('cancelEditItemBtn');
+    const splitPreviewContainer = document.getElementById('splitPreviewContainer');
+    const splitPreviewList = document.getElementById('splitPreviewList');
+    const saleDetailBody = document.getElementById('saleDetailBody');
+    const itemsCountBadge = document.getElementById('itemsCountBadge');
+    const totalDisplay = document.getElementById('totalDisplay');
+    const saveSaleBtn = document.getElementById('saveSaleBtn');
+
+    const condContadoBtn = document.getElementById('condContadoBtn');
+    const condCreditoBtn = document.getElementById('condCreditoBtn');
+    const clientSearchInput = document.getElementById('clientSearchInput');
+    const clearClientSearchBtn = document.getElementById('clearClientSearchBtn');
+    const clientDropdown = document.getElementById('clientDropdown');
+    const clientStateContainer = document.getElementById('clientStateContainer');
+
+    const newClientModal = document.getElementById('newClientModal');
+    const openNewClientModalBtn = document.getElementById('openNewClientModalBtn');
+    const closeNewClientModalBtn = document.getElementById('closeNewClientModalBtn');
+    const cancelNewClientBtn = document.getElementById('cancelNewClientBtn');
+    const newClientForm = document.getElementById('newClientForm');
+    const newClientName = document.getElementById('newClientName');
+    const newClientCedula = document.getElementById('newClientCedula');
+    const newClientRuc = document.getElementById('newClientRuc');
+    const newClientPhone = document.getElementById('newClientPhone');
+
+    const creditConfirmModal = document.getElementById('creditConfirmModal');
+    const closeCreditModalBtn = document.getElementById('closeCreditModalBtn');
+    const cancelCreditModalBtn = document.getElementById('cancelCreditModalBtn');
+    const creditConfirmForm = document.getElementById('creditConfirmForm');
+    const creditInitialPayment = document.getElementById('creditInitialPayment');
+    const creditDueDate = document.getElementById('creditDueDate');
+    const creditPendingBalance = document.getElementById('creditPendingBalance');
+
+    // =========================================================================
+    // HELPERS
+    // =========================================================================
+    function gs(value) {
+      return 'Gs. ' + Math.round(value).toLocaleString('es-PY');
+    }
+
+    function fechaCorta(iso) {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y.slice(2)}`;
+    }
+
+    function garantiaTexto(meses) {
+      if (!meses || meses <= 0) return '<span style="color: var(--text-muted);">— sin garantía —</span>';
+      return meses === 1 ? '1 mes' : `${meses} meses`;
+    }
+
+    function garantiaClienteBadge(meses) {
+      if (!meses || meses <= 0) {
+        return '<span style="color: var(--text-muted); font-size: 0.75rem;">— sin garantía —</span>';
+      }
+      const label = meses === 1 ? '1 mes' : `${meses} meses`;
+      return `<span class="garantia-cliente-badge"><i class="ph-bold ph-shield-check"></i> ${label}</span>`;
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+      toastMsg.textContent = message;
+      toastIcon.className = type === 'success'
+        ? 'ph-bold ph-check-circle text-base text-green-400'
+        : type === 'error'
+          ? 'ph-bold ph-warning-circle text-base text-red-400'
+          : 'ph-bold ph-info text-base text-blue-400';
+      toast.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+      }, 2800);
+    }
+
+    // Stock total disponible de un producto = suma de cantidadDisponible de
+    // sus lotes, menos lo ya reservado en otros grupos de esta misma venta.
+    function getLotesConDisponibilidad(prodCode, excludeGroupId = null) {
+      const prod = catalogProducts.find(p => p.code === prodCode);
+      if (!prod) return [];
+
+      const reservadoPorLote = {};
+      saleGroups.forEach(g => {
+        if (g.id === excludeGroupId || g.productCode !== prodCode) return;
+        g.filas.forEach(f => {
+          reservadoPorLote[f.loteId] = (reservadoPorLote[f.loteId] || 0) + f.cantidad;
+        });
+      });
+
+      return [...prod.lotes]
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha)) // FIFO: más viejo primero
+        .map(l => ({ ...l, disponibleReal: Math.max(0, l.cantidadDisponible - (reservadoPorLote[l.id] || 0)) }));
+    }
+
+    function getStockTotal(prodCode, excludeGroupId = null) {
+      return getLotesConDisponibilidad(prodCode, excludeGroupId)
+        .reduce((sum, l) => sum + l.disponibleReal, 0);
+    }
+
+    // Núcleo del Prototipo C: reparte una cantidad solicitada entre los
+    // lotes disponibles, empezando siempre por el más antiguo (FIFO).
+    // Conserva proveedor, disponibleReal y garantiaMeses (del proveedor).
+    function repartirEntreLotes(prodCode, cantidadSolicitada, excludeGroupId = null) {
+      const lotes = getLotesConDisponibilidad(prodCode, excludeGroupId);
+      let restante = cantidadSolicitada;
+      const filas = [];
+
+      for (const lote of lotes) {
+        if (restante <= 0) break;
+        const disponible = lote.disponibleReal;
+        if (disponible <= 0) continue;
+        const tomar = Math.min(disponible, restante);
+        filas.push({
+          loteId: lote.id,
+          fecha: lote.fecha,
+          proveedor: lote.proveedor,
+          disponibleLote: disponible,
+          garantiaProveedorMeses: lote.garantiaMeses,
+          cantidad: tomar
+        });
+        restante -= tomar;
+      }
+
+      return { filas, faltante: Math.max(0, restante) };
+    }
+
+    // =========================================================================
+    // A1: BÚSQUEDA Y LISTADO DE PRODUCTOS
+    // =========================================================================
+    function renderProductResults(filter = '') {
+      const term = filter.trim().toLowerCase();
+      const filtered = catalogProducts.filter(p =>
+        !term ||
+        p.name.toLowerCase().includes(term) ||
+        p.brand.toLowerCase().includes(term) ||
+        p.code.toLowerCase().includes(term)
+      );
+
+      if (filtered.length === 0) {
+        searchResultsContainer.innerHTML = `
+          <tr><td colspan="5" class="text-center py-6" style="color: var(--text-muted);">
+            Sin resultados para "${filter}"
+          </td></tr>`;
+        return;
+      }
+
+      searchResultsContainer.innerHTML = filtered.map(p => {
+        const stock = getStockTotal(p.code);
+        const lowStock = stock <= 3;
+        return `
+          <tr data-code="${p.code}">
+            <td class="font-medium">
+              ${p.name}
+              <span class="block text-[11px] font-mono" style="color: var(--text-muted);">${p.code}</span>
+            </td>
+            <td>${p.brand}</td>
+            <td class="text-center">${p.lotes.length}</td>
+            <td class="text-center font-semibold" style="${lowStock ? 'color: var(--danger-text);' : ''}">${stock}</td>
+            <td class="text-right">${gs(p.price)}</td>
+          </tr>`;
+      }).join('');
+
+      searchResultsContainer.querySelectorAll('tr[data-code]').forEach(row => {
+        row.addEventListener('click', () => selectProductForEditing(row.dataset.code));
+      });
+    }
+
+    clearProductSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearProductSearchBtn.classList.add('hidden');
+      renderProductResults();
+      searchInput.focus();
+    });
+
+    searchInput.addEventListener('input', () => {
+      clearProductSearchBtn.classList.toggle('hidden', searchInput.value.length === 0);
+      renderProductResults(searchInput.value);
+    });
+
+    // =========================================================================
+    // FRANJA B: SELECCIÓN / EDICIÓN — cantidad total, garantía cliente y vista previa
+    // =========================================================================
+    function selectProductForEditing(code, preset = null) {
+      const prod = catalogProducts.find(p => p.code === code);
+      if (!prod) return;
+      selectedProduct = prod;
+
+      selProdCode.value = prod.code;
+      selProdName.value = prod.name;
+      selProdStock.value = getStockTotal(prod.code, editingGroupId);
+      selProdPrice.value = preset ? preset.price : prod.price;
+      selProdQty.value = preset ? preset.qty : 1;
+      selProdClientWarranty.value = preset && preset.garantiaClienteMeses ? preset.garantiaClienteMeses : '';
+
+      updateSplitPreview();
+      selProdQty.focus();
+      selProdQty.select();
+    }
+
+    function updateSplitPreview() {
+      if (!selectedProduct) {
+        splitPreviewContainer.classList.add('hidden');
+        return;
+      }
+      const qty = parseInt(selProdQty.value, 10) || 0;
+      if (qty <= 0) {
+        splitPreviewContainer.classList.add('hidden');
+        return;
+      }
+
+      const { filas, faltante } = repartirEntreLotes(selectedProduct.code, qty, editingGroupId);
+
+      splitPreviewContainer.classList.remove('hidden');
+      splitPreviewList.innerHTML = filas.map(f => `
+        <div class="split-preview-row">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="lote-tag">${f.loteId}</span>
+            <span style="color: var(--text-muted);">${fechaCorta(f.fecha)}</span>
+            <span>·</span>
+            <span><strong>Proveedor:</strong> ${f.proveedor}</span>
+            <span>·</span>
+            <span><strong>Disp. lote:</strong> ${f.disponibleLote} un.</span>
+            <span>·</span>
+            <span><strong>Garantía prov.:</strong> ${garantiaTexto(f.garantiaProveedorMeses)}</span>
+          </div>
+          <span class="font-semibold shrink-0" style="color: var(--brand-primary);">Toma: ${f.cantidad} un.</span>
+        </div>
+      `).join('') + (faltante > 0 ? `
+        <div class="split-preview-row" style="background-color: var(--danger-soft); border-color: var(--danger-bg); color: var(--danger-text);">
+          <span><i class="ph-bold ph-warning"></i> Faltan ${faltante} unidades (no hay más stock disponible)</span>
+        </div>` : '');
+    }
+
+    selProdQty.addEventListener('input', updateSplitPreview);
+    selProdQty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); selProdClientWarranty.focus(); selProdClientWarranty.select(); }
+    });
+    selProdClientWarranty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addProductForm.requestSubmit(); }
+    });
+    selProdPrice.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addProductForm.requestSubmit(); }
+    });
+
+    addProductForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!selectedProduct) {
+        showToast('Selecciona un producto primero', 'error');
+        return;
+      }
+      const qty = parseInt(selProdQty.value, 10) || 0;
+      const price = parseFloat(selProdPrice.value) || 0;
+      const rawWarranty = selProdClientWarranty.value.trim();
+      const clientWarranty = rawWarranty === '' ? null : Math.max(0, parseInt(rawWarranty, 10) || 0);
+
+      if (qty <= 0) {
+        showToast('La cantidad debe ser mayor a 0', 'error');
+        return;
+      }
+
+      const { filas, faltante } = repartirEntreLotes(selectedProduct.code, qty, editingGroupId);
+      if (faltante > 0) {
+        showToast(`Stock insuficiente: faltan ${faltante} unidades`, 'error');
+        return;
+      }
+
+      const grupo = {
+        id: editingGroupId || groupIdSeq++,
+        productCode: selectedProduct.code,
+        productName: selectedProduct.name,
+        qtyTotal: qty,
+        precioUnit: price,
+        garantiaClienteMeses: clientWarranty,
+        filas: filas.map(f => ({
+          loteId: f.loteId,
+          fecha: f.fecha,
+          proveedor: f.proveedor,
+          disponibleLote: f.disponibleLote,
+          garantiaProveedorMeses: f.garantiaProveedorMeses,
+          cantidad: f.cantidad
+        }))
+      };
+
+      if (editingGroupId !== null) {
+        const idx = saleGroups.findIndex(g => g.id === editingGroupId);
+        saleGroups[idx] = grupo;
+        showToast('Ítem actualizado', 'success');
+      } else {
+        saleGroups.push(grupo);
+        showToast(`Ítem agregado (repartido en ${filas.length} lote${filas.length > 1 ? 's' : ''})`, 'success');
+      }
+
+      resetItemForm();
+      renderSaleDetail();
+      renderProductResults(searchInput.value);
+      searchInput.focus();
+    });
+
+    cancelEditItemBtn.addEventListener('click', () => {
+      resetItemForm();
+      renderSaleDetail();
+    });
+
+    function resetItemForm() {
+      selectedProduct = null;
+      editingGroupId = null;
+      selProdCode.value = '';
+      selProdName.value = '';
+      selProdStock.value = '';
+      selProdPrice.value = '';
+      selProdQty.value = '1';
+      selProdClientWarranty.value = '';
+      splitPreviewContainer.classList.add('hidden');
+      submitProdIcon.className = 'ph-bold ph-plus-circle text-base';
+      submitProdText.textContent = 'Agregar';
+      cancelEditItemBtn.classList.add('hidden');
+    }
+
+    // =========================================================================
+    // FRANJA C: TABLA DE DETALLE AGRUPADA POR PRODUCTO / LOTE
+    // =========================================================================
+    function renderSaleDetail() {
+      itemsCountBadge.textContent = `${saleGroups.length} ${saleGroups.length === 1 ? 'producto' : 'productos'}`;
+
+      if (saleGroups.length === 0) {
+        saleDetailBody.innerHTML = `
+          <tr><td colspan="10" class="text-center py-10" style="color: var(--text-muted);">
+            Todavía no agregaste productos a esta venta
+          </td></tr>`;
+        updateTotal();
+        return;
+      }
+
+      let html = '';
+      saleGroups.forEach((grupo, gi) => {
+        const tint = gi % 2 === 0 ? 'group-tint-a' : 'group-tint-b';
+        grupo.filas.forEach((fila, fi) => {
+          const isFirst = fi === 0;
+          const subtotal = fila.cantidad * grupo.precioUnit;
+          html += `
+            <tr data-group-id="${grupo.id}" class="group-row ${tint} ${isFirst ? 'group-first' : 'group-rest'} ${grupo.id === editingGroupId ? 'editing-row' : ''}">
+              <td class="font-mono text-xs">${isFirst ? grupo.productCode : ''}</td>
+              <td class="product-cell">${isFirst ? grupo.productName : '↳ mismo producto'}</td>
+              <td><span class="lote-tag">${fila.loteId}</span> <span style="color: var(--text-muted);">${fechaCorta(fila.fecha)}</span></td>
+              <td class="text-xs">${fila.proveedor}</td>
+              <td>${garantiaTexto(fila.garantiaProveedorMeses)}</td>
+              <td>${isFirst ? garantiaClienteBadge(grupo.garantiaClienteMeses) : '<span class="text-xs" style="color: var(--text-muted);">↳ unificada</span>'}</td>
+              <td class="text-center">${fila.cantidad}</td>
+              <td class="text-right">${isFirst ? gs(grupo.precioUnit) : ''}</td>
+              <td class="text-right font-semibold">${gs(subtotal)}</td>
+              <td class="text-center">
+                ${isFirst ? `
+                  <button type="button" class="delete-group-btn w-7 h-7 rounded-md inline-flex items-center justify-center hover:opacity-80" data-group-id="${grupo.id}" style="background-color: var(--danger-soft); color: var(--danger-text);" title="Eliminar producto (todos sus lotes)">
+                    <i class="ph-bold ph-trash text-sm"></i>
+                  </button>` : ''}
+              </td>
+            </tr>`;
+        });
+      });
+      saleDetailBody.innerHTML = html;
+
+      saleDetailBody.querySelectorAll('tr[data-group-id]').forEach(row => {
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.delete-group-btn')) return;
+          const groupId = parseInt(row.dataset.groupId, 10);
+          const grupo = saleGroups.find(g => g.id === groupId);
+          if (!grupo) return;
+          editingGroupId = groupId;
+          selectProductForEditing(grupo.productCode, {
+            qty: grupo.qtyTotal,
+            price: grupo.precioUnit,
+            garantiaClienteMeses: grupo.garantiaClienteMeses
+          });
+          submitProdIcon.className = 'ph-bold ph-floppy-disk text-base';
+          submitProdText.textContent = 'Actualizar';
+          cancelEditItemBtn.classList.remove('hidden');
+          renderSaleDetail();
+        });
+      });
+
+      saleDetailBody.querySelectorAll('.delete-group-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const groupId = parseInt(btn.dataset.groupId, 10);
+          saleGroups = saleGroups.filter(g => g.id !== groupId);
+          if (editingGroupId === groupId) resetItemForm();
+          renderSaleDetail();
+          renderProductResults(searchInput.value);
+        });
+      });
+
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const total = saleGroups.reduce((sum, g) => sum + g.qtyTotal * g.precioUnit, 0);
+      totalDisplay.textContent = gs(total);
+      return total;
+    }
+
+    // =========================================================================
+    // A2: CLIENTE Y CONDICIÓN
+    // =========================================================================
+    function setSaleCondition(cond) {
+      saleCondition = cond;
+      condContadoBtn.classList.toggle('active', cond === 'contado');
+      condCreditoBtn.classList.toggle('active', cond === 'credito');
+      renderClientState();
+    }
+    condContadoBtn.addEventListener('click', () => setSaleCondition('contado'));
+    condCreditoBtn.addEventListener('click', () => setSaleCondition('credito'));
+
+    function renderClientState() {
+      if (selectedClient) {
+        clientStateContainer.innerHTML = `
+          <div class="w-full flex items-center justify-between">
+            <div>
+              <span class="block font-semibold text-sm">${selectedClient.name}</span>
+              <span class="text-xs" style="color: var(--text-muted);">${selectedClient.doc} · ${selectedClient.phone || 'sin teléfono'}</span>
+            </div>
+            <button type="button" id="clearSelectedClientBtn" class="text-xs px-2 py-1 rounded-md hover:opacity-80" style="background-color: var(--bg-hover); color: var(--text-secondary);">
+              Quitar
+            </button>
+          </div>`;
+        document.getElementById('clearSelectedClientBtn').addEventListener('click', () => {
+          selectedClient = null;
+          renderClientState();
+        });
+      } else if (saleCondition === 'credito') {
+        clientStateContainer.innerHTML = `
+          <div class="flex items-center gap-2 text-xs" style="color: var(--warning-text);">
+            <i class="ph-bold ph-warning text-base"></i>
+            <strong>Cliente obligatorio para venta a Crédito</strong>
+          </div>`;
+      } else {
+        clientStateContainer.innerHTML = `
+          <div class="text-xs" style="color: var(--text-muted);">
+            Venta casual (sin cliente asignado) — opcional para Contado
+          </div>`;
+      }
+    }
+
+    clientSearchInput.addEventListener('input', () => {
+      const term = clientSearchInput.value.trim().toLowerCase();
+      clearClientSearchBtn.classList.toggle('hidden', term.length === 0);
+      if (!term) { clientDropdown.classList.add('hidden'); return; }
+      const matches = registeredClients.filter(c =>
+        c.name.toLowerCase().includes(term) || c.doc.toLowerCase().includes(term)
+      );
+      if (matches.length === 0) {
+        clientDropdown.innerHTML = `<div class="px-3 py-2 text-xs" style="color: var(--text-muted);">Sin coincidencias</div>`;
+      } else {
+        clientDropdown.innerHTML = matches.map(c => `
+          <div class="px-3 py-2 text-xs cursor-pointer hover:opacity-80" data-id="${c.id}" style="border-bottom: 1px solid var(--border-color);">
+            <span class="font-semibold">${c.name}</span> — ${c.doc}
+          </div>`).join('');
+        clientDropdown.querySelectorAll('[data-id]').forEach(el => {
+          el.addEventListener('click', () => {
+            selectedClient = registeredClients.find(c => c.id == el.dataset.id);
+            clientDropdown.classList.add('hidden');
+            clientSearchInput.value = '';
+            clearClientSearchBtn.classList.add('hidden');
+            renderClientState();
+          });
+        });
+      }
+      clientDropdown.classList.remove('hidden');
+    });
+
+    clearClientSearchBtn.addEventListener('click', () => {
+      clientSearchInput.value = '';
+      clearClientSearchBtn.classList.add('hidden');
+      clientDropdown.classList.add('hidden');
+    });
+
+    // =========================================================================
+    // MODAL NUEVO CLIENTE
+    // =========================================================================
+    openNewClientModalBtn.addEventListener('click', () => newClientModal.classList.remove('hidden'));
+    closeNewClientModalBtn.addEventListener('click', () => newClientModal.classList.add('hidden'));
+    cancelNewClientBtn.addEventListener('click', () => newClientModal.classList.add('hidden'));
+
+    newClientForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!newClientName.value.trim()) {
+        showToast('El nombre es obligatorio', 'error');
+        return;
+      }
+      const doc = newClientCedula.value.trim() || newClientRuc.value.trim() || 'S/D';
+      const newClient = {
+        id: registeredClients.length + 1,
+        name: newClientName.value.trim(),
+        doc,
+        phone: newClientPhone.value.trim()
+      };
+      registeredClients.push(newClient);
+      selectedClient = newClient;
+      renderClientState();
+      newClientForm.reset();
+      newClientModal.classList.add('hidden');
+      showToast('Cliente registrado y asignado', 'success');
+    });
+
+    // =========================================================================
+    // GUARDAR VENTA / MODAL DE CRÉDITO
+    // =========================================================================
+    document.getElementById('cancelSaleBtn').addEventListener('click', () => {
+      if (saleGroups.length === 0) { showToast('No hay nada que cancelar', 'info'); return; }
+      if (confirm('¿Cancelar la venta y perder lo cargado?')) {
+        saleGroups = [];
+        resetItemForm();
+        selectedClient = null;
+        renderSaleDetail();
+        renderClientState();
+        renderProductResults(searchInput.value);
+      }
+    });
+
+    saveSaleBtn.addEventListener('click', () => {
+      if (saleGroups.length === 0) {
+        showToast('Agrega al menos un producto antes de guardar', 'error');
+        return;
+      }
+      if (saleCondition === 'credito' && !selectedClient) {
+        showToast('Debes asignar un cliente para ventas a crédito', 'error');
+        return;
+      }
+
+      if (saleCondition === 'credito') {
+        const total = updateTotal();
+        creditInitialPayment.value = '';
+        creditPendingBalance.textContent = gs(total);
+        const suggested = new Date();
+        suggested.setDate(suggested.getDate() + 30);
+        creditDueDate.value = suggested.toISOString().slice(0, 10);
+        creditConfirmModal.classList.remove('hidden');
+        creditInitialPayment.focus();
+      } else {
+        finalizeSale();
+      }
+    });
+
+    creditInitialPayment.addEventListener('input', () => {
+      const total = updateTotal();
+      const initial = parseFloat(creditInitialPayment.value) || 0;
+      const pending = Math.max(0, total - initial);
+      creditPendingBalance.textContent = gs(pending);
+    });
+
+    closeCreditModalBtn.addEventListener('click', () => creditConfirmModal.classList.add('hidden'));
+    cancelCreditModalBtn.addEventListener('click', () => creditConfirmModal.classList.add('hidden'));
+
+    creditConfirmForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const initial = parseFloat(creditInitialPayment.value) || 0;
+      if (initial <= 0) {
+        showToast('El pago inicial debe ser mayor a 0', 'error');
+        return;
+      }
+      creditConfirmModal.classList.add('hidden');
+      finalizeSale();
+    });
+
+    function finalizeSale() {
+      showToast('Venta guardada correctamente', 'success');
+      saleGroups = [];
+      resetItemForm();
+      selectedClient = null;
+      setSaleCondition('contado');
+      renderSaleDetail();
+      renderClientState();
+      renderProductResults('');
+      searchInput.value = '';
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#clientSearchInput') && !e.target.closest('#clientDropdown')) {
+        clientDropdown.classList.add('hidden');
+      }
+    });
+
+    // =========================================================================
+    // INICIALIZACIÓN
+    // =========================================================================
+    renderProductResults();
+    renderSaleDetail();
+    renderClientState();
+  </script>
+</body>
+</html>

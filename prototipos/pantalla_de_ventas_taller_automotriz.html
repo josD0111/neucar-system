@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TallerPro — Venta de Repuestos y Productos</title>
+  <!-- Tailwind CSS para utilidades de layout y espaciado -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Fuente Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Iconos Phosphor -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    /* ==========================================================================
+       SISTEMA DE VARIABLES CSS PARA TEMAS (MODO CLARO POR DEFECTO)
+       ========================================================================== */
+    :root {
+      /* Fondos */
+      --bg-app: #f1f5f9;
+      --bg-surface: #ffffff;
+      --bg-surface-subtle: #f8fafc;
+      --bg-hover: #f1f5f9;
+      --bg-input: #ffffff;
+      --bg-table-header: #f8fafc;
+
+      /* Textos */
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --text-on-brand: #ffffff;
+
+      /* Bordes */
+      --border-color: #e2e8f0;
+      --border-focus: #2563eb;
+
+      /* Colores de marca y acento */
+      --brand-primary: #2563eb;
+      --brand-primary-hover: #1d4ed8;
+      --brand-primary-soft: #eff6ff;
+
+      /* Estados */
+      --success-bg: #16a34a;
+      --success-hover: #15803d;
+      --success-soft: #dcfce7;
+      --success-text: #166534;
+
+      --danger-bg: #dc2626;
+      --danger-hover: #b91c1c;
+      --danger-soft: #fee2e2;
+      --danger-text: #991b1b;
+
+      --warning-soft: #fef3c7;
+      --warning-text: #92400e;
+      --warning-border: #f59e0b;
+
+      /* Sombras y Radios */
+      --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07);
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+    }
+
+    /* Tema Oscuro preparado mediante atributo data-theme */
+    [data-theme="dark"] {
+      --bg-app: #0f172a;
+      --bg-surface: #1e293b;
+      --bg-surface-subtle: #162032;
+      --bg-hover: #334155;
+      --bg-input: #0f172a;
+      --bg-table-header: #162032;
+
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #64748b;
+      --text-on-brand: #ffffff;
+
+      --border-color: #334155;
+      --border-focus: #3b82f6;
+
+      --brand-primary: #3b82f6;
+      --brand-primary-hover: #2563eb;
+      --brand-primary-soft: rgba(59, 130, 246, 0.15);
+
+      --success-soft: rgba(22, 163, 74, 0.2);
+      --success-text: #4ade80;
+      --danger-soft: rgba(220, 38, 38, 0.2);
+      --danger-text: #f87171;
+      --warning-soft: rgba(245, 158, 11, 0.2);
+      --warning-text: #fbbf24;
+      --warning-border: #d97706;
+    }
+
+    /* ==========================================================================
+       ESTILOS BASE Y ESTRUCTURA DE ESCRITORIO
+       ========================================================================== */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .panel-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .form-control {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+      padding: 0.45rem 0.7rem;
+      font-size: 0.875rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--brand-primary-soft);
+    }
+
+    .form-control:disabled,
+    .form-control[readonly] {
+      background-color: var(--bg-surface-subtle);
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding: 0.48rem 0.95rem;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background-color: var(--brand-primary);
+      color: var(--text-on-brand);
+    }
+    .btn-primary:hover {
+      background-color: var(--brand-primary-hover);
+    }
+
+    .btn-success {
+      background-color: var(--success-bg);
+      color: var(--text-on-brand);
+    }
+    .btn-success:hover {
+      background-color: var(--success-hover);
+    }
+
+    .btn-outline-danger {
+      background-color: transparent;
+      border-color: var(--border-color);
+      color: var(--danger-text);
+    }
+    .btn-outline-danger:hover {
+      background-color: var(--danger-soft);
+      border-color: var(--danger-bg);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-surface-subtle);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+    .btn-secondary:hover {
+      background-color: var(--bg-hover);
+    }
+
+    /* Scrollbar sutil */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* Tabla de detalle (Sección C) */
+    .detail-table th {
+      background-color: var(--bg-table-header);
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .detail-table td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.85rem;
+    }
+
+    .detail-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .detail-table tbody tr:hover {
+      background-color: var(--bg-hover);
+    }
+
+    .detail-table tbody tr.editing-row {
+      background-color: var(--brand-primary-soft);
+      outline: 1px solid var(--brand-primary);
+    }
+
+    /* Lista limpia de productos (Sección A1) */
+    .product-list-table th {
+      background-color: var(--bg-table-header);
+      color: var(--text-secondary);
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .product-list-table td {
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.8125rem;
+    }
+
+    .product-list-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .product-list-table tbody tr:hover {
+      background-color: var(--brand-primary-soft);
+    }
+
+    /* Selector segmentado Contado / Crédito */
+    .condition-toggle {
+      display: inline-flex;
+      background-color: var(--bg-surface-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 2px;
+    }
+
+    .condition-btn {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.22rem 0.7rem;
+      border-radius: calc(var(--radius-md) - 2px);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      background: transparent;
+    }
+
+    .condition-btn.active {
+      background-color: var(--brand-primary);
+      color: var(--text-on-brand);
+      box-shadow: var(--shadow-sm);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BARRA SUPERIOR DE CONTEXTO -->
+  <header class="px-4 py-2.5 flex items-center justify-between border-b shrink-0" style="background-color: var(--bg-surface); border-color: var(--border-color);">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background-color: var(--brand-primary); color: var(--text-on-brand);">
+        <i class="ph-bold ph-wrench text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold leading-tight">TallerPro — Venta de Repuestos y Productos</h1>
+        <p class="text-xs" style="color: var(--text-secondary);">Comprobante #001-00482 • Caja Principal</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button type="button" id="toggleThemeBtn" class="btn btn-secondary text-xs py-1.5 px-2.5" title="Alternar entre tema claro y oscuro">
+        <i class="ph ph-moon"></i>
+        <span>Probar Tema Oscuro</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL DE LAS 4 FRANJAS HORIZONTALES (A, B, C, D) -->
+  <main class="flex-1 flex flex-col gap-3 p-3 overflow-hidden">
+
+    <!-- =====================================================================
+         FRANJA A (Dividida verticalmente en A1 ~55% y A2 ~45%)
+         ===================================================================== -->
+    <section aria-label="Franja A: Búsqueda y Cliente" class="grid grid-cols-12 gap-3 shrink-0" style="height: 235px;">
+
+      <!-- SECCIÓN A1: Búsqueda de Productos (SIN etiqueta guía flotante) -->
+      <div class="col-span-7 panel-card p-3.5 flex flex-col overflow-hidden">
+        <div class="flex items-center justify-between mb-2 shrink-0">
+          <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-magnifying-glass text-sm" style="color: var(--brand-primary);"></i>
+            BÚSQUEDA DE PRODUCTOS / REPUESTOS
+          </h2>
+        </div>
+
+        <!-- Buscador con botón limpiar -->
+        <div class="relative mb-2.5 shrink-0">
+          <i class="ph ph-barcode absolute left-3 top-1/2 -translate-y-1/2 text-base" style="color: var(--text-muted);"></i>
+          <input
+            type="text"
+            id="productSearchInput"
+            class="form-control pl-9 pr-8"
+            placeholder="Buscar por nombre, marca o código..."
+            autocomplete="off"
+          >
+          <button
+            type="button"
+            id="clearProductSearchBtn"
+            class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full items-center justify-center text-xs hover:opacity-80"
+            style="background-color: var(--bg-hover); color: var(--text-secondary);"
+            title="Limpiar búsqueda"
+          >
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <!-- Lista de resultados -->
+        <div class="flex-1 overflow-y-auto border rounded-lg" style="border-color: var(--border-color);">
+          <table class="w-full text-left border-collapse product-list-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="w-28">Marca</th>
+                <th class="w-24 text-center">Stock</th>
+                <th class="w-24 text-right">Precio Base</th>
+              </tr>
+            </thead>
+            <tbody id="productSearchResults">
+              <!-- Filas renderizadas por JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECCIÓN A2: Cliente y Condición -->
+      <div class="col-span-5 panel-card p-3.5 flex flex-col justify-between">
+        <!-- Fila 1: Título + Selector Contado / Crédito -->
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-user-circle text-sm" style="color: var(--brand-primary);"></i>
+            CLIENTE Y CONDICIÓN
+          </h2>
+
+          <div class="condition-toggle" role="group" aria-label="Condición de venta">
+            <button type="button" id="condContadoBtn" class="condition-btn active">Contado</button>
+            <button type="button" id="condCreditoBtn" class="condition-btn">Crédito</button>
+          </div>
+        </div>
+
+        <!-- Fila 2: Único buscador de clientes + Botón + Nuevo -->
+        <div class="flex items-center gap-2 relative">
+          <div class="relative flex-1">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-sm" style="color: var(--text-muted);"></i>
+            <input
+              type="text"
+              id="clientSearchInput"
+              class="form-control pl-8 pr-8"
+              placeholder="Buscar cliente por nombre o cédula..."
+              autocomplete="off"
+            >
+            <button
+              type="button"
+              id="clearClientSearchBtn"
+              class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full items-center justify-center text-xs hover:opacity-80"
+              style="background-color: var(--bg-hover); color: var(--text-secondary);"
+              title="Limpiar búsqueda de cliente"
+            >
+              <i class="ph-bold ph-x"></i>
+            </button>
+
+            <!-- Desplegable de resultados de clientes -->
+            <div
+              id="clientDropdown"
+              class="hidden absolute left-0 right-0 top-full mt-1 rounded-lg border shadow-lg max-h-40 overflow-y-auto z-30"
+              style="background-color: var(--bg-surface); border-color: var(--border-color);"
+            >
+              <!-- Resultados dinámicos -->
+            </div>
+          </div>
+
+          <button type="button" id="openNewClientModalBtn" class="btn btn-primary px-3 py-2 text-xs shrink-0" title="Registrar un nuevo cliente">
+            <i class="ph-bold ph-user-plus text-sm"></i>
+            <span>+ Nuevo</span>
+          </button>
+        </div>
+
+        <!-- Fila 3: Recuadro de estado / datos del cliente seleccionado -->
+        <div id="clientStateContainer" class="rounded-lg border p-2.5 min-h-[78px] flex items-center transition-colors" style="background-color: var(--bg-surface-subtle); border-color: var(--border-color);">
+          <!-- Contenido renderizado por JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- =====================================================================
+         FRANJA B (SECCIÓN B • Producto a Vender y Edición)
+         ===================================================================== -->
+    <section aria-label="Sección B: Datos del producto seleccionado" class="panel-card p-3.5 shrink-0">
+      <form id="addProductForm" class="grid grid-cols-12 gap-2.5 items-end">
+        <div class="col-span-1">
+          <label class="form-label" for="selProdCode">Código</label>
+          <input type="text" id="selProdCode" class="form-control font-mono text-xs" placeholder="---" readonly>
+        </div>
+
+        <div class="col-span-3">
+          <label class="form-label" for="selProdName">Producto / Repuesto</label>
+          <input type="text" id="selProdName" class="form-control" placeholder="Seleccione un producto en A1..." readonly>
+        </div>
+
+        <div class="col-span-3">
+          <label class="form-label" for="selProdBatch">Lote de Compra</label>
+          <select id="selProdBatch" class="form-control" disabled>
+            <option value="">-- Sin lotes --</option>
+          </select>
+        </div>
+
+        <div class="col-span-1">
+          <label class="form-label text-center" for="selProdStock">Disp.</label>
+          <input type="text" id="selProdStock" class="form-control text-center font-semibold" placeholder="0" readonly>
+        </div>
+
+        <div class="col-span-1">
+          <label class="form-label text-right" for="selProdPrice">Precio Unit. ($)</label>
+          <input type="number" id="selProdPrice" class="form-control text-right" step="0.01" min="0" placeholder="0.00">
+        </div>
+
+        <div class="col-span-1">
+          <label class="form-label text-center" for="selProdQty">Cant.</label>
+          <input type="number" id="selProdQty" class="form-control text-center font-semibold" min="1" value="1">
+        </div>
+
+        <div class="col-span-2 flex items-center gap-1.5">
+          <button type="submit" id="submitProdBtn" class="btn btn-primary flex-1 px-2.5">
+            <i id="submitProdIcon" class="ph-bold ph-plus-circle text-base"></i>
+            <span id="submitProdText">Agregar</span>
+          </button>
+          <button type="button" id="cancelEditItemBtn" class="hidden btn btn-secondary px-2.5" title="Cancelar edición">
+            <i class="ph-bold ph-x text-base"></i>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA C (SECCIÓN C • Detalle de Venta)
+         ===================================================================== -->
+    <section aria-label="Sección C: Detalle de la venta" class="panel-card flex-1 flex flex-col overflow-hidden">
+      <div class="px-3.5 py-2 border-b flex items-center justify-between shrink-0" style="border-color: var(--border-color);">
+        <div class="flex items-center gap-2">
+          <h2 class="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-list-bullets text-sm" style="color: var(--brand-primary);"></i>
+            ÍTEMS EN EL DETALLE DE VENTA
+          </h2>
+          <span class="text-[11px]" style="color: var(--text-muted);">(Clic en una fila para editar)</span>
+        </div>
+        <span id="itemsCountBadge" class="text-xs font-medium px-2 py-0.5 rounded-full" style="background-color: var(--brand-primary-soft); color: var(--brand-primary);">
+          0 ítems
+        </span>
+      </div>
+
+      <div class="flex-1 overflow-y-auto">
+        <table class="w-full text-left border-collapse detail-table">
+          <thead>
+            <tr>
+              <th class="w-24">Código</th>
+              <th>Producto / Repuesto</th>
+              <th class="w-36">Lote</th>
+              <th class="w-20 text-center">Cant.</th>
+              <th class="w-28 text-right">Precio Unit.</th>
+              <th class="w-28 text-right">Subtotal</th>
+              <th class="w-16 text-center">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="saleDetailBody">
+            <!-- Filas renderizadas por JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA D (SECCIÓN D • Totales y Acciones)
+         ===================================================================== -->
+    <footer aria-label="Sección D: Acciones y Total" class="panel-card px-4 py-3 shrink-0 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <button type="button" id="cancelSaleBtn" class="btn btn-outline-danger">
+          <i class="ph-bold ph-x-circle text-base"></i>
+          <span>Cancelar Venta</span>
+        </button>
+
+        <button type="button" id="saveSaleBtn" class="btn btn-success px-5">
+          <i class="ph-bold ph-check-circle text-base"></i>
+          <span>Guardar Venta</span>
+        </button>
+      </div>
+
+      <div class="text-right">
+        <span class="block text-xs uppercase font-bold tracking-wider" style="color: var(--text-secondary);">Total a Pagar</span>
+        <span id="totalDisplay" class="text-2xl font-bold tracking-tight" style="color: var(--brand-primary);">$0.00</span>
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- =======================================================================
+       MODAL: REGISTRO RÁPIDO DE NUEVO CLIENTE
+       ======================================================================= -->
+  <div id="newClientModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(15, 23, 42, 0.55);">
+    <div class="panel-card w-full max-w-md p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="newClientModalTitle">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--border-color);">
+        <h3 id="newClientModalTitle" class="text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+          <i class="ph-bold ph-user-plus text-base" style="color: var(--brand-primary);"></i>
+          Registrar Nuevo Cliente
+        </h3>
+        <button type="button" id="closeNewClientModalBtn" class="w-7 h-7 rounded-md flex items-center justify-center hover:opacity-80" style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <form id="newClientForm" class="space-y-3">
+        <div>
+          <label class="form-label" for="newClientName">Nombre Completo / Razón Social *</label>
+          <input type="text" id="newClientName" class="form-control" placeholder="Ej: Juan Pérez" required>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label" for="newClientDoc">Cédula / RUC *</label>
+            <input type="text" id="newClientDoc" class="form-control" placeholder="Ej: 4.123.456" required>
+          </div>
+          <div>
+            <label class="form-label" for="newClientPhone">Teléfono</label>
+            <input type="text" id="newClientPhone" class="form-control" placeholder="Ej: 0981-123456">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-3 mt-2 border-t" style="border-color: var(--border-color);">
+          <button type="button" id="cancelNewClientBtn" class="btn btn-secondary text-xs">Cancelar</button>
+          <button type="submit" class="btn btn-primary text-xs">
+            <i class="ph-bold ph-check"></i>
+            <span>Guardar y Asignar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Notificación Toast -->
+  <div id="toastNotification" class="fixed bottom-20 right-5 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-2 z-50" style="background-color: var(--text-primary); color: var(--bg-surface);">
+    <i id="toastIcon" class="ph-bold ph-info text-base"></i>
+    <span id="toastMessage">Mensaje</span>
+  </div>
+
+  <script>
+    // =========================================================================
+    // DATOS DE EJEMPLO CON LOTES DE COMPRA (PEPS / FIFO)
+    // =========================================================================
+    const catalogProducts = [
+      {
+        code: 'FLT-104',
+        name: 'Filtro de Aceite P3274',
+        brand: 'Bosch',
+        lotes: [
+          { idLote: 'LOT-2026-01', fechaIngreso: '10/08/2026', costoCompra: 9.50, precioVenta: 14.50, stock: 9 },
+          { idLote: 'LOT-2026-04', fechaIngreso: '02/11/2026', costoCompra: 10.20, precioVenta: 15.50, stock: 15 }
+        ]
+      },
+      {
+        code: 'ACE-5W30',
+        name: 'Aceite Sintético 5W-30 (4L)',
+        brand: 'Mobil 1',
+        lotes: [
+          { idLote: 'LOT-2026-02', fechaIngreso: '22/09/2026', costoCompra: 34.00, precioVenta: 48.00, stock: 5 },
+          { idLote: 'LOT-2026-05', fechaIngreso: '12/11/2026', costoCompra: 36.50, precioVenta: 51.00, stock: 10 }
+        ]
+      },
+      {
+        code: 'PST-882',
+        name: 'Juego Pastillas de Freno Delanteras',
+        brand: 'Brembo',
+        lotes: [
+          { idLote: 'LOT-2026-03', fechaIngreso: '05/10/2026', costoCompra: 42.00, precioVenta: 62.00, stock: 8 }
+        ]
+      },
+      {
+        code: 'BUJ-409',
+        name: 'Bujía Iridium Laser (Unidad)',
+        brand: 'NGK',
+        lotes: [
+          { idLote: 'LOT-2026-01', fechaIngreso: '14/08/2026', costoCompra: 7.50, precioVenta: 12.00, stock: 16 },
+          { idLote: 'LOT-2026-06', fechaIngreso: '15/11/2026', costoCompra: 8.10, precioVenta: 13.00, stock: 24 }
+        ]
+      },
+      {
+        code: 'BAT-12V',
+        name: 'Batería 12V 65Ah Libre Mantenimiento',
+        brand: 'Moura',
+        lotes: [
+          { idLote: 'LOT-2026-03', fechaIngreso: '11/10/2026', costoCompra: 82.00, precioVenta: 115.00, stock: 3 }
+        ]
+      },
+      {
+        code: 'LMP-019',
+        name: 'Líquido Refrigerante Concentrado 1L',
+        brand: 'Paraflu',
+        lotes: [
+          { idLote: 'LOT-2026-02', fechaIngreso: '29/09/2026', costoCompra: 5.80, precioVenta: 9.50, stock: 19 }
+        ]
+      }
+    ];
+
+    const registeredClients = [
+      { id: 1, name: 'Carlos Mendoza', doc: '4.521.890', phone: '0981-555123' },
+      { id: 2, name: 'María Fernanda Benítez', doc: '3.890.112', phone: '0971-442890' },
+      { id: 3, name: 'Transporte Oviedo S.A.', doc: '80045120-4', phone: '0521-202450' },
+      { id: 4, name: 'Roberto Gómez', doc: '2.945.671', phone: '0982-331908' }
+    ];
+
+    // Estado inicial de la tabla (Sección C)
+    let saleItems = [
+      { code: 'ACE-5W30', name: 'Aceite Sintético 5W-30 (4L)', idLote: 'LOT-2026-02', qty: 1, price: 48.00 },
+      { code: 'FLT-104', name: 'Filtro de Aceite P3274', idLote: 'LOT-2026-01', qty: 1, price: 14.50 },
+      { code: 'BUJ-409', name: 'Bujía Iridium Laser (Unidad)', idLote: 'LOT-2026-01', qty: 4, price: 12.00 }
+    ];
+
+    let selectedProduct = null;
+    let editingIndex = null;
+    let selectedClient = null;
+    let saleCondition = 'contado';
+
+    // Referencias DOM - Productos y Venta
+    const searchInput = document.getElementById('productSearchInput');
+    const clearProductSearchBtn = document.getElementById('clearProductSearchBtn');
+    const searchResultsContainer = document.getElementById('productSearchResults');
+    const selProdCode = document.getElementById('selProdCode');
+    const selProdName = document.getElementById('selProdName');
+    const selProdBatch = document.getElementById('selProdBatch');
+    const selProdStock = document.getElementById('selProdStock');
+    const selProdPrice = document.getElementById('selProdPrice');
+    const selProdQty = document.getElementById('selProdQty');
+    const addProductForm = document.getElementById('addProductForm');
+    const submitProdBtn = document.getElementById('submitProdBtn');
+    const submitProdIcon = document.getElementById('submitProdIcon');
+    const submitProdText = document.getElementById('submitProdText');
+    const cancelEditItemBtn = document.getElementById('cancelEditItemBtn');
+    const saleDetailBody = document.getElementById('saleDetailBody');
+    const itemsCountBadge = document.getElementById('itemsCountBadge');
+    const totalDisplay = document.getElementById('totalDisplay');
+    const saveSaleBtn = document.getElementById('saveSaleBtn');
+
+    // Referencias DOM - Cliente y Condición
+    const condContadoBtn = document.getElementById('condContadoBtn');
+    const condCreditoBtn = document.getElementById('condCreditoBtn');
+    const clientSearchInput = document.getElementById('clientSearchInput');
+    const clearClientSearchBtn = document.getElementById('clearClientSearchBtn');
+    const clientDropdown = document.getElementById('clientDropdown');
+    const clientStateContainer = document.getElementById('clientStateContainer');
+
+    // Referencias DOM - Modal Nuevo Cliente
+    const newClientModal = document.getElementById('newClientModal');
+    const openNewClientModalBtn = document.getElementById('openNewClientModalBtn');
+    const closeNewClientModalBtn = document.getElementById('closeNewClientModalBtn');
+    const cancelNewClientBtn = document.getElementById('cancelNewClientBtn');
+    const newClientForm = document.getElementById('newClientForm');
+    const newClientName = document.getElementById('newClientName');
+    const newClientDoc = document.getElementById('newClientDoc');
+    const newClientPhone = document.getElementById('newClientPhone');
+
+    // =========================================================================
+    // NOTIFICACIÓN TOAST
+    // =========================================================================
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+
+      toastMsg.textContent = message;
+      toastIcon.className = type === 'success'
+        ? 'ph-bold ph-check-circle text-base text-green-400'
+        : type === 'error'
+          ? 'ph-bold ph-warning-circle text-base text-red-400'
+          : 'ph-bold ph-info text-base text-blue-400';
+
+      toast.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+      }, 2800);
+    }
+
+    // =========================================================================
+    // HELPERS DE LOTES Y STOCK DISPONIBLE
+    // =========================================================================
+    function getAvailableStockForBatch(prodCode, idLote, excludeRowIndex = null) {
+      const prod = catalogProducts.find(p => p.code === prodCode);
+      if (!prod) return 0;
+      const lote = prod.lotes.find(l => l.idLote === idLote);
+      if (!lote) return 0;
+
+      const reservedInTable = saleItems.reduce((sum, item, idx) => {
+        if (idx === excludeRowIndex) return sum;
+        if (item.code === prodCode && item.idLote === idLote) {
+          return sum + item.qty;
+        }
+        return sum;
+      }, 0);
+
+      return Math.max(0, lote.stock - reservedInTable);
+    }
+
+    function getTotalAvailableStock(prod) {
+      return prod.lotes.reduce((acc, lote) => acc + getAvailableStockForBatch(prod.code, lote.idLote), 0);
+    }
+
+    function getBasePrice(prod) {
+      const firstWithStock = prod.lotes.find(l => getAvailableStockForBatch(prod.code, l.idLote) > 0);
+      return firstWithStock ? firstWithStock.precioVenta : (prod.lotes[0] ? prod.lotes[0].precioVenta : 0);
+    }
+
+    // =========================================================================
+    // SECCIÓN A1: BÚSQUEDA DE PRODUCTOS
+    // =========================================================================
+    function renderSearchResults(filterText = '') {
+      const query = filterText.toLowerCase().trim();
+      const filtered = catalogProducts.filter(p =>
+        p.code.toLowerCase().includes(query) ||
+        p.name.toLowerCase().includes(query) ||
+        p.brand.toLowerCase().includes(query)
+      );
+
+      searchResultsContainer.innerHTML = '';
+
+      if (filtered.length === 0) {
+        searchResultsContainer.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center py-6 text-xs" style="color: var(--text-muted);">
+              No se encontraron productos con "${filterText}"
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(prod => {
+        const totalStock = getTotalAvailableStock(prod);
+        const basePrice = getBasePrice(prod);
+        const lowStock = totalStock <= 5;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div class="font-medium leading-tight">${prod.name}</div>
+            <span class="text-[11px] font-mono" style="color: var(--text-muted);">${prod.code} • ${prod.lotes.length} ${prod.lotes.length === 1 ? 'lote' : 'lotes'}</span>
+          </td>
+          <td class="text-xs font-medium" style="color: var(--text-secondary);">${prod.brand}</td>
+          <td class="text-center">
+            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
+              style="background-color: ${lowStock ? 'var(--warning-soft)' : 'var(--bg-surface-subtle)'}; color: ${lowStock ? 'var(--warning-text)' : 'var(--text-primary)'};">
+              ${totalStock} un.
+            </span>
+          </td>
+          <td class="text-right font-bold">$${basePrice.toFixed(2)}</td>
+        `;
+
+        tr.addEventListener('click', () => {
+          exitEditMode(false);
+          loadProductToSectionB(prod);
+        });
+        searchResultsContainer.appendChild(tr);
+      });
+    }
+
+    searchInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (val.length > 0) {
+        clearProductSearchBtn.classList.remove('hidden');
+        clearProductSearchBtn.classList.add('flex');
+      } else {
+        clearProductSearchBtn.classList.add('hidden');
+        clearProductSearchBtn.classList.remove('flex');
+      }
+      renderSearchResults(val);
+    });
+
+    clearProductSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearProductSearchBtn.classList.add('hidden');
+      clearProductSearchBtn.classList.remove('flex');
+      renderSearchResults('');
+      searchInput.focus();
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && searchInput.value) {
+        clearProductSearchBtn.click();
+      }
+    });
+
+    // =========================================================================
+    // SECCIÓN A2: CLIENTE Y CONDICIÓN DE VENTA
+    // =========================================================================
+    function setSaleCondition(condition) {
+      saleCondition = condition;
+      if (condition === 'contado') {
+        condContadoBtn.classList.add('active');
+        condCreditoBtn.classList.remove('active');
+      } else {
+        condCreditoBtn.classList.add('active');
+        condContadoBtn.classList.remove('active');
+      }
+      renderClientState();
+    }
+
+    function renderClientState() {
+      if (selectedClient) {
+        clientStateContainer.style.backgroundColor = 'var(--brand-primary-soft)';
+        clientStateContainer.style.borderColor = 'var(--brand-primary)';
+        clientStateContainer.innerHTML = `
+          <div class="w-full flex items-center justify-between gap-2">
+            <div class="grid grid-cols-3 gap-2 flex-1 min-w-0">
+              <div class="min-w-0">
+                <span class="block text-[10px] uppercase font-bold" style="color: var(--text-secondary);">Cliente</span>
+                <span class="block text-xs font-bold truncate" title="${selectedClient.name}">${selectedClient.name}</span>
+              </div>
+              <div>
+                <span class="block text-[10px] uppercase font-bold" style="color: var(--text-secondary);">Cédula / RUC</span>
+                <span class="block text-xs font-mono font-semibold">${selectedClient.doc}</span>
+              </div>
+              <div>
+                <span class="block text-[10px] uppercase font-bold" style="color: var(--text-secondary);">Teléfono</span>
+                <span class="block text-xs font-medium">${selectedClient.phone || '---'}</span>
+              </div>
+            </div>
+            <button type="button" id="removeClientBtn" class="btn btn-outline-danger text-xs py-1 px-2 shrink-0" title="Quitar cliente asignado">
+              <i class="ph-bold ph-x"></i>
+              <span>Quitar</span>
+            </button>
+          </div>
+        `;
+
+        document.getElementById('removeClientBtn').addEventListener('click', () => {
+          selectedClient = null;
+          renderClientState();
+          showToast('Cliente desvinculado de la venta');
+        });
+      } else if (saleCondition === 'credito') {
+        clientStateContainer.style.backgroundColor = 'var(--danger-soft)';
+        clientStateContainer.style.borderColor = 'var(--danger-bg)';
+        clientStateContainer.innerHTML = `
+          <div class="flex items-center gap-2.5 w-full" style="color: var(--danger-text);">
+            <i class="ph-bold ph-warning-circle text-xl shrink-0"></i>
+            <div class="text-xs leading-snug">
+              <strong class="block font-bold">Cliente obligatorio para venta a Crédito</strong>
+              <span>Busca un cliente registrado o presiona <strong>+ Nuevo</strong> para registrarlo.</span>
+            </div>
+          </div>
+        `;
+      } else {
+        clientStateContainer.style.backgroundColor = 'var(--bg-surface-subtle)';
+        clientStateContainer.style.borderColor = 'var(--border-color)';
+        clientStateContainer.innerHTML = `
+          <div class="flex items-center gap-2.5 w-full" style="color: var(--text-secondary);">
+            <i class="ph-bold ph-user text-lg shrink-0" style="color: var(--text-muted);"></i>
+            <div class="text-xs">
+              <strong class="block font-semibold" style="color: var(--text-primary);">Cliente Casual (Consumidor Final)</strong>
+              <span>Venta al contado sin registro obligatorio de cliente.</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function renderClientDropdown(filterText = '') {
+      const query = filterText.toLowerCase().trim();
+      const matches = registeredClients.filter(c =>
+        c.name.toLowerCase().includes(query) ||
+        c.doc.toLowerCase().includes(query)
+      );
+
+      clientDropdown.innerHTML = '';
+
+      if (matches.length === 0) {
+        clientDropdown.innerHTML = `
+          <div class="px-3 py-2.5 text-xs flex items-center justify-between" style="color: var(--text-muted);">
+            <span>Sin coincidencias para "${filterText}"</span>
+            <button type="button" id="quickCreateFromDropBtn" class="font-semibold underline" style="color: var(--brand-primary);">
+              + Crear cliente
+            </button>
+          </div>
+        `;
+        const quickBtn = document.getElementById('quickCreateFromDropBtn');
+        if (quickBtn) {
+          quickBtn.addEventListener('click', () => {
+            openNewClientModal(filterText);
+          });
+        }
+      } else {
+        matches.forEach(client => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'w-full text-left px-3 py-2 text-xs flex items-center justify-between border-b last:border-b-0 transition-colors';
+          item.style.borderColor = 'var(--border-color)';
+          item.innerHTML = `
+            <div>
+              <div class="font-semibold" style="color: var(--text-primary);">${client.name}</div>
+              <div class="text-[11px]" style="color: var(--text-secondary);">CI/RUC: ${client.doc} • Tel: ${client.phone || 'S/N'}</div>
+            </div>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded" style="background-color: var(--brand-primary-soft); color: var(--brand-primary);">Asignar</span>
+          `;
+          item.addEventListener('mouseenter', () => {
+            item.style.backgroundColor = 'var(--bg-hover)';
+          });
+          item.addEventListener('mouseleave', () => {
+            item.style.backgroundColor = 'transparent';
+          });
+          item.addEventListener('click', () => {
+            selectedClient = client;
+            clientSearchInput.value = '';
+            clearClientSearchBtn.classList.add('hidden');
+            clearClientSearchBtn.classList.remove('flex');
+            clientDropdown.classList.add('hidden');
+            renderClientState();
+            showToast(`Cliente asignado: ${client.name}`, 'success');
+          });
+          clientDropdown.appendChild(item);
+        });
+      }
+
+      clientDropdown.classList.remove('hidden');
+    }
+
+    condContadoBtn.addEventListener('click', () => setSaleCondition('contado'));
+    condCreditoBtn.addEventListener('click', () => setSaleCondition('credito'));
+
+    clientSearchInput.addEventListener('focus', () => {
+      renderClientDropdown(clientSearchInput.value);
+    });
+
+    clientSearchInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (val.length > 0) {
+        clearClientSearchBtn.classList.remove('hidden');
+        clearClientSearchBtn.classList.add('flex');
+      } else {
+        clearClientSearchBtn.classList.add('hidden');
+        clearClientSearchBtn.classList.remove('flex');
+      }
+      renderClientDropdown(val);
+    });
+
+    clearClientSearchBtn.addEventListener('click', () => {
+      clientSearchInput.value = '';
+      clearClientSearchBtn.classList.add('hidden');
+      clearClientSearchBtn.classList.remove('flex');
+      renderClientDropdown('');
+      clientSearchInput.focus();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!clientSearchInput.contains(e.target) && !clientDropdown.contains(e.target) && !clearClientSearchBtn.contains(e.target)) {
+        clientDropdown.classList.add('hidden');
+      }
+    });
+
+    // Modal Nuevo Cliente
+    function openNewClientModal(prefillText = '') {
+      clientDropdown.classList.add('hidden');
+      newClientForm.reset();
+      if (prefillText) {
+        if (/^[\d.-]+$/.test(prefillText.trim())) {
+          newClientDoc.value = prefillText.trim();
+        } else {
+          newClientName.value = prefillText.trim();
+        }
+      }
+      newClientModal.classList.remove('hidden');
+      setTimeout(() => newClientName.focus(), 50);
+    }
+
+    function closeNewClientModal() {
+      newClientModal.classList.add('hidden');
+    }
+
+    openNewClientModalBtn.addEventListener('click', () => openNewClientModal(clientSearchInput.value));
+    closeNewClientModalBtn.addEventListener('click', closeNewClientModal);
+    cancelNewClientBtn.addEventListener('click', closeNewClientModal);
+
+    newClientModal.addEventListener('click', (e) => {
+      if (e.target === newClientModal) closeNewClientModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !newClientModal.classList.contains('hidden')) {
+        closeNewClientModal();
+      }
+    });
+
+    newClientForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = newClientName.value.trim();
+      const doc = newClientDoc.value.trim();
+      const phone = newClientPhone.value.trim();
+
+      if (!name || !doc) {
+        showToast('Nombre y Cédula/RUC son obligatorios', 'error');
+        return;
+      }
+
+      const duplicate = registeredClients.find(c => c.doc.toLowerCase() === doc.toLowerCase());
+      if (duplicate) {
+        showToast(`Ya existe un cliente registrado con Cédula/RUC ${doc}`, 'error');
+        return;
+      }
+
+      const created = {
+        id: Date.now(),
+        name,
+        doc,
+        phone: phone || 'Sin teléfono'
+      };
+      registeredClients.unshift(created);
+      selectedClient = created;
+      clientSearchInput.value = '';
+      clearClientSearchBtn.classList.add('hidden');
+      clearClientSearchBtn.classList.remove('flex');
+
+      closeNewClientModal();
+      renderClientState();
+      showToast(`Cliente "${name}" registrado y asignado`, 'success');
+    });
+
+    // =========================================================================
+    // SECCIÓN B: GESTIÓN DE LOTES Y EDICIÓN DE FILAS
+    // =========================================================================
+    function populateBatchSelector(prod, preferredLoteId = null, excludeRowIndex = null) {
+      selProdBatch.innerHTML = '';
+      selProdBatch.disabled = false;
+
+      let chosenLote = null;
+
+      prod.lotes.forEach(lote => {
+        const avail = getAvailableStockForBatch(prod.code, lote.idLote, excludeRowIndex);
+        const opt = document.createElement('option');
+        opt.value = lote.idLote;
+        opt.textContent = `${lote.idLote} (${lote.fechaIngreso}) • Disp: ${avail} • $${lote.precioVenta.toFixed(2)}`;
+        if (avail === 0 && lote.idLote !== preferredLoteId) {
+          opt.disabled = true;
+        }
+        selProdBatch.appendChild(opt);
+
+        if (preferredLoteId && lote.idLote === preferredLoteId) {
+          chosenLote = lote;
+        }
+      });
+
+      if (!chosenLote) {
+        chosenLote = prod.lotes.find(l => getAvailableStockForBatch(prod.code, l.idLote, excludeRowIndex) > 0) || prod.lotes[0];
+      }
+
+      if (chosenLote) {
+        selProdBatch.value = chosenLote.idLote;
+        updateFieldsFromSelectedBatch(excludeRowIndex, false);
+      }
+    }
+
+    function updateFieldsFromSelectedBatch(excludeRowIndex = editingIndex, keepCustomPrice = false) {
+      if (!selectedProduct) return;
+      const loteId = selProdBatch.value;
+      const lote = selectedProduct.lotes.find(l => l.idLote === loteId);
+      if (!lote) return;
+
+      const avail = getAvailableStockForBatch(selectedProduct.code, lote.idLote, excludeRowIndex);
+      selProdStock.value = avail;
+      selProdQty.max = Math.max(1, avail);
+
+      if (!keepCustomPrice) {
+        selProdPrice.value = lote.precioVenta.toFixed(2);
+      }
+
+      if (parseInt(selProdQty.value, 10) > avail && avail > 0) {
+        selProdQty.value = avail;
+      }
+    }
+
+    function loadProductToSectionB(prod) {
+      selectedProduct = prod;
+      selProdCode.value = prod.code;
+      selProdName.value = prod.name;
+      selProdQty.value = 1;
+      populateBatchSelector(prod, null, null);
+      selProdQty.focus();
+      selProdQty.select();
+    }
+
+    function loadRowForEditing(index) {
+      const item = saleItems[index];
+      if (!item) return;
+      const prod = catalogProducts.find(p => p.code === item.code);
+      if (!prod) return;
+
+      editingIndex = index;
+      selectedProduct = prod;
+
+      selProdCode.value = prod.code;
+      selProdName.value = prod.name;
+      populateBatchSelector(prod, item.idLote, index);
+      selProdPrice.value = item.price.toFixed(2);
+      selProdQty.value = item.qty;
+
+      submitProdBtn.classList.remove('btn-primary');
+      submitProdBtn.classList.add('btn-success');
+      submitProdIcon.className = 'ph-bold ph-check-circle text-base';
+      submitProdText.textContent = 'Actualizar';
+      cancelEditItemBtn.classList.remove('hidden');
+
+      renderSaleTable();
+      selProdQty.focus();
+      selProdQty.select();
+    }
+
+    function exitEditMode(clearFields = true) {
+      editingIndex = null;
+      submitProdBtn.classList.remove('btn-success');
+      submitProdBtn.classList.add('btn-primary');
+      submitProdIcon.className = 'ph-bold ph-plus-circle text-base';
+      submitProdText.textContent = 'Agregar';
+      cancelEditItemBtn.classList.add('hidden');
+
+      if (clearFields) {
+        selectedProduct = null;
+        selProdCode.value = '';
+        selProdName.value = '';
+        selProdBatch.innerHTML = '<option value="">-- Sin lotes --</option>';
+        selProdBatch.disabled = true;
+        selProdStock.value = '';
+        selProdPrice.value = '';
+        selProdQty.value = 1;
+      }
+      renderSaleTable();
+    }
+
+    selProdBatch.addEventListener('change', () => {
+      updateFieldsFromSelectedBatch(editingIndex, false);
+    });
+
+    cancelEditItemBtn.addEventListener('click', () => {
+      exitEditMode(true);
+      showToast('Edición cancelada');
+    });
+
+    // =========================================================================
+    // SECCIÓN C: TABLA DE DETALLE DE VENTA
+    // =========================================================================
+    function renderSaleTable() {
+      saleDetailBody.innerHTML = '';
+
+      if (saleItems.length === 0) {
+        saleDetailBody.innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center py-10 text-sm" style="color: var(--text-muted);">
+              No hay productos cargados en esta venta. Busca un producto en A1 y agrégalo desde B.
+            </td>
+          </tr>
+        `;
+      } else {
+        saleItems.forEach((item, index) => {
+          const subtotal = item.qty * item.price;
+          const tr = document.createElement('tr');
+          if (editingIndex === index) {
+            tr.classList.add('editing-row');
+          }
+          tr.innerHTML = `
+            <td class="font-mono text-xs font-semibold" style="color: var(--brand-primary);">${item.code}</td>
+            <td class="font-medium">${item.name}</td>
+            <td>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-medium" style="background-color: var(--bg-surface-subtle); border: 1px solid var(--border-color); color: var(--text-secondary);">
+                <i class="ph ph-package text-xs"></i>
+                ${item.idLote}
+              </span>
+            </td>
+            <td class="text-center font-semibold">${item.qty}</td>
+            <td class="text-right">$${item.price.toFixed(2)}</td>
+            <td class="text-right font-bold">$${subtotal.toFixed(2)}</td>
+            <td class="text-center">
+              <button type="button" data-index="${index}" class="delete-item-btn p-1.5 rounded hover:opacity-80 transition-opacity" style="color: var(--danger-text); background-color: var(--danger-soft);" title="Quitar ítem">
+                <i class="ph-bold ph-trash text-sm"></i>
+              </button>
+            </td>
+          `;
+
+          tr.addEventListener('click', (e) => {
+            if (e.target.closest('.delete-item-btn')) return;
+            loadRowForEditing(index);
+          });
+
+          saleDetailBody.appendChild(tr);
+        });
+      }
+
+      document.querySelectorAll('.delete-item-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+          saleItems.splice(idx, 1);
+
+          if (editingIndex === idx) {
+            exitEditMode(true);
+          } else if (editingIndex !== null && idx < editingIndex) {
+            editingIndex -= 1;
+          }
+
+          renderSaleTable();
+          renderSearchResults(searchInput.value);
+          showToast('Producto eliminado del detalle');
+        });
+      });
+
+      itemsCountBadge.textContent = `${saleItems.length} ${saleItems.length === 1 ? 'ítem' : 'ítems'}`;
+
+      const total = saleItems.reduce((acc, item) => acc + (item.qty * item.price), 0);
+      totalDisplay.textContent = `$${total.toFixed(2)}`;
+    }
+
+    addProductForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!selProdCode.value || !selectedProduct) {
+        showToast('Primero selecciona un producto en la búsqueda', 'error');
+        searchInput.focus();
+        return;
+      }
+
+      const idLote = selProdBatch.value;
+      if (!idLote) {
+        showToast('Selecciona un lote de compra válido', 'error');
+        return;
+      }
+
+      const qty = parseInt(selProdQty.value, 10) || 1;
+      const price = parseFloat(selProdPrice.value) || 0;
+      const maxAvail = getAvailableStockForBatch(selectedProduct.code, idLote, editingIndex);
+
+      if (qty <= 0) {
+        showToast('La cantidad debe ser mayor a 0', 'error');
+        return;
+      }
+
+      if (qty > maxAvail) {
+        showToast(`Stock insuficiente en ${idLote} (Disponible: ${maxAvail})`, 'error');
+        selProdQty.value = Math.max(1, maxAvail);
+        selProdQty.focus();
+        return;
+      }
+
+      if (editingIndex !== null) {
+        const duplicateIdx = saleItems.findIndex((item, idx) =>
+          idx !== editingIndex && item.code === selectedProduct.code && item.idLote === idLote
+        );
+
+        if (duplicateIdx !== -1) {
+          saleItems[duplicateIdx].qty += qty;
+          saleItems[duplicateIdx].price = price;
+          saleItems.splice(editingIndex, 1);
+        } else {
+          saleItems[editingIndex] = {
+            code: selectedProduct.code,
+            name: selectedProduct.name,
+            idLote,
+            qty,
+            price
+          };
+        }
+
+        exitEditMode(true);
+        renderSearchResults(searchInput.value);
+        showToast('Ítem actualizado correctamente', 'success');
+      } else {
+        const existing = saleItems.find(i => i.code === selectedProduct.code && i.idLote === idLote);
+        if (existing) {
+          existing.qty += qty;
+          existing.price = price;
+        } else {
+          saleItems.push({
+            code: selectedProduct.code,
+            name: selectedProduct.name,
+            idLote,
+            qty,
+            price
+          });
+        }
+
+        selectedProduct = null;
+        selProdCode.value = '';
+        selProdName.value = '';
+        selProdBatch.innerHTML = '<option value="">-- Sin lotes --</option>';
+        selProdBatch.disabled = true;
+        selProdStock.value = '';
+        selProdPrice.value = '';
+        selProdQty.value = 1;
+
+        renderSaleTable();
+        renderSearchResults(searchInput.value);
+        showToast('Producto agregado al detalle', 'success');
+        searchInput.focus();
+      }
+    });
+
+    // =========================================================================
+    // SECCIÓN D: ACCIONES GUARDAR / CANCELAR Y CONTROLES DE MAQUETA
+    // =========================================================================
+    document.getElementById('cancelSaleBtn').addEventListener('click', () => {
+      if (saleItems.length === 0 && !selectedClient && saleCondition === 'contado' && editingIndex === null) return;
+      saleItems = [];
+      selectedClient = null;
+      exitEditMode(true);
+      setSaleCondition('contado');
+      renderSaleTable();
+      renderSearchResults(searchInput.value);
+      showToast('Venta cancelada', 'error');
+    });
+
+    saveSaleBtn.addEventListener('click', () => {
+      if (saleCondition === 'credito' && !selectedClient) {
+        showToast('Debes asignar un cliente para ventas a crédito', 'error');
+        clientSearchInput.focus();
+        return;
+      }
+      if (saleItems.length === 0) {
+        showToast('Agrega al menos un producto para guardar la venta', 'error');
+        return;
+      }
+      const clientLabel = selectedClient ? selectedClient.name : 'Cliente Casual';
+      const totalText = totalDisplay.textContent;
+      showToast(`Venta (${saleCondition.toUpperCase()}) por ${totalText} guardada para ${clientLabel}`, 'success');
+    });
+
+    const toggleThemeBtn = document.getElementById('toggleThemeBtn');
+    toggleThemeBtn.addEventListener('click', () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        toggleThemeBtn.innerHTML = '<i class="ph ph-moon"></i><span>Probar Tema Oscuro</span>';
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        toggleThemeBtn.innerHTML = '<i class="ph ph-sun"></i><span>Volver a Tema Claro</span>';
+      }
+    });
+
+    // Inicialización completa al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+      renderSearchResults();
+      renderClientState();
+      renderSaleTable();
+    });
+  </script>
+</body>
+</html>

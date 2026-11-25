@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neucar — Nueva Venta (Reparto automático y edición de lotes)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    :root {
+      --bg-app: #f3f1ed;
+      --bg-surface: #ffffff;
+      --bg-surface-subtle: #f1f0ec;
+      --bg-hover: #f7f5f1;
+      --bg-input: #ffffff;
+      --bg-table-header: #f7f6f3;
+
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --text-on-brand: #ffffff;
+
+      --border-color: #e4e1dc;
+      --border-strong: #d6d2ca;
+      --border-focus: #e07a16;
+
+      --brand-primary: #e07a16;
+      --brand-primary-hover: #c8670a;
+      --brand-primary-soft: #fff7ed;
+
+      --success-bg: #15803d;
+      --success-hover: #166534;
+      --success-soft: #dcfce7;
+      --success-text: #166534;
+
+      --danger-bg: #dc2626;
+      --danger-hover: #b91c1c;
+      --danger-soft: #fef2f2;
+      --danger-text: #dc2626;
+
+      --warning-soft: #fffbeb;
+      --warning-text: #92400e;
+      --warning-border: #fcd34d;
+
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.625rem;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .scroll-box { overflow-y: auto; }
+
+    .panel-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      position: relative;
+    }
+
+    .form-control {
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: var(--radius-sm);
+      padding: 0.45rem 0.7rem;
+      font-size: 0.875rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .form-control::placeholder {
+      color: var(--text-muted);
+    }
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(224, 122, 22, 0.14);
+    }
+    .form-control:disabled, .form-control[readonly] {
+      background-color: var(--bg-surface-subtle);
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.375rem;
+      font-weight: 600;
+      font-size: 0.8125rem;
+      padding: 0.48rem 0.95rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.99); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background-color: var(--brand-primary);
+      color: var(--text-on-brand);
+    }
+    .btn-primary:hover {
+      background-color: var(--brand-primary-hover);
+    }
+
+    .btn-success {
+      background-color: var(--success-bg);
+      color: var(--text-on-brand);
+    }
+    .btn-success:hover {
+      background-color: var(--success-hover);
+    }
+
+    .btn-outline-danger {
+      background-color: var(--bg-surface);
+      border-color: var(--border-color);
+      color: var(--danger-text);
+    }
+    .btn-outline-danger:hover {
+      background-color: var(--danger-soft);
+      border-color: #fca5a5;
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-surface);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+    .btn-secondary:hover {
+      background-color: var(--bg-hover);
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f0ec; }
+    ::-webkit-scrollbar-thumb { background: #c4c0b8; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+
+    .detail-table th, .product-list-table th {
+      background-color: var(--bg-table-header);
+      color: var(--text-secondary);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .product-list-table td {
+      padding: 0.52rem 0.75rem;
+      border-bottom: 1px solid #efede8;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+    }
+    .product-list-table tbody tr:nth-child(even) {
+      background-color: #faf9f6;
+    }
+    .product-list-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+    .product-list-table tbody tr:hover {
+      background-color: var(--brand-primary-soft);
+    }
+
+    .detail-table td {
+      padding: 0.62rem 0.75rem;
+      border-bottom: 1px solid #efede8;
+      font-size: 0.875rem;
+      vertical-align: middle;
+    }
+    .detail-table tbody tr:nth-child(even) {
+      background-color: #faf9f6;
+    }
+    .detail-table tbody tr {
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+    .detail-table tbody tr:hover {
+      background-color: var(--brand-primary-soft);
+    }
+    .detail-table tbody tr.editing-row {
+      outline: 1.5px solid var(--brand-primary);
+      outline-offset: -1.5px;
+      background-color: var(--brand-primary-soft);
+    }
+
+    .garantia-cliente-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.55rem;
+      border-radius: 9999px;
+      background-color: var(--success-soft);
+      color: var(--success-text);
+    }
+
+    .condition-toggle {
+      display: inline-flex;
+      background-color: var(--bg-surface-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      gap: 2px;
+    }
+    .condition-btn {
+      padding: 0.28rem 0.7rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .condition-btn.active {
+      background-color: var(--brand-primary);
+      color: var(--text-on-brand);
+    }
+
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #475569;
+      margin: 0;
+    }
+
+    .split-lot-card {
+      background-color: var(--bg-surface-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 0.7rem;
+    }
+
+    .lot-select {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: var(--radius-sm);
+      padding: 0.38rem 0.6rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      width: 100%;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .lot-select:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(224, 122, 22, 0.14);
+    }
+  </style>
+</head>
+<body>
+
+  <main class="flex flex-col gap-4 p-4 max-w-[1320px] w-full mx-auto">
+
+    <!-- =====================================================================
+         FRANJA A
+         ===================================================================== -->
+    <section class="grid grid-cols-12 gap-4 items-stretch">
+
+      <!-- A1: Búsqueda de productos / repuestos -->
+      <div class="col-span-7 panel-card p-4 flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="section-title">BÚSQUEDA DE PRODUCTOS / REPUESTOS</h2>
+          <span class="text-[11px] font-medium" style="color: var(--text-muted);">Reparto automático FIFO (editable por lote)</span>
+        </div>
+
+        <div class="relative">
+          <input
+            type="text"
+            id="productSearchInput"
+            class="form-control pr-8"
+            placeholder="Buscar por nombre..."
+            autocomplete="off"
+            autofocus
+          >
+          <button
+            type="button"
+            id="clearProductSearchBtn"
+            class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full items-center justify-center text-xs hover:opacity-80"
+            style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);"
+            title="Limpiar búsqueda"
+          >
+            <i class="ph-bold ph-x"></i>
+          </button>
+        </div>
+
+        <div class="scroll-box border rounded-md" style="border-color: var(--border-color); height: 205px;">
+          <table class="w-full text-left border-collapse product-list-table">
+            <thead>
+              <tr>
+                <th>PRODUCTO</th>
+                <th class="w-32">MARCA</th>
+                <th class="w-20 text-center">LOTES</th>
+                <th class="w-20 text-center">STOCK</th>
+                <th class="w-32 text-right">PRECIO BASE</th>
+              </tr>
+            </thead>
+            <tbody id="productSearchResults"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- A2: Cliente y condición -->
+      <div class="col-span-5 panel-card p-4 flex flex-col gap-3">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="section-title">CLIENTE Y CONDICIÓN</h2>
+          <div class="condition-toggle" role="group" aria-label="Condición de venta">
+            <button type="button" id="condContadoBtn" class="condition-btn active">Contado</button>
+            <button type="button" id="condCreditoBtn" class="condition-btn">Crédito</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 relative">
+          <div class="relative flex-1">
+            <input
+              type="text"
+              id="clientSearchInput"
+              class="form-control pr-8"
+              placeholder="Buscar cliente por nombre o cédula..."
+              autocomplete="off"
+            >
+            <button
+              type="button"
+              id="clearClientSearchBtn"
+              class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full items-center justify-center text-xs hover:opacity-80"
+              style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);"
+              title="Limpiar búsqueda de cliente"
+            >
+              <i class="ph-bold ph-x"></i>
+            </button>
+            <div
+              id="clientDropdown"
+              class="hidden absolute left-0 right-0 top-full mt-1 rounded-md border max-h-40 overflow-y-auto z-30"
+              style="background-color: var(--bg-surface); border-color: var(--border-color); box-shadow: 0 4px 12px rgba(30, 41, 59, 0.08);"
+            ></div>
+          </div>
+          <button type="button" id="openNewClientModalBtn" class="btn btn-primary px-3 py-2 shrink-0" title="Registrar un nuevo cliente">
+            <span>+ Nuevo</span>
+          </button>
+        </div>
+
+        <div
+          id="clientStateContainer"
+          class="rounded-md border p-3.5 flex items-center flex-1 transition-colors"
+          style="background-color: var(--bg-surface); border-color: var(--border-color); min-height: 148px;"
+        ></div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA B — Sin código; Producto - Marca, Stock disponible, Cant. total,
+         Precio unitario, Garantía y filas editables de lotes con <select>
+         ===================================================================== -->
+    <section aria-label="Sección B: Datos del producto seleccionado" class="panel-card p-4 shrink-0">
+      <form id="addProductForm" class="flex flex-col gap-3">
+        <div class="grid grid-cols-12 gap-3 items-end">
+          <div class="col-span-4">
+            <label class="form-label" for="selProdName">PRODUCTO / REPUESTO</label>
+            <input type="text" id="selProdName" class="form-control" placeholder="Elegí un producto en el buscador" readonly>
+          </div>
+
+          <div class="col-span-2">
+            <label class="form-label text-center" for="selProdStock">STOCK DISPONIBLE</label>
+            <input type="text" id="selProdStock" class="form-control text-center font-semibold" placeholder="—" readonly>
+          </div>
+
+          <div class="col-span-2">
+            <label class="form-label text-center" for="selProdQty">CANT. TOTAL</label>
+            <input type="number" id="selProdQty" class="form-control text-center font-semibold" min="1" value="1">
+          </div>
+
+          <div class="col-span-2">
+            <label class="form-label" for="selProdPrice">PRECIO UNIT. (GS.)</label>
+            <input type="text" inputmode="numeric" id="selProdPrice" class="form-control" placeholder="0">
+          </div>
+
+          <div class="col-span-2">
+            <label class="form-label" for="selProdClientWarranty" title="Opcional: garantía unificada que se ofrece al cliente por este producto">
+              GARANTÍA (MESES)
+            </label>
+            <input type="number" id="selProdClientWarranty" class="form-control" min="0" placeholder="Opcional">
+          </div>
+        </div>
+
+        <!-- Desglose interactivo de lotes seleccionados (auto FIFO, con <select> editable por fila) -->
+        <div id="splitPreviewContainer" class="hidden pt-3 border-t" style="border-color: var(--border-color);">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-[11px] font-bold uppercase tracking-wider m-0" style="color: var(--text-secondary);">
+              <i class="ph-bold ph-stack" style="color: var(--brand-primary);"></i>
+              LOTES SELECCIONADOS PARA CUBRIR EL PEDIDO (PODÉS CAMBIAR EL LOTE EN CADA FILA):
+            </p>
+            <span id="splitAssignedSummary" class="text-xs font-semibold" style="color: var(--text-secondary);"></span>
+          </div>
+          <div id="splitPreviewList" class="flex flex-col gap-2"></div>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 pt-2.5 border-t" style="border-color: #efede8;">
+          <p class="text-[11px] m-0" style="color: var(--text-muted);">
+            Al indicar la cantidad total, el sistema asigna automáticamente desde el lote más antiguo (FIFO). Podés elegir cualquier lote con stock disponible desde su selector.
+          </p>
+          <div class="flex items-center gap-2 shrink-0">
+            <button type="button" id="cancelEditItemBtn" class="hidden btn btn-secondary px-3" title="Cancelar edición">
+              <i class="ph-bold ph-x text-sm"></i>
+              <span>Cancelar</span>
+            </button>
+            <button type="submit" id="submitProdBtn" class="btn btn-primary px-5">
+              <span id="submitProdText">Agregar</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA C — Vista simplificada: una fila por producto vendido
+         (al hacer clic se cargan sus lotes seleccionados en la Sección B)
+         ===================================================================== -->
+    <section aria-label="Sección C: Detalle de la venta" class="panel-card flex flex-col overflow-hidden">
+      <div class="px-4 py-3 border-b flex items-center justify-between shrink-0" style="border-color: var(--border-color);">
+        <div class="flex items-center gap-2">
+          <h2 class="section-title">ÍTEMS EN EL DETALLE DE VENTA</h2>
+          <span class="text-xs" style="color: var(--text-muted);">(clic en una fila para ver o editar sus lotes en la sección superior)</span>
+        </div>
+        <span
+          id="itemsCountBadge"
+          class="text-xs font-medium px-2.5 py-0.5 rounded-full"
+          style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);"
+        >0 ítems</span>
+      </div>
+
+      <div class="scroll-box" style="max-height: 320px;">
+        <table class="w-full text-left border-collapse detail-table">
+          <thead>
+            <tr>
+              <th>PRODUCTO / REPUESTO</th>
+              <th class="w-24 text-center">CANT.</th>
+              <th class="w-32 text-right">PRECIO UNIT.</th>
+              <th class="w-32 text-center">GARANTÍA</th>
+              <th class="w-36 text-right">SUBTOTAL</th>
+              <th class="w-20 text-center">ACCIÓN</th>
+            </tr>
+          </thead>
+          <tbody id="saleDetailBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FRANJA D — Acciones, método de pago y total
+         ===================================================================== -->
+    <footer aria-label="Sección D: Acciones y Total" class="panel-card px-4 py-3 shrink-0 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 flex-wrap">
+        <button type="button" id="cancelSaleBtn" class="btn btn-outline-danger">
+          <span>Cancelar venta</span>
+        </button>
+        <div>
+          <label class="form-label" for="paymentMethod">MÉTODO DE PAGO</label>
+          <select id="paymentMethod" class="form-control text-xs" style="width: 155px;">
+            <option>Efectivo</option>
+            <option>Tarjeta</option>
+            <option>Transferencia</option>
+            <option>QR</option>
+          </select>
+        </div>
+        <button type="button" id="saveSaleBtn" class="btn btn-success px-5 self-end">
+          <span>Guardar venta</span>
+        </button>
+      </div>
+
+      <div class="text-right">
+        <span class="block text-[11px] uppercase font-bold tracking-wider" style="color: var(--text-secondary);">TOTAL A PAGAR</span>
+        <span id="totalDisplay" class="text-xl font-bold tracking-tight" style="color: var(--text-primary);">Gs. 0</span>
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- =======================================================================
+       MODAL: REGISTRO RÁPIDO DE NUEVO CLIENTE
+       ======================================================================= -->
+  <div id="newClientModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(30, 41, 59, 0.45);">
+    <div class="panel-card w-full max-w-md p-5" role="dialog" aria-modal="true" aria-labelledby="newClientModalTitle" style="box-shadow: 0 12px 28px rgba(30, 41, 59, 0.14);">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--border-color);">
+        <h3 id="newClientModalTitle" class="section-title">REGISTRAR NUEVO CLIENTE</h3>
+        <button type="button" id="closeNewClientModalBtn" class="w-7 h-7 rounded-md flex items-center justify-center hover:opacity-80" style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+      <form id="newClientForm" class="space-y-3">
+        <div>
+          <label class="form-label" for="newClientName">NOMBRE COMPLETO / RAZÓN SOCIAL *</label>
+          <input type="text" id="newClientName" class="form-control" placeholder="Ej: Juan Pérez" required>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label" for="newClientCedula">CÉDULA</label>
+            <input type="text" id="newClientCedula" class="form-control" placeholder="Ej: 4123456">
+          </div>
+          <div>
+            <label class="form-label" for="newClientRuc">RUC</label>
+            <input type="text" id="newClientRuc" class="form-control" placeholder="Ej: 80045120-4">
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="newClientPhone">TELÉFONO</label>
+          <input type="text" id="newClientPhone" class="form-control" placeholder="Ej: 0981-123456">
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-3 mt-2 border-t" style="border-color: var(--border-color);">
+          <button type="button" id="cancelNewClientBtn" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            <span>Guardar y asignar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =======================================================================
+       MODAL: CONFIRMACIÓN DE VENTA A CRÉDITO
+       ======================================================================= -->
+  <div id="creditConfirmModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background-color: rgba(30, 41, 59, 0.45);">
+    <div class="panel-card w-full max-w-md p-5" role="dialog" aria-modal="true" aria-labelledby="creditModalTitle" style="box-shadow: 0 12px 28px rgba(30, 41, 59, 0.14);">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b" style="border-color: var(--border-color);">
+        <h3 id="creditModalTitle" class="section-title">CONFIRMAR VENTA A CRÉDITO</h3>
+        <button type="button" id="closeCreditModalBtn" class="w-7 h-7 rounded-md flex items-center justify-center hover:opacity-80" style="background-color: var(--bg-surface-subtle); color: var(--text-secondary);">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+      <form id="creditConfirmForm" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="form-label" for="creditInitialPayment">PAGO INICIAL (GS.) *</label>
+            <input type="text" inputmode="numeric" id="creditInitialPayment" class="form-control" placeholder="0" required>
+          </div>
+          <div>
+            <label class="form-label" for="creditInitialMethod">FORMA DE PAGO</label>
+            <select id="creditInitialMethod" class="form-control">
+              <option>Efectivo</option>
+              <option>Tarjeta</option>
+              <option>Transferencia</option>
+              <option>QR</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="creditDueDate">FECHA PREVISTA DE PRÓXIMO PAGO</label>
+          <input type="date" id="creditDueDate" class="form-control">
+        </div>
+        <div class="rounded-md border p-2.5 flex items-center justify-between" style="background-color: var(--bg-surface-subtle); border-color: var(--border-color);">
+          <span class="text-xs font-bold uppercase" style="color: var(--text-secondary);">SALDO PENDIENTE</span>
+          <span id="creditPendingBalance" class="text-base font-bold" style="color: var(--danger-text);">Gs. 0</span>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-3 mt-2 border-t" style="border-color: var(--border-color);">
+          <button type="button" id="cancelCreditModalBtn" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-success">
+            <span>Confirmar y guardar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastNotification" class="fixed bottom-5 right-5 px-4 py-2.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-2 z-50" style="background-color: var(--text-primary); color: #ffffff; box-shadow: 0 8px 20px rgba(30, 41, 59, 0.18);">
+    <i id="toastIcon" class="ph-bold ph-info text-base"></i>
+    <span id="toastMessage">Mensaje</span>
+  </div>
+
+  <script>
+    const catalogProducts = [
+      {
+        code: 'BAT-12V', name: 'Batería 12V 65Ah Libre Mantenimiento', brand: 'Moura', price: 780000,
+        lotes: [
+          { id: '#140', fecha: '2026-06-05', cantidadDisponible: 3, proveedor: 'Baterías del Sur', garantiaMeses: 18 },
+          { id: '#182', fecha: '2026-09-22', cantidadDisponible: 3, proveedor: 'Distribuidora Central', garantiaMeses: 12 },
+          { id: '#219', fecha: '2026-11-10', cantidadDisponible: 1, proveedor: 'Importadora Este', garantiaMeses: 24 }
+        ]
+      },
+      {
+        code: 'FLT-104', name: 'Filtro de Aceite P3274', brand: 'Bosch', price: 65000,
+        lotes: [
+          { id: '#201', fecha: '2026-08-02', cantidadDisponible: 10, proveedor: 'Autopartes Oviedo', garantiaMeses: 3 },
+          { id: '#215', fecha: '2026-10-14', cantidadDisponible: 14, proveedor: 'Repuestos CDE', garantiaMeses: 6 }
+        ]
+      },
+      {
+        code: 'NEU-175', name: '175/70 R13', brand: 'Continental', price: 475000,
+        lotes: [
+          { id: '#137', fecha: '2026-09-04', cantidadDisponible: 15, proveedor: 'Neumáticos Ñandutí', garantiaMeses: 0 },
+          { id: '#195', fecha: '2026-10-28', cantidadDisponible: 6, proveedor: 'Ruedas Paraguay SA', garantiaMeses: 12 }
+        ]
+      },
+      {
+        code: 'ACE-5W30', name: 'Aceite Sintético 5W-30 (4L)', brand: 'Mobil 1', price: 320000,
+        lotes: [
+          { id: '#198', fecha: '2026-09-10', cantidadDisponible: 15, proveedor: 'Lubricantes del Este', garantiaMeses: 0 }
+        ]
+      },
+      {
+        code: 'PST-882', name: 'Juego Pastillas de Freno Delanteras', brand: 'Brembo', price: 390000,
+        lotes: [
+          { id: '#176', fecha: '2026-07-20', cantidadDisponible: 3, proveedor: 'Frenos Paraguay SA', garantiaMeses: 12 }
+        ]
+      },
+      {
+        code: 'BUJ-409', name: 'Bujía Iridium Laser (Unidad)', brand: 'NGK', price: 85000,
+        lotes: [
+          { id: '#190', fecha: '2026-08-28', cantidadDisponible: 40, proveedor: 'Autopartes Oviedo', garantiaMeses: 6 }
+        ]
+      }
+    ];
+
+    const registeredClients = [
+      { id: 1, name: 'Carlos Mendoza', doc: '4.521.890', phone: '0981-555123' },
+      { id: 2, name: 'María Fernanda Benítez', doc: '3.890.112', phone: '0971-442890' },
+      { id: 3, name: 'Transporte Oviedo S.A.', doc: '80045120-4', phone: '0521-202450' },
+      { id: 4, name: 'Roberto Gómez', doc: '2.945.671', phone: '0982-331908' }
+    ];
+
+    let saleItems = [];
+    let itemIdSeq = 1;
+
+    let selectedProduct = null;
+    let editingItemId = null;
+    let currentLoteAllocations = []; // [{ loteId, cantidad }]
+    let currentFaltante = 0;
+
+    let selectedClient = null;
+    let saleCondition = 'contado';
+
+    const searchInput = document.getElementById('productSearchInput');
+    const clearProductSearchBtn = document.getElementById('clearProductSearchBtn');
+    const searchResultsContainer = document.getElementById('productSearchResults');
+
+    const selProdName = document.getElementById('selProdName');
+    const selProdStock = document.getElementById('selProdStock');
+    const selProdQty = document.getElementById('selProdQty');
+    const selProdPrice = document.getElementById('selProdPrice');
+    const selProdClientWarranty = document.getElementById('selProdClientWarranty');
+
+    const addProductForm = document.getElementById('addProductForm');
+    const submitProdText = document.getElementById('submitProdText');
+    const cancelEditItemBtn = document.getElementById('cancelEditItemBtn');
+
+    const splitPreviewContainer = document.getElementById('splitPreviewContainer');
+    const splitAssignedSummary = document.getElementById('splitAssignedSummary');
+    const splitPreviewList = document.getElementById('splitPreviewList');
+
+    const saleDetailBody = document.getElementById('saleDetailBody');
+    const itemsCountBadge = document.getElementById('itemsCountBadge');
+    const totalDisplay = document.getElementById('totalDisplay');
+    const saveSaleBtn = document.getElementById('saveSaleBtn');
+
+    const condContadoBtn = document.getElementById('condContadoBtn');
+    const condCreditoBtn = document.getElementById('condCreditoBtn');
+    const clientSearchInput = document.getElementById('clientSearchInput');
+    const clearClientSearchBtn = document.getElementById('clearClientSearchBtn');
+    const clientDropdown = document.getElementById('clientDropdown');
+    const clientStateContainer = document.getElementById('clientStateContainer');
+
+    const newClientModal = document.getElementById('newClientModal');
+    const openNewClientModalBtn = document.getElementById('openNewClientModalBtn');
+    const closeNewClientModalBtn = document.getElementById('closeNewClientModalBtn');
+    const cancelNewClientBtn = document.getElementById('cancelNewClientBtn');
+    const newClientForm = document.getElementById('newClientForm');
+    const newClientName = document.getElementById('newClientName');
+    const newClientCedula = document.getElementById('newClientCedula');
+    const newClientRuc = document.getElementById('newClientRuc');
+    const newClientPhone = document.getElementById('newClientPhone');
+
+    const creditConfirmModal = document.getElementById('creditConfirmModal');
+    const closeCreditModalBtn = document.getElementById('closeCreditModalBtn');
+    const cancelCreditModalBtn = document.getElementById('cancelCreditModalBtn');
+    const creditConfirmForm = document.getElementById('creditConfirmForm');
+    const creditInitialPayment = document.getElementById('creditInitialPayment');
+    const creditDueDate = document.getElementById('creditDueDate');
+    const creditPendingBalance = document.getElementById('creditPendingBalance');
+
+    function gs(value) {
+      return 'Gs. ' + Math.round(value).toLocaleString('es-PY');
+    }
+
+    function fechaCorta(iso) {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    function garantiaTexto(meses) {
+      if (!meses || meses <= 0) return 'Sin garantía';
+      return meses === 1 ? '1 mes' : `${meses} meses`;
+    }
+
+    function garantiaClienteBadge(meses) {
+      if (!meses || meses <= 0) {
+        return '<span style="color: var(--text-muted);">—</span>';
+      }
+      const label = meses === 1 ? '1 mes' : `${meses} meses`;
+      return `<span class="garantia-cliente-badge"><i class="ph-bold ph-shield-check"></i> ${label}</span>`;
+    }
+
+    function formatProductBrand(prod) {
+      return prod.brand ? `${prod.name} - ${prod.brand}` : prod.name;
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toastNotification');
+      const toastMsg = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+      toastMsg.textContent = message;
+      toastIcon.className = type === 'success'
+        ? 'ph-bold ph-check-circle text-base text-green-400'
+        : type === 'error'
+          ? 'ph-bold ph-warning-circle text-base text-red-400'
+          : 'ph-bold ph-info text-base text-amber-400';
+      toast.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+      }, 2800);
+    }
+
+    // Lotes ordenados FIFO (más antiguo primero) con su disponibilidad real
+    // descontando lo reservado en otros ítems ya agregados a la venta.
+    function getLotesConDisponibilidad(prodCode, excludeItemId = null) {
+      const prod = catalogProducts.find(p => p.code === prodCode);
+      if (!prod) return [];
+
+      const reservadoPorLote = {};
+      saleItems.forEach(item => {
+        if (item.id === excludeItemId || item.productCode !== prodCode) return;
+        item.lotesSeleccionados.forEach(ls => {
+          reservadoPorLote[ls.loteId] = (reservadoPorLote[ls.loteId] || 0) + ls.cantidad;
+        });
+      });
+
+      return [...prod.lotes]
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+        .map(l => ({
+          ...l,
+          disponibleReal: Math.max(0, l.cantidadDisponible - (reservadoPorLote[l.id] || 0))
+        }));
+    }
+
+    function getStockTotal(prodCode, excludeItemId = null) {
+      return getLotesConDisponibilidad(prodCode, excludeItemId)
+        .reduce((sum, l) => sum + l.disponibleReal, 0);
+    }
+
+    // Reparto automático FIFO dado un conjunto opcional de lotes ya fijados por el usuario
+    function calcularAsignacionFIFO(prodCode, cantidadTotal, fixedAllocations = [], excludeItemId = null) {
+      const lotes = getLotesConDisponibilidad(prodCode, excludeItemId);
+      const lotesMap = new Map(lotes.map(l => [l.id, l]));
+
+      let restante = cantidadTotal;
+      const result = [];
+      const usados = new Set();
+
+      // 1. Mantener el orden/elección de lotes fijados previamente por el usuario
+      for (const fixed of fixedAllocations) {
+        if (restante <= 0) break;
+        const lote = lotesMap.get(fixed.loteId);
+        if (!lote || lote.disponibleReal <= 0 || usados.has(lote.id)) continue;
+        const tomar = Math.min(lote.disponibleReal, restante);
+        result.push({ loteId: lote.id, cantidad: tomar });
+        usados.add(lote.id);
+        restante -= tomar;
+      }
+
+      // 2. Completar lo que falte tomando automáticamente los siguientes lotes más viejos (FIFO)
+      for (const lote of lotes) {
+        if (restante <= 0) break;
+        if (usados.has(lote.id) || lote.disponibleReal <= 0) continue;
+        const tomar = Math.min(lote.disponibleReal, restante);
+        result.push({ loteId: lote.id, cantidad: tomar });
+        usados.add(lote.id);
+        restante -= tomar;
+      }
+
+      return {
+        allocations: result,
+        faltante: Math.max(0, restante)
+      };
+    }
+
+    // =========================================================================
+    // A1: BÚSQUEDA DE PRODUCTOS
+    // =========================================================================
+    function renderProductResults(filter = '') {
+      const term = filter.trim().toLowerCase();
+      const filtered = catalogProducts.filter(p =>
+        !term ||
+        p.name.toLowerCase().includes(term) ||
+        p.brand.toLowerCase().includes(term) ||
+        p.code.toLowerCase().includes(term)
+      );
+
+      if (filtered.length === 0) {
+        searchResultsContainer.innerHTML = `
+          <tr><td colspan="5" class="text-center py-6" style="color: var(--text-muted);">
+            Sin resultados para "${filter}"
+          </td></tr>`;
+        return;
+      }
+
+      searchResultsContainer.innerHTML = filtered.map(p => {
+        const stock = getStockTotal(p.code);
+        const lowStock = stock <= 3;
+        return `
+          <tr data-code="${p.code}">
+            <td class="font-medium">${p.name}</td>
+            <td style="color: var(--text-secondary);">${p.brand || '—'}</td>
+            <td class="text-center" style="color: var(--text-secondary);">${p.lotes.length}</td>
+            <td class="text-center font-bold" style="${lowStock ? 'color: var(--danger-text);' : 'color: var(--text-primary);'}">${stock}</td>
+            <td class="text-right font-bold">${gs(p.price)}</td>
+          </tr>`;
+      }).join('');
+
+      searchResultsContainer.querySelectorAll('tr[data-code]').forEach(row => {
+        row.addEventListener('click', () => {
+          editingItemId = null;
+          submitProdText.textContent = 'Agregar';
+          cancelEditItemBtn.classList.add('hidden');
+          selectProductForEditing(row.dataset.code);
+          renderSaleDetail();
+        });
+      });
+    }
+
+    clearProductSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearProductSearchBtn.classList.add('hidden');
+      renderProductResults();
+      searchInput.focus();
+    });
+
+    searchInput.addEventListener('input', () => {
+      clearProductSearchBtn.classList.toggle('hidden', searchInput.value.length === 0);
+      renderProductResults(searchInput.value);
+    });
+
+    // =========================================================================
+    // FRANJA B: PRODUCTO SELECCIONADO Y FILAS DE LOTES CON SELECT EDITABLE
+    // =========================================================================
+    function selectProductForEditing(code, preset = null) {
+      const prod = catalogProducts.find(p => p.code === code);
+      if (!prod) return;
+      selectedProduct = prod;
+
+      selProdName.value = formatProductBrand(prod);
+      selProdStock.value = getStockTotal(prod.code, editingItemId);
+      selProdQty.value = preset ? preset.qty : 1;
+      selProdPrice.value = preset ? preset.price : prod.price;
+      selProdClientWarranty.value = preset && preset.garantiaClienteMeses ? preset.garantiaClienteMeses : '';
+
+      if (preset && Array.isArray(preset.lotesSeleccionados)) {
+        const { allocations, faltante } = calcularAsignacionFIFO(
+          prod.code,
+          parseInt(selProdQty.value, 10) || 1,
+          preset.lotesSeleccionados,
+          editingItemId
+        );
+        currentLoteAllocations = allocations;
+        currentFaltante = faltante;
+      } else {
+        recalculateFromQty(true);
+      }
+
+      renderLotSplitRows();
+      selProdQty.focus();
+      selProdQty.select();
+    }
+
+    function recalculateFromQty(resetToPureFifo = false) {
+      if (!selectedProduct) {
+        currentLoteAllocations = [];
+        currentFaltante = 0;
+        renderLotSplitRows();
+        return;
+      }
+
+      const qty = parseInt(selProdQty.value, 10) || 0;
+      if (qty <= 0) {
+        currentLoteAllocations = [];
+        currentFaltante = 0;
+        renderLotSplitRows();
+        return;
+      }
+
+      const seed = resetToPureFifo ? [] : currentLoteAllocations;
+      const { allocations, faltante } = calcularAsignacionFIFO(
+        selectedProduct.code,
+        qty,
+        seed,
+        editingItemId
+      );
+      currentLoteAllocations = allocations;
+      currentFaltante = faltante;
+      renderLotSplitRows();
+    }
+
+    // Cuando el usuario cambia el <select> de lote en una fila `rowIndex`:
+    // - Se muestran TODOS los lotes con stock disponible (incluso si ya estaban
+    //   seleccionados más abajo, para poder promoverlos o reemplazar la fila).
+    // - Si el lote elegido ya estaba en otra fila, se quita de esa otra fila
+    //   (o intercambian lugar si estaba más arriba) para evitar duplicados,
+    //   y se recalcula automáticamente el reparto FIFO para completar la cantidad.
+    function handleLotSelectChange(rowIndex, newLoteId) {
+      if (!selectedProduct) return;
+      const qty = parseInt(selProdQty.value, 10) || 0;
+      const oldLoteId = currentLoteAllocations[rowIndex]?.loteId;
+      if (!oldLoteId || oldLoteId === newLoteId) return;
+
+      const existingIdx = currentLoteAllocations.findIndex(
+        (item, idx) => idx !== rowIndex && item.loteId === newLoteId
+      );
+
+      let nextOrder = currentLoteAllocations.map(item => ({ ...item }));
+
+      if (existingIdx !== -1 && existingIdx < rowIndex) {
+        // Si el lote elegido estaba en una fila anterior, intercambiamos ambos lotes
+        nextOrder[existingIdx].loteId = oldLoteId;
+        nextOrder[rowIndex].loteId = newLoteId;
+      } else {
+        // Si el lote elegido estaba en una fila posterior (o no estaba usado),
+        // lo ponemos en `rowIndex` y eliminamos su aparición posterior para no duplicarlo.
+        if (existingIdx !== -1) {
+          nextOrder.splice(existingIdx, 1);
+        }
+        nextOrder[rowIndex].loteId = newLoteId;
+      }
+
+      // Conservamos la prioridad elegida hasta `rowIndex` y dejamos que el reparto
+      // automático FIFO complete el resto (o descarte filas sobrantes si este lote
+      // ya cubre la cantidad requerida).
+      const updatedSeed = nextOrder.slice(0, rowIndex + 1);
+
+      const { allocations, faltante } = calcularAsignacionFIFO(
+        selectedProduct.code,
+        qty,
+        updatedSeed,
+        editingItemId
+      );
+
+      currentLoteAllocations = allocations;
+      currentFaltante = faltante;
+      renderLotSplitRows();
+    }
+
+    function renderLotSplitRows() {
+      if (!selectedProduct) {
+        splitPreviewContainer.classList.add('hidden');
+        return;
+      }
+
+      const qty = parseInt(selProdQty.value, 10) || 0;
+      if (qty <= 0) {
+        splitPreviewContainer.classList.add('hidden');
+        return;
+      }
+
+      const allLotes = getLotesConDisponibilidad(selectedProduct.code, editingItemId);
+      const lotesMap = new Map(allLotes.map(l => [l.id, l]));
+      const totalAsignado = currentLoteAllocations.reduce((acc, a) => acc + a.cantidad, 0);
+
+      // Todos los lotes que tengan stock disponible para la venta
+      const disponiblesParaSelect = allLotes.filter(l => l.disponibleReal > 0);
+
+      splitPreviewContainer.classList.remove('hidden');
+      splitAssignedSummary.textContent = `${totalAsignado} de ${qty} un. asignadas`;
+
+      splitPreviewList.innerHTML = currentLoteAllocations.map((alloc, rowIdx) => {
+        const currentLote = lotesMap.get(alloc.loteId);
+        const optionsList = disponiblesParaSelect.some(l => l.id === alloc.loteId)
+          ? disponiblesParaSelect
+          : (currentLote ? [currentLote, ...disponiblesParaSelect] : disponiblesParaSelect);
+
+        const optionsHtml = optionsList.map(l => {
+          const optText = `${l.id} - (${fechaCorta(l.fecha)}) - ${l.proveedor} · Disp: ${l.disponibleReal} · Gar. Prov: ${garantiaTexto(l.garantiaMeses)}`;
+          return `<option value="${l.id}" ${l.id === alloc.loteId ? 'selected' : ''}>${optText}</option>`;
+        }).join('');
+
+        return `
+          <div class="split-lot-card grid grid-cols-12 gap-3 items-end">
+            <div class="col-span-7">
+              <label class="form-label">LOTE DE COMPRA #${rowIdx + 1}</label>
+              <select class="lot-select" data-row-index="${rowIdx}">
+                ${optionsHtml}
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="form-label text-center">GARANTÍA PROV.</label>
+              <input type="text" class="form-control text-center text-xs" value="${currentLote ? garantiaTexto(currentLote.garantiaMeses) : '—'}" readonly>
+            </div>
+            <div class="col-span-1">
+              <label class="form-label text-center">DISP. LOTE</label>
+              <input type="text" class="form-control text-center text-xs font-semibold" value="${currentLote ? currentLote.disponibleReal : 0}" readonly>
+            </div>
+            <div class="col-span-2">
+              <label class="form-label text-center">TOMA DE ESTE LOTE</label>
+              <input type="text" class="form-control text-center text-xs font-bold" style="color: var(--brand-primary);" value="${alloc.cantidad} un." readonly>
+            </div>
+          </div>
+        `;
+      }).join('') + (currentFaltante > 0 ? `
+        <div class="rounded-md border px-3 py-2 text-xs font-medium flex items-center gap-2" style="background-color: var(--danger-soft); border-color: #fca5a5; color: var(--danger-text);">
+          <i class="ph-bold ph-warning"></i>
+          <span>Faltan ${currentFaltante} unidades (el stock disponible total no alcanza para cubrir ${qty} unidades)</span>
+        </div>
+      ` : '');
+
+      splitPreviewList.querySelectorAll('.lot-select').forEach(sel => {
+        sel.addEventListener('change', (e) => {
+          const rowIndex = parseInt(e.target.dataset.rowIndex, 10);
+          handleLotSelectChange(rowIndex, e.target.value);
+        });
+      });
+    }
+
+    selProdQty.addEventListener('input', () => recalculateFromQty(false));
+    selProdQty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); selProdPrice.focus(); selProdPrice.select(); }
+    });
+    selProdPrice.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); selProdClientWarranty.focus(); selProdClientWarranty.select(); }
+    });
+    selProdClientWarranty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addProductForm.requestSubmit(); }
+    });
+
+    addProductForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!selectedProduct) {
+        showToast('Seleccioná un producto primero', 'error');
+        return;
+      }
+
+      const qty = parseInt(selProdQty.value, 10) || 0;
+      const price = parseFloat(selProdPrice.value) || 0;
+      const rawWarranty = selProdClientWarranty.value.trim();
+      const clientWarranty = rawWarranty === '' ? null : Math.max(0, parseInt(rawWarranty, 10) || 0);
+
+      if (qty <= 0) {
+        showToast('La cantidad debe ser mayor a 0', 'error');
+        return;
+      }
+
+      if (currentFaltante > 0) {
+        showToast(`Stock insuficiente: faltan ${currentFaltante} unidades`, 'error');
+        return;
+      }
+
+      const itemObj = {
+        id: editingItemId || itemIdSeq++,
+        productCode: selectedProduct.code,
+        productName: selectedProduct.name,
+        brand: selectedProduct.brand,
+        qtyTotal: qty,
+        precioUnit: price,
+        garantiaClienteMeses: clientWarranty,
+        lotesSeleccionados: currentLoteAllocations.map(a => ({ ...a }))
+      };
+
+      if (editingItemId !== null) {
+        const idx = saleItems.findIndex(i => i.id === editingItemId);
+        saleItems[idx] = itemObj;
+        showToast('Producto actualizado', 'success');
+      } else {
+        saleItems.push(itemObj);
+        showToast('Producto agregado al detalle', 'success');
+      }
+
+      resetItemForm();
+      renderSaleDetail();
+      renderProductResults(searchInput.value);
+      searchInput.focus();
+    });
+
+    cancelEditItemBtn.addEventListener('click', () => {
+      resetItemForm();
+      renderSaleDetail();
+    });
+
+    function resetItemForm() {
+      selectedProduct = null;
+      editingItemId = null;
+      currentLoteAllocations = [];
+      currentFaltante = 0;
+      selProdName.value = '';
+      selProdStock.value = '';
+      selProdQty.value = '1';
+      selProdPrice.value = '';
+      selProdClientWarranty.value = '';
+      splitPreviewContainer.classList.add('hidden');
+      submitProdText.textContent = 'Agregar';
+      cancelEditItemBtn.classList.add('hidden');
+    }
+
+    // =========================================================================
+    // FRANJA C: TABLA SIMPLIFICADA (1 FILA POR PRODUCTO)
+    // =========================================================================
+    function renderSaleDetail() {
+      itemsCountBadge.textContent = `${saleItems.length} ${saleItems.length === 1 ? 'ítem' : 'ítems'}`;
+
+      if (saleItems.length === 0) {
+        saleDetailBody.innerHTML = `
+          <tr><td colspan="6" class="text-center py-10" style="color: var(--text-muted);">
+            Todavía no agregaste productos a esta venta
+          </td></tr>`;
+        updateTotal();
+        return;
+      }
+
+      saleDetailBody.innerHTML = saleItems.map(item => {
+        const subtotal = item.qtyTotal * item.precioUnit;
+        const isEditing = item.id === editingItemId;
+        return `
+          <tr data-item-id="${item.id}" class="${isEditing ? 'editing-row' : ''}">
+            <td>
+              <span class="block font-medium" style="color: var(--text-primary);">${item.productName}</span>
+              <span class="block text-xs" style="color: var(--text-muted);">${item.brand || '—'}</span>
+            </td>
+            <td class="text-center font-medium">${item.qtyTotal}</td>
+            <td class="text-right" style="color: var(--text-secondary);">${gs(item.precioUnit)}</td>
+            <td class="text-center">${garantiaClienteBadge(item.garantiaClienteMeses)}</td>
+            <td class="text-right font-bold">${gs(subtotal)}</td>
+            <td class="text-center">
+              <button type="button" class="delete-item-btn w-7 h-7 rounded inline-flex items-center justify-center hover:opacity-80" data-item-id="${item.id}" style="color: var(--danger-text);" title="Eliminar producto">
+                <i class="ph-bold ph-x text-sm"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      saleDetailBody.querySelectorAll('tr[data-item-id]').forEach(row => {
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.delete-item-btn')) return;
+          const itemId = parseInt(row.dataset.itemId, 10);
+          const item = saleItems.find(i => i.id === itemId);
+          if (!item) return;
+
+          editingItemId = itemId;
+          selectProductForEditing(item.productCode, {
+            qty: item.qtyTotal,
+            price: item.precioUnit,
+            garantiaClienteMeses: item.garantiaClienteMeses,
+            lotesSeleccionados: item.lotesSeleccionados
+          });
+          submitProdText.textContent = 'Actualizar';
+          cancelEditItemBtn.classList.remove('hidden');
+          renderSaleDetail();
+        });
+      });
+
+      saleDetailBody.querySelectorAll('.delete-item-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const itemId = parseInt(btn.dataset.itemId, 10);
+          saleItems = saleItems.filter(i => i.id !== itemId);
+          if (editingItemId === itemId) resetItemForm();
+          renderSaleDetail();
+          renderProductResults(searchInput.value);
+        });
+      });
+
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const total = saleItems.reduce((sum, item) => sum + item.qtyTotal * item.precioUnit, 0);
+      totalDisplay.textContent = gs(total);
+      return total;
+    }
+
+    // =========================================================================
+    // A2: CLIENTE Y CONDICIÓN
+    // =========================================================================
+    function setSaleCondition(cond) {
+      saleCondition = cond;
+      condContadoBtn.classList.toggle('active', cond === 'contado');
+      condCreditoBtn.classList.toggle('active', cond === 'credito');
+      renderClientState();
+    }
+    condContadoBtn.addEventListener('click', () => setSaleCondition('contado'));
+    condCreditoBtn.addEventListener('click', () => setSaleCondition('credito'));
+
+    function renderClientState() {
+      if (selectedClient) {
+        clientStateContainer.innerHTML = `
+          <div class="w-full flex items-center justify-between">
+            <div>
+              <span class="block font-semibold text-sm">${selectedClient.name}</span>
+              <span class="text-xs" style="color: var(--text-muted);">${selectedClient.doc} · ${selectedClient.phone || 'sin teléfono'}</span>
+            </div>
+            <button type="button" id="clearSelectedClientBtn" class="text-xs px-2.5 py-1 rounded border hover:opacity-80" style="background-color: var(--bg-surface-subtle); border-color: var(--border-color); color: var(--text-secondary);">
+              Quitar
+            </button>
+          </div>`;
+        document.getElementById('clearSelectedClientBtn').addEventListener('click', () => {
+          selectedClient = null;
+          renderClientState();
+        });
+      } else if (saleCondition === 'credito') {
+        clientStateContainer.innerHTML = `
+          <div class="w-full text-center text-xs font-medium" style="color: var(--warning-text);">
+            Cliente obligatorio para venta a crédito
+          </div>`;
+      } else {
+        clientStateContainer.innerHTML = `
+          <div class="w-full text-center text-xs" style="color: var(--text-muted);">
+            Sin cliente seleccionado — venta a cliente casual
+          </div>`;
+      }
+    }
+
+    clientSearchInput.addEventListener('input', () => {
+      const term = clientSearchInput.value.trim().toLowerCase();
+      clearClientSearchBtn.classList.toggle('hidden', term.length === 0);
+      if (!term) { clientDropdown.classList.add('hidden'); return; }
+      const matches = registeredClients.filter(c =>
+        c.name.toLowerCase().includes(term) || c.doc.toLowerCase().includes(term)
+      );
+      if (matches.length === 0) {
+        clientDropdown.innerHTML = `<div class="px-3 py-2 text-xs" style="color: var(--text-muted);">Sin coincidencias</div>`;
+      } else {
+        clientDropdown.innerHTML = matches.map(c => `
+          <div class="px-3 py-2 text-xs cursor-pointer hover:opacity-80" data-id="${c.id}" style="border-bottom: 1px solid #efede8;">
+            <span class="font-semibold">${c.name}</span> — ${c.doc}
+          </div>`).join('');
+        clientDropdown.querySelectorAll('[data-id]').forEach(el => {
+          el.addEventListener('click', () => {
+            selectedClient = registeredClients.find(c => c.id == el.dataset.id);
+            clientDropdown.classList.add('hidden');
+            clientSearchInput.value = '';
+            clearClientSearchBtn.classList.add('hidden');
+            renderClientState();
+          });
+        });
+      }
+      clientDropdown.classList.remove('hidden');
+    });
+
+    clearClientSearchBtn.addEventListener('click', () => {
+      clientSearchInput.value = '';
+      clearClientSearchBtn.classList.add('hidden');
+      clientDropdown.classList.add('hidden');
+    });
+
+    // =========================================================================
+    // MODAL NUEVO CLIENTE
+    // =========================================================================
+    openNewClientModalBtn.addEventListener('click', () => newClientModal.classList.remove('hidden'));
+    closeNewClientModalBtn.addEventListener('click', () => newClientModal.classList.add('hidden'));
+    cancelNewClientBtn.addEventListener('click', () => newClientModal.classList.add('hidden'));
+
+    newClientForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!newClientName.value.trim()) {
+        showToast('El nombre es obligatorio', 'error');
+        return;
+      }
+      const doc = newClientCedula.value.trim() || newClientRuc.value.trim() || 'S/D';
+      const newClient = {
+        id: registeredClients.length + 1,
+        name: newClientName.value.trim(),
+        doc,
+        phone: newClientPhone.value.trim()
+      };
+      registeredClients.push(newClient);
+      selectedClient = newClient;
+      renderClientState();
+      newClientForm.reset();
+      newClientModal.classList.add('hidden');
+      showToast('Cliente registrado y asignado', 'success');
+    });
+
+    // =========================================================================
+    // GUARDAR VENTA / MODAL DE CRÉDITO
+    // =========================================================================
+    document.getElementById('cancelSaleBtn').addEventListener('click', () => {
+      if (saleItems.length === 0) { showToast('No hay nada que cancelar', 'info'); return; }
+      if (confirm('¿Cancelar la venta y perder lo cargado?')) {
+        saleItems = [];
+        resetItemForm();
+        selectedClient = null;
+        renderSaleDetail();
+        renderClientState();
+        renderProductResults(searchInput.value);
+      }
+    });
+
+    saveSaleBtn.addEventListener('click', () => {
+      if (saleItems.length === 0) {
+        showToast('Agregá al menos un producto antes de guardar', 'error');
+        return;
+      }
+      if (saleCondition === 'credito' && !selectedClient) {
+        showToast('Debés asignar un cliente para ventas a crédito', 'error');
+        return;
+      }
+
+      if (saleCondition === 'credito') {
+        const total = updateTotal();
+        creditInitialPayment.value = '';
+        creditPendingBalance.textContent = gs(total);
+        const suggested = new Date();
+        suggested.setDate(suggested.getDate() + 30);
+        creditDueDate.value = suggested.toISOString().slice(0, 10);
+        creditConfirmModal.classList.remove('hidden');
+        creditInitialPayment.focus();
+      } else {
+        finalizeSale();
+      }
+    });
+
+    creditInitialPayment.addEventListener('input', () => {
+      const total = updateTotal();
+      const initial = parseFloat(creditInitialPayment.value) || 0;
+      const pending = Math.max(0, total - initial);
+      creditPendingBalance.textContent = gs(pending);
+    });
+
+    closeCreditModalBtn.addEventListener('click', () => creditConfirmModal.classList.add('hidden'));
+    cancelCreditModalBtn.addEventListener('click', () => creditConfirmModal.classList.add('hidden'));
+
+    creditConfirmForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const initial = parseFloat(creditInitialPayment.value) || 0;
+      if (initial <= 0) {
+        showToast('El pago inicial debe ser mayor a 0', 'error');
+        return;
+      }
+      creditConfirmModal.classList.add('hidden');
+      finalizeSale();
+    });
+
+    function finalizeSale() {
+      showToast('Venta guardada correctamente', 'success');
+      saleItems = [];
+      resetItemForm();
+      selectedClient = null;
+      setSaleCondition('contado');
+      renderSaleDetail();
+      renderClientState();
+      renderProductResults('');
+      searchInput.value = '';
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#clientSearchInput') && !e.target.closest('#clientDropdown')) {
+        clientDropdown.classList.add('hidden');
+      }
+    });
+
+    renderProductResults();
+    renderSaleDetail();
+    renderClientState();
+  </script>
+</body>
+</html>

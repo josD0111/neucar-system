@@ -6,7 +6,7 @@
 // un producto ya existente.
 
 import { Router, type Request } from 'express'
-import { and, asc, eq, ilike, sql, type SQL } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, ilike, or, sql, type SQL } from 'drizzle-orm'
 import PDFDocument from 'pdfkit'
 import * as schema from '../../db/schema'
 import type { Db } from '../server'
@@ -91,11 +91,24 @@ function leerFiltros(query: Request['query']): ResultadoFiltros {
 
 // Arma la condición SQL (WHERE) a partir de los filtros ya validados.
 // Devuelve undefined si no hay ninguno (= sin WHERE).
+//
+// `q` busca por nombre de producto O nombre de marca (HU-39/40: "por
+// nombre, marca o código" — el "código" queda fuera porque `productos`
+// todavía no tiene esa columna). Para que el OR contra `marcas.nombre`
+// funcione, las consultas que usan esta condición deben traer un leftJoin
+// a `marcas` (ver GET / y GET /listado-pdf más abajo); un producto sin
+// marca (marcaId null) simplemente no matchea ese lado del OR.
 function condicionDeFiltros(f: FiltrosListado): SQL | undefined {
   const condiciones: SQL[] = []
   if (f.categoriaId !== undefined) condiciones.push(eq(schema.productos.categoriaId, f.categoriaId))
   if (f.marcaId !== undefined) condiciones.push(eq(schema.productos.marcaId, f.marcaId))
-  if (f.q) condiciones.push(ilike(schema.productos.nombre, `%${f.q}%`))
+  if (f.q) {
+    const condicionQ = or(
+      ilike(schema.productos.nombre, `%${f.q}%`),
+      ilike(schema.marcas.nombre, `%${f.q}%`)
+    )
+    if (condicionQ) condiciones.push(condicionQ)
+  }
   if (f.soloConStock) condiciones.push(sql`${schema.productos.stock} > 0`)
   // "Stock bajo" como filtro combinable con los demás (corrección
   // 20/10/2026): misma condición que usa GET /stock-bajo más abajo.
@@ -132,11 +145,13 @@ export function productosRouter(db: Db): Router {
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(schema.productos)
+      .leftJoin(schema.marcas, eq(schema.productos.marcaId, schema.marcas.id))
       .where(condicion)
 
     const items = await db
-      .select()
+      .select(getTableColumns(schema.productos))
       .from(schema.productos)
+      .leftJoin(schema.marcas, eq(schema.productos.marcaId, schema.marcas.id))
       .where(condicion)
       // Sin ORDER BY, Postgres/PGlite devuelve las filas en el orden físico
       // en que las encuentra al recorrer la tabla, que no tiene por qué ser
@@ -188,8 +203,9 @@ export function productosRouter(db: Db): Router {
     const filtros = leidos.filtros
 
     const productos = await db
-      .select()
+      .select(getTableColumns(schema.productos))
       .from(schema.productos)
+      .leftJoin(schema.marcas, eq(schema.productos.marcaId, schema.marcas.id))
       .where(condicionDeFiltros(filtros))
       .orderBy(asc(sql`lower(${schema.productos.nombre})`))
     const categorias = await db.select().from(schema.categorias)

@@ -44,6 +44,12 @@ interface TablaDetalleVentaProps {
   esAdmin: boolean
   onEditar: (linea: LineaVenta) => void
   onEliminar: (idLinea: number) => void
+  // Resuelve marcaId -> nombre de marca (o null si no tiene), armado una
+  // sola vez en VentaScreen.tsx con useMarcas(token) — mismo patrón que
+  // BuscadorProductos.tsx y FormularioItemEdicion.tsx. Se muestra como
+  // subtexto bajo el nombre del producto (mismo patrón visual que ya usa
+  // StockScreen.tsx), para distinguir productos iguales de distinta marca.
+  nombreMarca?: (marcaId: number | null) => string | null
 }
 
 export function TablaDetalleVenta({
@@ -51,7 +57,8 @@ export function TablaDetalleVenta({
   idLineaEditando,
   esAdmin,
   onEditar,
-  onEliminar
+  onEliminar,
+  nombreMarca
 }: TablaDetalleVentaProps): React.JSX.Element {
   return (
     <div
@@ -155,7 +162,26 @@ export function TablaDetalleVenta({
                     if (!enEdicion) e.currentTarget.style.background = 'transparent'
                   }}
                 >
-                  <td style={celda}>{linea.producto.nombre}</td>
+                  <td style={celda}>
+                    {linea.producto.nombre}
+                    {(() => {
+                      const marca = nombreMarca?.(linea.producto.marcaId)
+                      return (
+                        marca && (
+                          <span
+                            style={{
+                              display: 'block',
+                              fontSize: 11,
+                              fontWeight: 400,
+                              color: 'var(--color-text-muted)'
+                            }}
+                          >
+                            {marca}
+                          </span>
+                        )
+                      )
+                    })()}
+                  </td>
                   {esAdmin && (
                     <td style={{ ...celda, fontSize: 12, color: 'var(--color-text-muted)' }}>
                       {linea.loteTexto ?? `Lote #${linea.compraId}`}

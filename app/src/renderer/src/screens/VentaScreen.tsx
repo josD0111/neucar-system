@@ -22,6 +22,7 @@ import { useAuth } from '../data/AuthContext'
 import { useStockAlert } from '../data/StockAlertContext'
 import { ventasApi } from '../api/ventas'
 import { productosApi } from '../api/productos'
+import { useMarcas } from '../api/hooks'
 import type { Cliente, Producto, TipoPago, VentaInput } from '../api/types'
 import { BuscadorProductos } from '../components/BuscadorProductos'
 import { PanelClienteCondicion } from '../components/PanelClienteCondicion'
@@ -58,6 +59,16 @@ export function VentaScreen(): React.JSX.Element {
   const { usuario, token } = useAuth()
   const esAdmin = usuario?.rol === 'Administrador'
   const { refrescar: refrescarStockAlert } = useStockAlert()
+
+  // Marcas, para resolver marcaId -> nombre en toda la pantalla (A1, B y C).
+  // Mismo criterio que StockScreen.tsx: se pide una sola vez al entrar y se
+  // arma un mapa local, en vez de que cada componente pida su propia copia.
+  const marcas = useMarcas(token)
+  const nombreMarca = useMemo(() => {
+    const mapa = new Map(marcas.datos.map((m) => [m.id, m.nombre]))
+    return (marcaId: number | null): string | null =>
+      marcaId == null ? null : (mapa.get(marcaId) ?? null)
+  }, [marcas.datos])
 
   // --- Estado de la venta ---
   const [tipoPago, setTipoPago] = useState<TipoPago>('Contado')
@@ -400,6 +411,7 @@ export function VentaScreen(): React.JSX.Element {
         <BuscadorProductos
           onSeleccionar={handleSeleccionarProducto}
           refrescarTrigger={refrescarCatalogo}
+          nombreMarca={nombreMarca}
           // Un producto con stock 0 no tiene ningún lote con cantidad
           // disponible, así que elegirlo acá nunca termina en una venta
           // posible (la Franja B queda sin lote para elegir y el botón
@@ -423,6 +435,7 @@ export function VentaScreen(): React.JSX.Element {
           esAdmin={esAdmin}
           onConfirmar={handleConfirmarItem}
           onCancelarEdicion={handleCancelarEdicion}
+          nombreMarca={nombreMarca}
         />
       </section>
 
@@ -445,6 +458,7 @@ export function VentaScreen(): React.JSX.Element {
           esAdmin={esAdmin}
           onEditar={handleEditarItem}
           onEliminar={handleEliminarItem}
+          nombreMarca={nombreMarca}
         />
       </section>
 
