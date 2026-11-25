@@ -9,7 +9,10 @@ export interface Categoria {
   id: number
   nombre: string
 }
-
+export interface Marca {
+  id: number
+  nombre: string
+}
 export interface Proveedor {
   id: number
   nombre: string
@@ -20,6 +23,7 @@ export interface Producto {
   id: number
   nombre: string
   categoriaId: number
+  marcaId: number | null
   precioBase: string
   stock: number
   stockMinimo: number | null
@@ -53,10 +57,10 @@ export interface ListadoPaginado<T> {
 export interface ProductoNuevoInput {
   nombre: string
   categoriaId: number
+  marcaId?: number | null
   precioBase: number
   stockMinimo: number | null
 }
-
 export interface CompraInput {
   productoId?: number
   productoNuevo?: ProductoNuevoInput
@@ -241,6 +245,8 @@ export interface ServicioDetalle {
   montoBase: string | null
   monto: string
   detalle: string | null
+
+
 }
 
 // Orden con cliente, vehículo y usuario ya resueltos (ver
@@ -261,6 +267,9 @@ export interface OrdenServicio {
   montoTotal: string
   fechaPagoPrevista: string | null
   tipoComprobante: string | null
+  kilometraje: number | null
+  proximoMantenimientoKm: number | null
+  aviso?: string | null
   servicios: ServicioDetalle[]
 }
 
@@ -282,6 +291,7 @@ export interface TipoServicio {
   montoBase: string | null
   requiereRuedas: boolean
   activo: boolean
+  intervaloKm: number | null
 }
 
 export interface TipoServicioInput {
@@ -289,6 +299,8 @@ export interface TipoServicioInput {
   montoBase?: number | null
   requiereRuedas?: boolean
   activo?: boolean
+  intervaloKm?: number | null
+
 }
 // Lo que se envía al registrar una orden. El monto total NO se manda: lo
 // calcula el servidor como la suma de los servicios.
@@ -301,7 +313,9 @@ export interface OrdenServicioInput {
   // Solo se conserva si tipoPago = 'Crédito'.
   fechaPagoPrevista?: string | null
   tipoComprobante?: string | null
+  kilometraje?: number | null
   servicios: ServicioInput[]
+  
 }
 
 // Filtros de GET /api/ordenes-servicio (HU-26).
@@ -314,6 +328,7 @@ export interface FiltrosOrdenesServicio {
 // servidor (siempre 0 si es al contado). Ver services/ordenesServicio.ts.
 export interface OrdenListado extends OrdenServicio {
   saldoPendiente: number
+
 }
 
 // Filtros de GET /api/ordenes-servicio/historial. Las fechas son 'AAAA-MM-DD'
@@ -389,4 +404,32 @@ export interface CreditoVencido {
   fechaPagoPrevista: string
   saldoPendiente: number
   diasVencido: number
+}
+// --- Historial de compras (Sprint 3, HU-38). Ver services/compras.ts ---
+export interface CompraListado {
+  id: number
+  fecha: string // 'AAAA-MM-DD'
+  productoId: number
+  productoNombre: string
+  proveedorId: number
+  proveedorNombre: string
+  cantidad: number
+  cantidadDisponible: number
+  precioCompra: string
+  garantiaProveedor: number | null
+  factura: string | null
+}
+
+export interface FiltrosCompras {
+  proveedorId?: number
+  fechaDesde?: string
+  fechaHasta?: string
+  antesDe?: string
+  dias?: number
+}
+
+export interface PaginaCompras {
+  items: CompraListado[]
+  hayMas: boolean
+  antesDe: string | null
 }

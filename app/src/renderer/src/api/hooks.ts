@@ -22,12 +22,13 @@ import { ApiClientError, apiFetch, type ApiFail, type ApiOk } from './client'
 import { vehiculosApi } from './vehiculos'
 import { ordenesServicioApi } from './ordenesServicio'
 import { tiposServicioApi } from './tiposServicio'
-
+import { marcasApi } from './marcas'
 import type {
   Categoria,
   FiltrosOrdenesServicio,
   FiltrosVehiculos,
   ListadoPaginado,
+  Marca,
   OrdenServicio,
   Proveedor,
   Producto,
@@ -104,6 +105,7 @@ export function useProductos(filtros: FiltrosProductos): RecursoAsync<ListadoPag
     () => productosApi.listar(filtros),
     [
       filtros.categoriaId,
+      filtros.marcaId,
       filtros.q,
       filtros.soloConStock,
       filtros.soloStockBajo,
@@ -178,5 +180,15 @@ export function useTiposServicio(
     async () =>
       token ? desenvolver(await tiposServicioApi.listar(token, incluirInactivos)) : [],
     [token, incluirInactivos]
+  )
+  
+}
+
+// Marcas de producto (HU-37). Sin sesión no se pide nada.
+export function useMarcas(token: string | null): RecursoAsync<Marca[]> {
+  return useRecursoAsync<Marca[]>(
+    [],
+    async () => (token ? desenvolver(await marcasApi.listar(token)) : []),
+    [token]
   )
 }

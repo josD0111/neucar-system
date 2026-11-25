@@ -37,11 +37,14 @@ import { Router } from 'express'
 import { eq, sql } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import type { Db } from '../server'
-import { sendOk, sendBadRequest, sendNotFound } from '../response'
+import { sendOk, sendBadRequest, sendNotFound, sendError } from '../response'
+import { requireAuth, requireRole } from '../middleware/auth'
+import { listarCompras } from '../../services/compras'
 
 interface ProductoNuevoInput {
   nombre?: string
   categoriaId?: number
+  marcaId?: number | null
   precioBase?: number | string
   stockMinimo?: number | null
 }
@@ -65,15 +68,26 @@ function esViolacionFk(err: unknown): boolean {
 export function comprasRouter(db: Db): Router {
   const router = Router()
 
-  router.get('/', async (req, res) => {
-    const { productoId } = req.query
-    const rows = productoId
-      ? await db
-          .select()
-          .from(schema.compras)
-          .where(eq(schema.compras.productoId, Number(productoId)))
-      : await db.select().from(schema.compras)
-    sendOk(res, rows)
+    // Historial de compras (HU-38). Muestra precioCompra, por eso es solo del
+  // Administrador. Sigue aceptando productoId como filtro opcional.
+  router.get('/', requireAuth, requireRole('Administrador'), async (req, res) => {
+    const { proveedorId, productoId, fechaDesde, fechaHasta, antesDe, dias } = req.query
+    const texto = (v: unknown): string | undefined =>
+      typeof v === 'string' && v.trim() ? v.trim() : undefined
+    const numero = (v: unknown): number | undefined => {
+      const t = texto(v)
+      return t === undefined ? undefined : Number(t)
+    }
+    const r = await listarCompras(db, {
+      proveedorId: numero(proveedorId),
+      productoId: numero(productoId),
+      fechaDesde: texto(fechaDesde),
+      fechaHasta: texto(fechaHasta),
+      antesDe: texto(antesDe),
+      dias: numero(dias)
+    })
+    if (r.ok) sendOk(res, r.data)
+    else sendError(res, r.status, r.mensaje)
   })
 
   router.post('/', async (req, res) => {
@@ -123,11 +137,22 @@ export function comprasRouter(db: Db): Router {
               'Para dar de alta un producto nuevo se necesita nombre, categoría y precio base.'
             )
           }
+                    // Marca opcional (HU-37): si viene, tiene que existir.
+          let marcaId: number | null = null
+          if (datos.marcaId) {
+            const [m] = await tx
+              .select()
+              .from(schema.marcas)
+              .where(eq(schema.marcas.id, Number(datos.marcaId)))
+            if (!m) throw new ErrorValidacion('La marca indicada no existe.')
+            marcaId = m.id
+          }
           const [nuevo] = await tx
             .insert(schema.productos)
             .values({
               nombre: datos.nombre,
               categoriaId: Number(datos.categoriaId),
+              marcaId,
               precioBase: String(datos.precioBase),
               stockMinimo: datos.stockMinimo ?? null,
               stock: 0

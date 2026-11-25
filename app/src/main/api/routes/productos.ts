@@ -23,6 +23,7 @@ import { sendOk, sendBadRequest, sendNotFound } from '../response'
 // Filtros ya validados y tipados.
 interface FiltrosListado {
   categoriaId?: number
+  marcaId?: number
   q?: string
   soloConStock: boolean
   soloStockBajo: boolean
@@ -42,7 +43,7 @@ function leerBooleano(valor: unknown): boolean | null {
 
 // Valida y convierte los parámetros de filtro de la query string.
 function leerFiltros(query: Request['query']): ResultadoFiltros {
-  const { categoriaId, q, soloConStock, soloStockBajo } = query
+  const { categoriaId, marcaId, q, soloConStock, soloStockBajo } = query
 
   // categoriaId: opcional; si viene, debe ser un entero positivo.
   let categoria: number | undefined
@@ -53,7 +54,15 @@ function leerFiltros(query: Request['query']): ResultadoFiltros {
     }
     categoria = n
   }
-
+  // marcaId: opcional; mismo criterio que categoriaId.
+  let marca: number | undefined
+  if (marcaId !== undefined && marcaId !== '') {
+    const n = typeof marcaId === 'string' ? Number(marcaId) : NaN
+    if (!Number.isInteger(n) || n <= 0) {
+      return { ok: false, error: 'marcaId debe ser un número entero positivo.' }
+    }
+    marca = n
+  }
   // q: opcional; debe ser texto (no un array ni un objeto).
   if (q !== undefined && typeof q !== 'string') {
     return { ok: false, error: 'q debe ser un texto.' }
@@ -72,6 +81,7 @@ function leerFiltros(query: Request['query']): ResultadoFiltros {
     ok: true,
     filtros: {
       categoriaId: categoria,
+      marcaId: marca,
       q: q?.trim() || undefined,
       soloConStock: conStock,
       soloStockBajo: stockBajo
@@ -84,6 +94,7 @@ function leerFiltros(query: Request['query']): ResultadoFiltros {
 function condicionDeFiltros(f: FiltrosListado): SQL | undefined {
   const condiciones: SQL[] = []
   if (f.categoriaId !== undefined) condiciones.push(eq(schema.productos.categoriaId, f.categoriaId))
+  if (f.marcaId !== undefined) condiciones.push(eq(schema.productos.marcaId, f.marcaId))
   if (f.q) condiciones.push(ilike(schema.productos.nombre, `%${f.q}%`))
   if (f.soloConStock) condiciones.push(sql`${schema.productos.stock} > 0`)
   // "Stock bajo" como filtro combinable con los demás (corrección
@@ -192,6 +203,13 @@ export function productosRouter(db: Db): Router {
         `Categoría: ${nombreCategoria.get(filtros.categoriaId) ?? `#${filtros.categoriaId}`}`
       )
     if (filtros.q) filtrosAplicados.push(`Nombre contiene "${filtros.q}"`)
+        if (filtros.marcaId !== undefined) {
+      const [m] = await db
+        .select()
+        .from(schema.marcas)
+        .where(eq(schema.marcas.id, filtros.marcaId))
+      filtrosAplicados.push(`Marca: ${m?.nombre ?? `#${filtros.marcaId}`}`)
+    }
     if (filtros.soloConStock) filtrosAplicados.push('Solo con existencias')
     if (filtros.soloStockBajo) filtrosAplicados.push('Solo stock bajo')
 
@@ -426,15 +444,31 @@ export function productosRouter(db: Db): Router {
     sendOk(res, { ...producto, lotes })
   })
 
-  router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req, res) => {
     const id = Number(req.params.id)
-    const { nombre, categoriaId, precioBase, stockMinimo } = req.body ?? {}
+    const { nombre, categoriaId, marcaId, precioBase, stockMinimo } = req.body ?? {}
     const valores: Partial<typeof schema.productos.$inferInsert> = {}
     if (nombre !== undefined) valores.nombre = nombre
     if (categoriaId !== undefined) valores.categoriaId = Number(categoriaId)
     if (precioBase !== undefined) valores.precioBase = String(precioBase)
     if (stockMinimo !== undefined)
       valores.stockMinimo = stockMinimo === null ? null : Number(stockMinimo)
+
+    if (marcaId !== undefined) {
+      if (marcaId === null) {
+        valores.marcaId = null
+      } else {
+        const [m] = await db
+          .select()
+          .from(schema.marcas)
+          .where(eq(schema.marcas.id, Number(marcaId)))
+        if (!m) {
+          sendBadRequest(res, 'La marca indicada no existe.')
+          return
+        }
+        valores.marcaId = m.id
+      }
+    }
 
     if (Object.keys(valores).length === 0) {
       sendBadRequest(res, 'No se enviaron campos para actualizar.')

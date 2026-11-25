@@ -102,6 +102,7 @@ export const api = {
 // la pantalla de Stock (ver routes/productos.ts, GET /listado-pdf).
 export interface FiltrosPdfStock {
   categoriaId?: number
+  marcaId?: number
   q?: string
   soloConStock?: boolean
   soloStockBajo?: boolean
@@ -116,6 +117,9 @@ export function urlPdfListadoStock(filtros: FiltrosPdfStock = {}): string {
   // El backend exige un entero positivo: un 0 o un valor vacío no se envía.
   if (filtros.categoriaId && filtros.categoriaId > 0) {
     params.set('categoriaId', String(filtros.categoriaId))
+  }
+  if (filtros.marcaId && filtros.marcaId > 0) {
+    params.set('marcaId', String(filtros.marcaId))
   }
   if (filtros.q?.trim()) params.set('q', filtros.q.trim())
   // Los booleanos se envían como el texto 'true' (el backend solo acepta

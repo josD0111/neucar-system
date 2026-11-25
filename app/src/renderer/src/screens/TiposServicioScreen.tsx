@@ -4,6 +4,8 @@
 // Solo el Administrador lo gestiona. Cada tipo tiene un monto base opcional y un
 // indicador "se cobra por rueda": si está activo, al cargar ese servicio en una
 // orden se pide la cantidad de ruedas y el precio se calcula como base × ruedas.
+// También puede tener un intervalo de mantenimiento en km (HU-41): si está
+// cargado, el historial de servicios muestra cuándo toca el próximo.
 // Los tipos no se borran: se deshabilitan, para no romper las órdenes anteriores.
 
 import { useState } from 'react'
@@ -32,6 +34,19 @@ function leerMontoBase(texto: string): number | null | undefined {
 
 const MENSAJE_MONTO_INVALIDO =
   'El monto base debe ser un número mayor a cero (hasta 2 decimales) o quedar vacío.'
+
+// Interpreta el campo "Intervalo de mantenimiento" (km):
+//   - vacío → null (el tipo no genera aviso de próximo mantenimiento)
+//   - entero entre 1 y 1.000.000 → ese número
+//   - cualquier otra cosa → undefined (inválido)
+function leerIntervalo(texto: string): number | null | undefined {
+  const t = texto.trim()
+  if (t === '') return null
+  const n = Number(t)
+  return Number.isInteger(n) && n >= 1 && n <= 1_000_000 ? n : undefined
+}
+
+const MENSAJE_INTERVALO = 'El intervalo debe ser un entero entre 1 y 1.000.000 km, o quedar vacío.'
 
 function descripcionMonto(t: TipoServicio): string {
   if (t.montoBase === null) return 'Sin precio fijo'
@@ -111,6 +126,7 @@ function FormularioAlta({
 }): React.JSX.Element {
   const [nombre, setNombre] = useState('')
   const [montoBase, setMontoBase] = useState('')
+  const [intervalo, setIntervalo] = useState('')
   const [requiereRuedas, setRequiereRuedas] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -125,12 +141,18 @@ function FormularioAlta({
       setError(MENSAJE_MONTO_INVALIDO)
       return
     }
+    const intervaloKm = leerIntervalo(intervalo)
+    if (intervaloKm === undefined) {
+      setError(MENSAJE_INTERVALO)
+      return
+    }
     setGuardando(true)
     setError(null)
     const r = await tiposServicioApi.crear(token, {
       nombre: nombre.trim(),
       montoBase: monto,
-      requiereRuedas
+      requiereRuedas,
+      intervaloKm
     })
     setGuardando(false)
     if (!r.ok) {
@@ -139,6 +161,7 @@ function FormularioAlta({
     }
     setNombre('')
     setMontoBase('')
+    setIntervalo('')
     setRequiereRuedas(false)
     onCreado()
   }
@@ -169,6 +192,18 @@ function FormularioAlta({
             style={{ ...estiloInput, width: 140 }}
           />
         </div>
+        <div>
+          <label style={estiloEtiqueta}>Intervalo de mantenimiento (km, opcional)</label>
+          <InputLimpiable
+            type="number"
+            min={1}
+            value={intervalo}
+            onChange={setIntervalo}
+            placeholder="Ej: 5000"
+            className="font-data"
+            style={{ ...estiloInput, width: 140 }}
+          />
+        </div>
         <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>
           <input
             type="checkbox"
@@ -183,7 +218,8 @@ function FormularioAlta({
       </div>
       <p style={{ margin: 'var(--space-2) 0 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
         Si se cobra por rueda, el monto base es el precio de UNA rueda. Sin monto base, el precio se
-        escribe a mano en cada orden.
+        escribe a mano en cada orden. Con intervalo de mantenimiento, el historial de servicios
+        muestra cuándo toca el próximo (km de la visita + intervalo).
       </p>
       <MensajeError mensaje={error} />
     </Panel>
@@ -202,6 +238,7 @@ function FilaTipo({
   const [editando, setEditando] = useState(false)
   const [nombre, setNombre] = useState(tipo.nombre)
   const [montoBase, setMontoBase] = useState(tipo.montoBase === null ? '' : String(Number(tipo.montoBase)))
+  const [intervalo, setIntervalo] = useState(tipo.intervaloKm === null ? '' : String(tipo.intervaloKm))
   const [requiereRuedas, setRequiereRuedas] = useState(tipo.requiereRuedas)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -209,6 +246,7 @@ function FilaTipo({
   const empezarEdicion = (): void => {
     setNombre(tipo.nombre)
     setMontoBase(tipo.montoBase === null ? '' : String(Number(tipo.montoBase)))
+    setIntervalo(tipo.intervaloKm === null ? '' : String(tipo.intervaloKm))
     setRequiereRuedas(tipo.requiereRuedas)
     setError(null)
     setEditando(true)
@@ -224,12 +262,18 @@ function FilaTipo({
       setError(MENSAJE_MONTO_INVALIDO)
       return
     }
+    const intervaloKm = leerIntervalo(intervalo)
+    if (intervaloKm === undefined) {
+      setError(MENSAJE_INTERVALO)
+      return
+    }
     setGuardando(true)
     setError(null)
     const r = await tiposServicioApi.editar(token, tipo.id, {
       nombre: nombre.trim(),
       montoBase: monto,
-      requiereRuedas
+      requiereRuedas,
+      intervaloKm
     })
     setGuardando(false)
     if (!r.ok) {
@@ -255,7 +299,7 @@ function FilaTipo({
   if (editando) {
     return (
       <tr style={{ borderTop: '1px solid var(--color-border)' }}>
-        <td style={{ padding: 8 }} colSpan={4}>
+        <td style={{ padding: 8 }} colSpan={5}>
           <div
             style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}
           >
@@ -274,6 +318,15 @@ function FilaTipo({
               placeholder="Sin precio fijo"
               className="font-data"
               style={{ ...estiloInput, width: 140 }}
+            />
+            <InputLimpiable
+              type="number"
+              min={1}
+              value={intervalo}
+              onChange={setIntervalo}
+              placeholder="Intervalo km"
+              className="font-data"
+              style={{ ...estiloInput, width: 120 }}
             />
             <label style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
               <input
@@ -317,6 +370,9 @@ function FilaTipo({
         {descripcionMonto(tipo)}
       </td>
       <td style={{ padding: 8 }}>{tipo.requiereRuedas ? 'Pide ruedas' : '—'}</td>
+      <td style={{ padding: 8 }} className="font-data">
+        {tipo.intervaloKm !== null ? `Cada ${gs(tipo.intervaloKm)} km` : '—'}
+      </td>
       <td style={{ padding: 8, textAlign: 'right' }}>
         <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
           <button onClick={empezarEdicion} style={estiloBotonSecundario}>
@@ -376,6 +432,7 @@ export function TiposServicioScreen(): React.JSX.Element {
                 <th style={{ paddingBottom: 8 }}>Nombre</th>
                 <th style={{ paddingBottom: 8 }}>Monto base</th>
                 <th style={{ paddingBottom: 8 }}>Ruedas</th>
+                <th style={{ paddingBottom: 8 }}>Mantenimiento</th>
                 <th style={{ paddingBottom: 8 }} />
               </tr>
             </thead>

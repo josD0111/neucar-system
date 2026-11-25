@@ -1,13 +1,10 @@
 // src/renderer/src/components/HistorialOrdenes.tsx
-//
 // Historial de órdenes de servicio (HU-26). Se usa de dos formas:
 //   <HistorialOrdenes clienteId={3} />    → órdenes de un cliente (ficha del cliente)
 //   <HistorialOrdenes vehiculoId={5} />   → órdenes de un vehículo (por chapa)
-//
 // Muestra las más recientes primero; al tocar una fila se despliega el detalle
 // de cada tarea. No muestra saldos: el cobro de las órdenes a crédito es del
 // módulo de pagos; acá solo se ve la forma de pago y la fecha prevista.
-//
 // Si el padre cambia de cliente o vehículo, conviene pasarle un `key` distinto
 // (ej. key={cliente.id}) para que el componente se monte de nuevo y no muestre
 // por un instante los datos del anterior.
@@ -145,6 +142,13 @@ function FilaOrden({
               Orden #{orden.id} · registrada por {orden.usuarioNombre}
               {orden.tipoComprobante ? ` · ${orden.tipoComprobante}` : ''}
             </div>
+            {orden.kilometraje !== null && (
+              <div style={{ fontSize: 12, marginTop: 2 }}>
+                Kilometraje: <span className="font-data">{orden.kilometraje.toLocaleString('es-PY')} km</span>
+                {orden.proximoMantenimientoKm !== null &&
+                  ` · Próximo mantenimiento: ${orden.proximoMantenimientoKm.toLocaleString('es-PY')} km`}
+              </div>
+            )}
           </td>
         </tr>
       )}

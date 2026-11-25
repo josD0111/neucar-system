@@ -1,20 +1,19 @@
 // src/main/services/ordenesServicio.ts
-//
 // Lógica de negocio de Órdenes de Servicio (HU-22, HU-22.1, HU-23, HU-26, HU-27).
 // Una Orden representa la VISITA del cliente: agrupa vehículo, cliente, quién la
 // registró y la forma de pago, y contiene uno o más Servicios de detalle (tipo,
 // monto y un detalle opcional). Las órdenes NO se borran ni se editan en este
 // sprint: son el historial del taller (HU-26).
-//
 // Esta capa NO registra pagos ni calcula saldos: eso es del servicio de Pagos
 // (punto 4). Solo deja guardados el monto_total (calculado acá, en el servidor)
 // y, si la orden es a crédito, la fecha de pago prevista (HU-10.2).
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../api/server";
 import { clientes, ordenesServicio, pagos, servicios, tiposServicio, usuarios, vehiculos } from "../db/schema";
 import type { Rol } from "./auth";
 import type { Resultado } from "./clientes";
+
 
 
 // Formas de pago y de comprobante admitidas (coinciden con los comentarios de schema.ts).
@@ -28,6 +27,8 @@ const MAX_CENTAVOS = 999_999_999_999;
 const MAX_RUEDAS = 20;
 // Un Servicio de detalle tal como lo devuelve la API. "monto" es texto con dos
 // decimales (ej. "150000.00"), que es como Postgres devuelve las columnas numeric.
+// Tope de kilometraje aceptado (HU-41).
+const MAX_KM = 9_999_999;
 export interface ServicioDetalle {
   id: number;
   ordenId: number;
@@ -57,6 +58,11 @@ export interface OrdenServicio {
   fechaPagoPrevista: string | null;
   tipoComprobante: string | null;
   servicios: ServicioDetalle[];
+  kilometraje: number | null;
+  // km de la visita + intervalo más corto de sus tipos; null si no se puede calcular (HU-41).
+  proximoMantenimientoKm: number | null;
+  // Solo en la respuesta del alta: avisos que no bloquean (ej. el km bajó).
+  aviso?: string | null;
 }
 
 // Datos ya validados (solo formato) de un servicio. Las reglas que dependen del
@@ -77,6 +83,7 @@ export interface DatosOrden {
   fechaPagoPrevista: string | null;
   tipoComprobante: string | null;
   servicios: DatosServicio[];
+  kilometraje: number | null;
 }
 
 // --- Utilidades de validación ---------------------------------------------
@@ -215,8 +222,16 @@ export function validarDatosOrden(body: unknown): Resultado<DatosOrden> {
 
     listaServicios.push({ tipoServicioId, cantidadRuedas, centavos, detalle });
   }
-
-  return { ok: true, data: { clienteId, vehiculoId, tipoPago, fechaPagoPrevista, tipoComprobante, servicios: listaServicios } };
+  // Kilometraje opcional (HU-41): entero entre 0 y MAX_KM.
+  let kilometraje: number | null = null;
+  if (b.kilometraje !== undefined && b.kilometraje !== null && b.kilometraje !== "") {
+    const k = b.kilometraje;
+    if (typeof k !== "number" || !Number.isInteger(k) || k < 0 || k > MAX_KM) {
+      return { ok: false, status: 400, mensaje: `El kilometraje debe ser un entero entre 0 y ${MAX_KM}` };
+    }
+    kilometraje = k;
+  }
+    return { ok: true, data: { clienteId, vehiculoId, tipoPago, fechaPagoPrevista, tipoComprobante, kilometraje, servicios: listaServicios } };
 }
 
 // --- Lectura ----------------------------------------------------------------
@@ -238,6 +253,7 @@ const columnas = {
   montoTotal: ordenesServicio.montoTotal,
   fechaPagoPrevista: ordenesServicio.fechaPagoPrevista,
   tipoComprobante: ordenesServicio.tipoComprobante,
+  kilometraje: ordenesServicio.kilometraje,
 };
 
 // Carga órdenes (las más recientes primero) junto con sus servicios, usando solo
@@ -262,14 +278,37 @@ async function cargarOrdenes(db: Db, condicion: SQL | undefined, limite: number)
     .where(inArray(servicios.ordenId, filas.map((f) => f.id)))
     .orderBy(asc(servicios.id));
 
-  // Agrupa los servicios por orden.
+    // Agrupa los servicios por orden.
   const porOrden = new Map<number, ServicioDetalle[]>();
   for (const d of detalles) {
     const lista = porOrden.get(d.ordenId) ?? [];
     lista.push(d);
     porOrden.set(d.ordenId, lista);
   }
-  return filas.map((f) => ({ ...f, servicios: porOrden.get(f.id) ?? [] }));
+
+  // Intervalos (km) de los tipos usados, para calcular el próximo mantenimiento (HU-41).
+  const tipoIds = Array.from(
+    new Set(detalles.map((d) => d.tipoServicioId).filter((t): t is number => t !== null)),
+  );
+  const intervalos = new Map<number, number>();
+  if (tipoIds.length > 0) {
+    const ts = await db
+      .select({ id: tiposServicio.id, intervaloKm: tiposServicio.intervaloKm })
+      .from(tiposServicio)
+      .where(inArray(tiposServicio.id, tipoIds));
+    for (const t of ts) if (t.intervaloKm !== null) intervalos.set(t.id, t.intervaloKm);
+  }
+
+  return filas.map((f) => {
+    const lista = porOrden.get(f.id) ?? [];
+    // Intervalo más corto entre los tipos de esta orden; sin km o sin intervalo → null.
+    const cortos = lista
+      .map((s) => (s.tipoServicioId !== null ? intervalos.get(s.tipoServicioId) : undefined))
+      .filter((n): n is number => n !== undefined);
+    const proximoMantenimientoKm =
+      f.kilometraje !== null && cortos.length > 0 ? f.kilometraje + Math.min(...cortos) : null;
+    return { ...f, servicios: lista, proximoMantenimientoKm };
+  });
 }
 
 // Historial de órdenes (HU-26). Filtros opcionales: por cliente y/o por vehículo.
@@ -307,12 +346,14 @@ interface LineaResuelta {
 
 // Registra una orden de servicio con todos sus servicios. "usuarioId" y "rol" son
 // de quien la registra (salen de la sesión, nunca del cuerpo de la petición).
+// Aviso (no bloquea): el km no debería ser menor al de la última visita que lo anotó (HU-41).
 export async function crearOrden(db: Db, usuarioId: number, rol: Rol, body: unknown): Promise<Resultado<OrdenServicio>> {
   const v = validarDatosOrden(body);
   if (!v.ok) return v;
   const datos = v.data;
 
   // 1) El vehículo debe existir.
+  
   const [vehiculo] = await db
     .select({ id: vehiculos.id, clienteId: vehiculos.clienteId })
     .from(vehiculos)
@@ -320,6 +361,18 @@ export async function crearOrden(db: Db, usuarioId: number, rol: Rol, body: unkn
     .limit(1);
   if (!vehiculo) return { ok: false, status: 400, mensaje: "El vehículo indicado no existe" };
 
+  let aviso: string | null = null;
+  if (datos.kilometraje !== null) {
+    const [previa] = await db
+      .select({ km: ordenesServicio.kilometraje })
+      .from(ordenesServicio)
+      .where(and(eq(ordenesServicio.vehiculoId, datos.vehiculoId), isNotNull(ordenesServicio.kilometraje)))
+      .orderBy(desc(ordenesServicio.fecha), desc(ordenesServicio.id))
+      .limit(1);
+    if (previa && previa.km !== null && datos.kilometraje < previa.km) {
+      aviso = `El kilometraje (${datos.kilometraje.toLocaleString("es-PY")}) es menor al de la visita anterior (${previa.km.toLocaleString("es-PY")}). Se registró igual: revisalo si fue un error.`;
+    }
+  }
   // 2) Cliente efectivo de la orden:
   //    - sin cliente en la petición → hereda el dueño del vehículo (puede ser null = casual);
   //    - con cliente → no puede contradecir al dueño registrado del vehículo.
@@ -420,7 +473,7 @@ export async function crearOrden(db: Db, usuarioId: number, rol: Rol, body: unkn
     return { ok: false, status: 400, mensaje: "El monto total de la orden es demasiado grande" };
   }
 
-  // La orden y sus servicios se guardan juntos: si algo falla a mitad de camino,
+ // La orden y sus servicios se guardan juntos: si algo falla a mitad de camino,
   // no queda una orden "vacía" ni servicios sueltos.
   const id = await db.transaction(async (tx) => {
     const [orden] = await tx
@@ -433,6 +486,7 @@ export async function crearOrden(db: Db, usuarioId: number, rol: Rol, body: unkn
         montoTotal: centavosATexto(totalCentavos),
         fechaPagoPrevista: datos.fechaPagoPrevista,
         tipoComprobante: datos.tipoComprobante,
+        kilometraje: datos.kilometraje,
       })
       .returning({ id: ordenesServicio.id });
 
@@ -450,7 +504,8 @@ export async function crearOrden(db: Db, usuarioId: number, rol: Rol, body: unkn
     return orden.id;
   });
 
-  return obtenerOrden(db, id);
+  const creada = await obtenerOrden(db, id);
+  return creada.ok ? { ok: true, data: { ...creada.data, aviso } } : creada;
 }
 
 // --- Historial paginado por días (pantalla Historial de servicios) -----------

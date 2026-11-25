@@ -30,14 +30,16 @@
 //    había que borrarlo a mano cada vez.
 
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import { useCategorias, useProductos, useProveedores } from '../api/hooks'
+import { useCategorias, useMarcas, useProductos, useProveedores } from '../api/hooks'
 import { categoriasApi } from '../api/categorias'
 import { proveedoresApi } from '../api/proveedores'
 import { productosApi } from '../api/productos'
 import { comprasApi } from '../api/compras'
+import { marcasApi } from '../api/marcas'
+import { useAuth } from '../data/AuthContext'
 import { urlPdfListadoStock, ApiClientError } from '../api/client'
 import { useStockAlert } from '../data/StockAlertContext'
-import type { Compra, Proveedor, Producto } from '../api/types'
+import type { Compra, Proveedor, Producto, Marca } from '../api/types'
 import { useNavegacionConEnter } from './useNavegacionConEnter'
 function Panel({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
@@ -109,7 +111,19 @@ function MensajeError({ mensaje }: { mensaje: string | null }) {
     </p>
   )
 }
-
+// Marcas para el selector de los formularios (HU-37), con alta rápida. Las
+// marcas exigen sesión (apiFetch): si falla, se lanza ApiClientError para que
+// SelectorBuscable muestre el mensaje (un Empleado recibe 403 al crear).
+function useMarcasSelector() {
+  const { token } = useAuth()
+  const marcas = useMarcas(token)
+  const crearMarca = async (nombre: string): Promise<Marca> => {
+    const r = await marcasApi.crear(token ?? '', nombre)
+    if (!r.ok) throw new ApiClientError(r.error.message)
+    return r.data
+  }
+  return { marcas, crearMarca }
+}
 // --- Selector con buscador (categoría / proveedor) + alta rápida ---------
 //
 // Combobox propio (input + lista flotante dibujada con CSS), en reemplazo
@@ -473,7 +487,7 @@ function SelectorBuscable<T extends ItemConNombre>({
 
 // --- Formulario: registrar compra sobre un producto existente ----------
 
-function FormularioCompra({
+export function FormularioCompra({
   productoId,
   proveedores,
   onProveedorCreado,
@@ -634,6 +648,8 @@ function FormularioEdicion({
 }) {
   const [nombre, setNombre] = useState(producto.nombre)
   const [categoriaId, setCategoriaId] = useState<number | ''>(producto.categoriaId)
+  const [marcaId, setMarcaId] = useState<number | ''>(producto.marcaId ?? '')
+  const { marcas, crearMarca } = useMarcasSelector()
   const [precioBase, setPrecioBase] = useState(producto.precioBase)
   const [stockMinimo, setStockMinimo] = useState<number | ''>(producto.stockMinimo ?? '')
   const [guardando, setGuardando] = useState(false)
@@ -650,6 +666,7 @@ function FormularioEdicion({
       await productosApi.editar(producto.id, {
         nombre: nombre.trim(),
         categoriaId,
+        marcaId: marcaId === '' ? null : marcaId,
         precioBase: Number(precioBase),
         stockMinimo: stockMinimo === '' ? null : stockMinimo
       })
@@ -698,6 +715,17 @@ function FormularioEdicion({
             placeholderBuscar="Buscar categoría..."
             placeholderNuevo="Nombre de la categoría"
           />
+          <SelectorBuscable
+            items={marcas.datos}
+            valor={marcaId}
+            onCambiar={setMarcaId}
+            onCrear={crearMarca}
+            onCreado={marcas.refrescar}
+            etiquetaCampo="Marca (opcional)"
+            etiquetaBotonNuevo="+ nueva"
+            placeholderBuscar="Buscar marca..."
+            placeholderNuevo="Nombre de la marca"
+          />
           <Campo label="Precio base">
             <input
               type="number"
@@ -737,7 +765,7 @@ function FormularioEdicion({
 // disparó el alta—, y recién al final el precio de venta y el stock
 // mínimo, que son decisiones de catálogo más que de esta compra puntual.
 
-function FormularioProductoNuevo({
+export function FormularioProductoNuevo({
   categorias,
   proveedores,
   onCategoriaCreada,
@@ -754,6 +782,8 @@ function FormularioProductoNuevo({
 }) {
   const [nombre, setNombre] = useState('')
   const [categoriaId, setCategoriaId] = useState<number | ''>('')
+  const [marcaId, setMarcaId] = useState<number | ''>('')
+  const { marcas, crearMarca } = useMarcasSelector()
   const [proveedorId, setProveedorId] = useState<number | ''>('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [cantidad, setCantidad] = useState<number | ''>('')
@@ -793,6 +823,7 @@ function FormularioProductoNuevo({
         productoNuevo: {
           nombre: nombre.trim(),
           categoriaId,
+          marcaId: marcaId || null,
           precioBase,
           stockMinimo: stockMinimo === '' ? null : stockMinimo
         },
@@ -842,6 +873,17 @@ function FormularioProductoNuevo({
           etiquetaBotonNuevo="+ nueva"
           placeholderBuscar="Buscar categoría..."
           placeholderNuevo="Nombre de la categoría"
+        />
+        <SelectorBuscable
+          items={marcas.datos}
+          valor={marcaId}
+          onCambiar={setMarcaId}
+          onCrear={crearMarca}
+          onCreado={marcas.refrescar}
+          etiquetaCampo="Marca (opcional)"
+          etiquetaBotonNuevo="+ nueva"
+          placeholderBuscar="Buscar marca..."
+          placeholderNuevo="Nombre de la marca"
         />
       </div>
 
@@ -1396,6 +1438,9 @@ export function StockScreen() {
 
   const categorias = useCategorias()
   const proveedores = useProveedores()
+  const [marcaFiltro, setMarcaFiltro] = useState<number | ''>('')
+  const { token } = useAuth()
+  const marcas = useMarcas(token)
   const { refrescar: refrescarStockBajo } = useStockAlert()
   // "Solo stock bajo" es un filtro más del mismo listado paginado (ver
   // soloStockBajo en FiltrosProductos), no un endpoint aparte: corrección
@@ -1405,6 +1450,7 @@ export function StockScreen() {
   // combinarse con ellos.
   const listado = useProductos({
     categoriaId: categoriaId || undefined,
+    marcaId: marcaFiltro || undefined,
     q: q || undefined,
     soloConStock,
     soloStockBajo: verStockBajo,
@@ -1426,6 +1472,10 @@ export function StockScreen() {
   }
   const cambiarCategoriaId = (nuevoId: number | ''): void => {
     setCategoriaId(nuevoId)
+    setPagina(1)
+  }
+    const cambiarMarcaFiltro = (nuevoId: number | ''): void => {
+    setMarcaFiltro(nuevoId)
     setPagina(1)
   }
   const cambiarSoloConStock = (valor: boolean): void => {
@@ -1460,11 +1510,12 @@ export function StockScreen() {
   }
 
   const nombreCategoria = (id: number) => categorias.datos.find((c) => c.id === id)?.nombre ?? '—'
-
-  const hayFiltrosActivos = q !== '' || categoriaId !== '' || soloConStock || verStockBajo
+  const nombreMarca = (id: number) => marcas.datos.find((m) => m.id === id)?.nombre ?? '—'
+    const hayFiltrosActivos =  q !== '' || categoriaId !== '' || marcaFiltro !== '' || soloConStock || verStockBajo
   const limpiarFiltros = () => {
     setQ('')
     setCategoriaId('')
+    setMarcaFiltro('')
     setSoloConStock(false)
     setVerStockBajo(false)
     setPagina(1)
@@ -1495,6 +1546,7 @@ export function StockScreen() {
           <a
             href={urlPdfListadoStock({
               categoriaId: categoriaId || undefined,
+              marcaId: marcaFiltro || undefined,
               q,
               soloConStock,
               soloStockBajo: verStockBajo
@@ -1553,8 +1605,24 @@ export function StockScreen() {
               ))}
             </select>
           </Campo>
-
-          {/* Separador vertical: marca visualmente que lo que sigue son
+          <Campo label="Marca">
+            <select
+              value={marcaFiltro}
+              onChange={(e) =>
+                cambiarMarcaFiltro(e.target.value === '' ? '' : Number(e.target.value))
+              }
+              style={{ ...estiloInput, height: 31, boxSizing: 'border-box' }}
+            >
+              <option value="">Todas</option>
+              {marcas.datos.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          {
+          /* Separador vertical: marca visualmente que lo que sigue son
               "modos de vista" sobre el listado, distinto de buscar/filtrar
               por un criterio puntual. */}
           <div
@@ -1659,7 +1727,21 @@ export function StockScreen() {
                           {abierto ? '▾' : '▸'}
                         </button>
                       </td>
-                      <td style={{ padding: 8, fontWeight: abierto ? 600 : 400 }}>{p.nombre}</td>
+                                            <td style={{ padding: 8, fontWeight: abierto ? 600 : 400 }}>
+                        {p.nombre}
+                        {p.marcaId != null && (
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 11,
+                              fontWeight: 400,
+                              color: 'var(--color-text-muted)'
+                            }}
+                          >
+                            · {nombreMarca(p.marcaId)}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: 8, color: 'var(--color-text-muted)' }}>
                         {nombreCategoria(p.categoriaId)}
                       </td>

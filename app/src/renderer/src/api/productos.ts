@@ -4,6 +4,7 @@ import type { ListadoPaginado, Producto, ProductoConLotes } from './types'
 
 export interface FiltrosProductos {
   categoriaId?: number
+  marcaId?: number
   q?: string
   soloConStock?: boolean
   // Filtro combinable con los demás (corrección 20/10/2026: antes "stock
@@ -20,6 +21,7 @@ export interface FiltrosProductos {
 function queryString(filtros: FiltrosProductos): string {
   const params = new URLSearchParams()
   if (filtros.categoriaId) params.set('categoriaId', String(filtros.categoriaId))
+  if (filtros.marcaId) params.set('marcaId', String(filtros.marcaId))
   if (filtros.q) params.set('q', filtros.q)
   if (filtros.soloConStock) params.set('soloConStock', 'true')
   if (filtros.soloStockBajo) params.set('soloStockBajo', 'true')
@@ -39,6 +41,7 @@ export const productosApi = {
     cambios: Partial<{
       nombre: string
       categoriaId: number
+      marcaId: number | null
       precioBase: number
       stockMinimo: number | null
     }>

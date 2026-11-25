@@ -13,12 +13,15 @@ export type Pantalla =
   | 'stock'
   | 'categorias'
   | 'proveedores'
+  | 'compra' 
+  | 'historialCompras'
   | 'venta'
   | 'ventas'
   | 'servicio'
   | 'historialServicios'
   | 'tiposServicio'
   | 'cliente'
+  | 'marcas'
 export type Rol = 'Administrador' | 'Empleado'
 
 interface SidebarProps {
@@ -29,7 +32,11 @@ interface SidebarProps {
 const items: { id: Pantalla; label: string; soloAdmin?: boolean }[] = [
   { id: 'stock', label: 'Control de stock' },
   { id: 'categorias', label: 'Categorías' },
+  // Marcas de producto: las gestiona solo el Administrador.
+  { id: 'marcas', label: 'Marcas', soloAdmin: true },
   { id: 'proveedores', label: 'Proveedores' },
+  { id: 'compra', label: 'Nueva compra', soloAdmin: true },
+  { id: 'historialCompras', label: 'Historial de compras', soloAdmin: true },
   { id: 'venta', label: 'Nueva venta' },
   { id: 'ventas', label: 'Historial de ventas' },
   { id: 'servicio', label: 'Orden de servicio' },
