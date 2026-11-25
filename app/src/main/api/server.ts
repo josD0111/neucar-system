@@ -33,6 +33,7 @@ import { pagosRouter } from './routes/pagos'
 import { vehiculosRouter } from './routes/vehiculos'
 import { ordenesServicioRouter } from './routes/ordenesServicio'
 import { tiposServicioRouter } from './routes/tiposServicio'
+import { marcasRouter } from './routes/marcas'
 // Puerto y dirección en los que escucha el servidor local.
 export const API_PORT = 4000
 export const API_HOST = '127.0.0.1'
@@ -73,6 +74,7 @@ export function createServer(db: Db): Express {
   })
 
   app.use('/api/categorias', categoriasRouter(db))
+  app.use('/api/marcas', marcasRouter(db))
   app.use('/api/productos', productosRouter(db))
   app.use('/api/proveedores', proveedoresRouter(db))
   app.use('/api/compras', comprasRouter(db))

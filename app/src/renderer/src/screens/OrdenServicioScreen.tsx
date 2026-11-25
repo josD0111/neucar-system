@@ -137,7 +137,12 @@ function ruedasValidas(texto: string): boolean {
   const n = Number(texto)
   return texto.trim() !== '' && Number.isInteger(n) && n >= 1 && n <= MAX_RUEDAS
 }
-
+// El kilometraje es opcional: vacío vale; si no, entero entre 0 y 9.999.999 (el servidor valida igual).
+function kmValido(texto: string): boolean {
+  if (texto.trim() === '') return true
+  const n = Number(texto)
+  return Number.isInteger(n) && n >= 0 && n <= 9_999_999
+}
 // Precio base del tipo (por rueda, si pide ruedas), o null si no tiene precio fijo.
 function precioBaseDelTipo(tipo: TipoServicio | undefined): number | null {
   return tipo && tipo.montoBase !== null ? Number(tipo.montoBase) : null
@@ -213,6 +218,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
   const [lineas, setLineas] = useState<LineaServicio[]>([lineaVacia(1)])
   const [tipoPago, setTipoPago] = useState<TipoPago>('Contado')
   const [fechaPago, setFechaPago] = useState(hoyMasUnMes) // sugerida, editable
+  const [kilometraje, setKilometraje] = useState('')
 
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -261,7 +267,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
     vehiculo !== null || (creandoVehiculo && (nuevoVeh.marca.trim() !== '' || nuevoVeh.chapa.trim() !== ''))
   const lineasValidas = lineas.length > 0 && lineas.every((l) => montoDeLinea(l, tipoDe(l)) !== null)
   const faltaClienteCredito = tipoPago === 'Crédito' && cliente === null
-  const puedeRegistrar = vehiculoListo && lineasValidas && !faltaClienteCredito && !guardando
+  const puedeRegistrar = vehiculoListo && lineasValidas && !faltaClienteCredito && kmValido(kilometraje) && !guardando
 
   // --- Acciones: cliente y vehículo ---
   const elegirCliente = (c: { id: number; nombre: string }): void => {
@@ -352,6 +358,7 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
       vehiculoId,
       ...(cliente ? { clienteId: cliente.id } : {}),
       tipoPago,
+      kilometraje: kilometraje.trim() === '' ? null : Number(kilometraje),
       fechaPagoPrevista: tipoPago === 'Crédito' ? fechaPago || null : null,
       servicios: lineas.map((l) => {
         const tipo = tipoDe(l)
@@ -652,7 +659,26 @@ function FormularioOrden({ onRegistrada }: { onRegistrada: (o: OrdenServicio) =>
           </div>
         )}
       </Panel>
-
+      {/* ---------- Kilometraje (HU-41) ---------- */}
+      <Panel title="Kilometraje (opcional)">
+        <InputLimpiable
+          type="number"
+          min={0}
+          value={kilometraje}
+          onChange={setKilometraje}
+          placeholder="Ej. 85000"
+          className="font-data"
+          style={{ ...estiloInput, width: 160 }}
+        />
+        {!kmValido(kilometraje) && (
+          <p style={{ color: 'var(--color-alert)', fontSize: 12, margin: 'var(--space-2) 0 0 0' }}>
+            Debe ser un número entero entre 0 y 9.999.999.
+          </p>
+        )}
+        <p style={{ margin: 'var(--space-2) 0 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+          Si algún servicio tiene intervalo de mantenimiento, el historial mostrará cuándo toca el próximo.
+        </p>
+      </Panel>
       {/* ---------- Tareas ---------- */}
       <Panel title="Tareas realizadas">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -931,6 +957,27 @@ export function OrdenServicioScreen(): React.JSX.Element {
           {esCredito && registrada.fechaPagoPrevista && (
             <p style={{ fontSize: 13, margin: '0 0 var(--space-2) 0' }}>
               Pago previsto: {fechaParaMostrar(registrada.fechaPagoPrevista)}
+            </p>
+          )}
+                    {registrada.kilometraje !== null && (
+            <p style={{ fontSize: 13, margin: '0 0 var(--space-2) 0' }}>
+              Kilometraje: <span className="font-data">{registrada.kilometraje.toLocaleString('es-PY')} km</span>
+              {registrada.proximoMantenimientoKm !== null &&
+                ` · Próximo mantenimiento: ${registrada.proximoMantenimientoKm.toLocaleString('es-PY')} km`}
+            </p>
+          )}
+          {registrada.aviso && (
+            <p
+              style={{
+                background: 'var(--color-alert-bg)',
+                color: 'var(--color-alert)',
+                padding: 'var(--space-2)',
+                borderRadius: 'var(--radius)',
+                fontSize: 13,
+                margin: '0 0 var(--space-2) 0'
+              }}
+            >
+              ⚠ {registrada.aviso}
             </p>
           )}
           <button

@@ -54,7 +54,11 @@ export const categorias = pgTable('categorias', {
   id: serial('id').primaryKey(),
   nombre: varchar('nombre', { length: 80 }).notNull()
 })
-
+// 4.1 Marca (Sprint 3, HU-37). Entidad propia, igual que Categoría.
+export const marcas = pgTable('marcas', {
+  id: serial('id').primaryKey(),
+  nombre: varchar('nombre', { length: 80 }).notNull().unique()
+})
 // 5. Producto
 // Nota: "stock" se mantiene como columna, pero conceptualmente es la suma de
 // compras.cantidad_disponible (ver entidades-dominio.md, secciones 5 y 14).
@@ -65,6 +69,9 @@ export const productos = pgTable('productos', {
   categoriaId: integer('categoria_id')
     .notNull()
     .references(() => categorias.id),
+  // Opcional por ahora: pendiente de confirmar con el dueño si debe ser
+  // obligatoria (desiciones-alcance.md, sección 7.6).
+  marcaId: integer('marca_id').references(() => marcas.id),
   precioBase: numeric('precio_base', { precision: 12, scale: 2 }).notNull(),
   stock: integer('stock').notNull().default(0),
   stockMinimo: integer('stock_minimo') // umbral opcional para notificación de stock bajo (HU-08, MVP)
@@ -209,7 +216,11 @@ export const ordenesServicio = pgTable('ordenes_servicio', {
   // adoptó este mismo patrón) — ver entidades-dominio.md, sección 12.1, y
   // HU-10.2.
   fechaPagoPrevista: date('fecha_pago_prevista'),
-  tipoComprobante: varchar('tipo_comprobante', { length: 30 })
+  tipoComprobante: varchar('tipo_comprobante', { length: 30 }),
+  // Kilometraje del vehículo en esta visita (HU-41). Opcional: no siempre se
+  // pide ni se anota. Con él se calcula el último km conocido del vehículo y
+  // el próximo mantenimiento; el servidor valida que sea un entero >= 0.
+  kilometraje: integer('kilometraje')
   // NOTA: se eliminó `garantiaDias` (presente en una versión anterior de este
   // esquema). El dueño confirmó en la entrevista del 10/09/2026 que no es
   // necesario registrar garantía sobre servicios — ver entidades-dominio.md,
@@ -227,7 +238,10 @@ export const tiposServicio = pgTable('tipos_servicio', {
   // true = al cargar este servicio en una orden es obligatorio indicar la
   // cantidad de ruedas (ej. balanceo). false = no se pide (ej. mantenimiento).
   requiereRuedas: boolean('requiere_ruedas').notNull().default(false),
-  activo: boolean('activo').notNull().default(true)
+  activo: boolean('activo').notNull().default(true),
+  // Cada cuántos km se repite este servicio (HU-41), ej. 5000 en mantenimiento.
+  // null = el tipo no genera aviso de próximo mantenimiento.
+  intervaloKm: integer('intervalo_km')
 })
 // 9.1 Servicio (detalle)
 export const servicios = pgTable('servicios', {

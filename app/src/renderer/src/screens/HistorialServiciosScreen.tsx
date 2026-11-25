@@ -221,7 +221,22 @@ function DetalleOrden({
         Orden #{orden.id} · registrada por {orden.usuarioNombre}
         {orden.tipoComprobante ? ` · ${orden.tipoComprobante}` : ''}
       </div>
-
+      {orden.kilometraje !== null && (
+        <div style={{ fontSize: 13 }}>
+          Kilometraje:{' '}
+          <span className="font-data" style={{ fontWeight: 600 }}>
+            {orden.kilometraje.toLocaleString('es-PY')} km
+          </span>
+          {orden.proximoMantenimientoKm !== null && (
+            <>
+              {' · '}Próximo mantenimiento:{' '}
+              <span className="font-data" style={{ fontWeight: 600 }}>
+                {orden.proximoMantenimientoKm.toLocaleString('es-PY')} km
+              </span>
+            </>
+          )}
+        </div>
+      )}
       {esCredito && (
         <>
           <div

@@ -32,6 +32,17 @@ function montoBaseOpcional(valor: unknown): string | null | undefined {
   return centavos === null ? undefined : centavosATexto(centavos);
 }
 
+const MAX_INTERVALO_KM = 1_000_000;
+const MENSAJE_INTERVALO = `El intervalo debe ser un entero entre 1 y ${MAX_INTERVALO_KM} km, o quedar vacío`;
+
+// ausente / null / "" → null (sin aviso de mantenimiento); entero válido → ese valor; otra cosa → undefined.
+function intervaloKmOpcional(valor: unknown): number | null | undefined {
+  if (valor === undefined || valor === null || valor === "") return null;
+  return typeof valor === "number" && Number.isInteger(valor) && valor > 0 && valor <= MAX_INTERVALO_KM
+    ? valor
+    : undefined;
+}
+
 // ¿Ya hay otro tipo con ese nombre? (sin distinguir mayúsculas)
 async function existeNombre(db: Db, nombre: string, exceptoId?: number): Promise<boolean> {
   const filas = await db
@@ -73,11 +84,14 @@ export async function crearTipoServicio(db: Db, body: unknown): Promise<Resultad
   }
   const requiereRuedas = b.requiereRuedas === true;
 
+  const intervaloKm = intervaloKmOpcional(b.intervaloKm);
+  if (intervaloKm === undefined) return { ok: false, status: 400, mensaje: MENSAJE_INTERVALO };
+
   if (await existeNombre(db, nombre)) {
     return { ok: false, status: 400, mensaje: `Ya existe un tipo de servicio llamado «${nombre}»` };
   }
 
-  const [fila] = await db.insert(tiposServicio).values({ nombre, montoBase, requiereRuedas }).returning();
+  const [fila] = await db.insert(tiposServicio).values({ nombre, montoBase, requiereRuedas, intervaloKm }).returning();
   return { ok: true, data: fila };
 }
 
@@ -120,6 +134,12 @@ export async function actualizarTipoServicio(db: Db, id: number, body: unknown):
       return { ok: false, status: 400, mensaje: "requiereRuedas debe ser verdadero o falso" };
     }
     cambios.requiereRuedas = b.requiereRuedas;
+  }
+
+  if ("intervaloKm" in b) {
+    const intervaloKm = intervaloKmOpcional(b.intervaloKm);
+    if (intervaloKm === undefined) return { ok: false, status: 400, mensaje: MENSAJE_INTERVALO };
+    cambios.intervaloKm = intervaloKm;
   }
 
   if ("activo" in b) {
