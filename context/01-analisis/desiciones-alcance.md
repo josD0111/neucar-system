@@ -1,6 +1,6 @@
 # Decisiones de Alcance
 
-*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md` — con el feedback recibido al cierre del Sprint 1 (23/10/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y sección 8 — y con el feedback recibido al cierre del Sprint 2 (20/11/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` y sección 9.*
+*Documento elaborado a partir de la entrevista realizada al dueño del taller (30/06/2026), actualizado con los hallazgos de la segunda entrevista (10/09/2026) — ver `docs/01-analisis/entrevistas/entrevista--2026-09-10.md` — con el feedback recibido al cierre del Sprint 1 (23/10/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint01--2026-10-23.md` y sección 8 —, con el feedback recibido al cierre del Sprint 2 (20/11/2026) — ver `docs/01-analisis/entrevistas/reunion-sprint02--2026-11-20.md` y sección 9 — y con el feedback recibido al cierre del Sprint 3 (26/11/2026) — ver `docs/01-analisis/reuniones/reunion-sprint03--2026-11-26.md` y sección 10.*
 
 Este documento define qué funcionalidades formarán parte del sistema en su primera versión (MVP), cuáles quedan planificadas para etapas futuras, y cuáles quedan explícitamente fuera de alcance. El objetivo es acotar el trabajo de desarrollo y evitar ambigüedades sobre qué se va a construir.
 
@@ -134,7 +134,7 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 
 *Estas cuatro preguntas quedaban abiertas en `sprint-2-backlog.md` como decisiones de diseño técnico (no reglas de negocio del taller en sí), y el equipo las cerró directamente para poder avanzar con la implementación del Sprint 2:*
 
-- **Selección del lote al vender (ver `entidades-dominio.md`, sección 14):** se descarta PEPS/FIFO automático. El Administrador elige manualmente de qué Compra (lote) sale cada Ítem de Venta, viendo en pantalla las Compras disponibles del producto con su `cantidad_disponible` y `garantía_proveedor`. Si una venta debe repartirse entre varios lotes, el Administrador agrega manualmente un Ítem de Venta por lote.
+- ~~**Selección del lote al vender (ver `entidades-dominio.md`, sección 14):** se descarta PEPS/FIFO automático. El Administrador elige manualmente de qué Compra (lote) sale cada Ítem de Venta, viendo en pantalla las Compras disponibles del producto con su `cantidad_disponible` y `garantía_proveedor`. Si una venta debe repartirse entre varios lotes, el Administrador agrega manualmente un Ítem de Venta por lote.~~ **Revertida el 26/11/2026** — ver sección 7.9: el dueño validó un reparto automático editable entre lotes, no la selección manual.
 - **Stock insuficiente al vender (HU-20):** el sistema **bloquea** la venta si la cantidad solicitada supera el stock disponible (sumando lo disponible en los lotes elegibles); no se permite continuar con una advertencia solamente.
 - **Pago que supera el saldo pendiente (HU-10.1):** no se rechaza, pero tampoco se genera saldo a favor del cliente. El monto de Pago que se guarda en el sistema queda limitado al saldo pendiente exacto (el ítem/orden queda en `saldo_pendiente = 0`); si el cliente entrega más efectivo que eso, la diferencia es un "vuelto" que se calcula y muestra en pantalla al momento de cobrar, pero no se persiste como un pago ni como saldo a favor para compras futuras.
 - **Cotización previa de un servicio (HU-24):** no se modela como un estado de la Orden de Servicio. Es un cálculo en pantalla (sumar servicios y montos, mostrar el total estimado) similar a la "calculadora" de Ventas del Empleado (HU-17) — no se crea ningún registro en la base de datos hasta que el trabajo se confirma y se registra la Orden de Servicio real.
@@ -155,8 +155,10 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 - **Monto del pago inicial obligatorio en ventas a crédito:** el dueño pidió que toda venta a crédito incluya un pago inicial, pero no indicó un monto o porcentaje mínimo. **Decisión provisional del equipo (20/11/2026, sin pasar por el dueño):** alcanza con que sea mayor a cero, sin mínimo específico. Queda pendiente confirmar si esto es suficiente para el dueño o si en la práctica espera algo como "al menos el 30%", por ejemplo.
 - ~~**Buscador de productos en Ventas:** el dueño describió un flujo de buscador similar al de su sistema actual, pero no se precisó si la búsqueda debe ser por nombre, por código de producto, o ambos.~~ **Resuelta 22/11/2026** — ver sección 7.7.
 - **Marca de producto:** se definió como entidad propia (ver sección 9.5), pero no se confirmó con el dueño si es un dato obligatorio en todo producto o puede quedar vacío (ej. para productos genéricos sin marca relevante).
-- **Kilometraje y próximo mantenimiento (ver sección 9.4):** no hay todavía ningún modelo de datos propuesto. Preguntas sin resolver: ¿el kilometraje se registra en cada visita (Servicio) o se mantiene como un dato actual del Vehículo (o ambos)? ¿El "próximo mantenimiento" se calcula con un intervalo fijo para todos los servicios de mantenimiento, o distinto según el tipo de servicio (ej. cambio de aceite cada 5.000 km, otra cosa cada 10.000 km)? ¿Aplica solo a "mantenimiento" o a otros tipos de servicio del catálogo `tiposServicio` (ver `entidades-dominio.md`, sección 9.2)?
+- ~~**Kilometraje y próximo mantenimiento (ver sección 9.4):** no hay todavía ningún modelo de datos propuesto.~~ **Resuelta el 26/11/2026, ver sección 10.2** — el dueño precisó la regla directamente en la reunión de cierre de Sprint 3: el intervalo varía por vehículo (no por tipo de servicio) y **es el dueño quien carga manualmente** el kilometraje del próximo servicio, sin cálculo automático del sistema. El modelo implementado durante el Sprint 3 (`intervaloKm` fijo por tipo de servicio en `tiposServicio`, cálculo automático de `proximoMantenimientoKm` en `services/ordenesServicio.ts`) **no coincide con esta regla y el equipo ya decidió rehacerlo** en Sprint 4 — ver `entidades-dominio.md`, sección 10, y HU-41 (actualizada).
 - **Estilo visual:** el dueño pidió mejorar el contraste/presentación de botones, sidebar y desplegables, pero no se le mostró ninguna propuesta concreta (paleta, modo oscuro, etc.) para que la apruebe. Conviene validar una propuesta visual con él antes de implementarla a fondo, en vez de rediseñar a criterio del equipo.
+- **Precio de venta a crédito distinto del precio de contado** *(mencionado por el dueño el 26/11/2026, sin pedido formal todavía — ver sección 10.1)*: en el sistema anterior existía un campo de precio de venta a crédito, distinto del precio normal. El dueño no indicó que el sistema actual deba tenerlo, pero el equipo lo anotó como algo a confirmar en una próxima reunión antes de decidir si se agrega al modelo de Producto.
+- **Garantía ofrecida al cliente cuando el reparto automático entre lotes (sección 7.9) toca lotes con distinta `garantía_proveedor`:** sin definir todavía qué garantía se le ofrece al cliente en ese caso (¿la menor de los lotes involucrados? ¿se pide una por lote?). Surgida al cerrar el dilema de la sección 7.9, no se le consultó al dueño.
 
 ### 7.7 Resueltas/surgidas durante la planificación técnica del Sprint 3 (22/11/2026)
 
@@ -176,6 +178,10 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 - **Por qué se hizo este ajuste y no se esperó a la reunión:** reduce la fricción del caso más común (vender sin que el lote de origen le importe al usuario en ese momento) sin cerrar la pregunta de fondo — si el dueño confirma que el lote no le importa en absoluto, este ajuste queda obsoleto junto con el resto del mecanismo de lotes en Ventas; si confirma que sí le importa (por la garantía), este ajuste se mantiene como mejora de usabilidad sobre la selección manual ya existente.
 - **Esto modifica, pero no revierte, la decisión de la sección 7.3** ("se descarta PEPS/FIFO automático"): el reparto entre varios lotes para una misma cantidad sigue siendo enteramente manual, solo cambió el valor por defecto con el que arranca el selector de un ítem nuevo. Ver el detalle técnico completo en `entidades-dominio.md`, sección 14 (actualización 24/11/2026).
 - Implementado en `app/src/renderer/src/components/FormularioItemEdicion.tsx`.
+
+### 7.9 Resuelta en la reunión de cierre de Sprint 3 (26/11/2026)
+
+- **Dilema lotes vs. sin lotes (sección 7.8) — resuelto, ninguna de las dos alternativas originales:** se le presentaron al dueño los dos prototipos de la sección 7.8 (`pantalla_de_ventas_taller_automotriz.html`, con selección manual de lote, y `prototipo_venta_sin_lotes.html`, sin lotes) más un tercero construido sobre la marcha, `prototipo_venta_reparto_automatico_editable.html` (el sistema reparte automáticamente la cantidad vendida entre los lotes disponibles, pero el Administrador puede editar ese reparto antes de confirmar). **El dueño eligió esta tercera opción.** Esto revierte la decisión de la sección 7.3 ("se descarta PEPS/FIFO automático... el Administrador elige manualmente de qué Compra sale cada Ítem") y reemplaza el ajuste intermedio de la sección 7.8 (sugerencia del lote más antiguo, selector igual habilitado). Pendiente para Sprint 4: actualizar `entidades-dominio.md` sección 14 y HU-40 con el modelo de reparto automático editable, y **definir cómo se resuelve la garantía ofrecida al cliente** cuando el reparto automático toca varios lotes con distinta `garantía_proveedor` en un mismo ítem — esto no se le consultó puntualmente al dueño y queda como pregunta nueva, ver sección 7.6.
 
 ## 8. Feedback del dueño — cierre de Sprint 1 (23/10/2026)
 
@@ -231,5 +237,28 @@ Esta sección resume el marco técnico vigente para que el sistema quede *prepar
 - El Empleado **no** puede ver el historial de ventas.
 - En Ventas, el Empleado sigue limitado a calcular el precio final de una venta (sin cambios respecto de HU-17, ya vigente desde el Sprint 2).
 - El Empleado puede ver la ficha de clientes.
+
+## 10. Feedback del dueño — cierre de Sprint 3 (26/11/2026)
+
+*Resumen trasladado de `docs/01-analisis/reuniones/reunion-sprint03--2026-11-26.md`, recibido luego de presentarle al dueño el trabajo del Sprint 3.*
+
+### 10.1 Ventas y productos
+
+- Al dueño le gustó más el flujo actual de la pantalla de Ventas (HU-40) que el anterior.
+- Se le mostró el prototipo con reparto automático editable entre lotes y lo aprobó — ver sección 7.9 para el detalle y las implicancias pendientes.
+- Pidió simplificar el flujo de edición de un producto, con menos sobrecarga visual (sin precisar todavía cómo — a definir en la planificación de Sprint 4, ver `docs/02-planificacion/planificacion-sprint04.md`).
+- Mencionó que el sistema anterior tenía un precio de venta a crédito distinto del precio de contado, sin pedirlo formalmente para este sistema — queda como pregunta abierta (sección 7.6).
+- Las funciones que más le interesa pulir son: asignación de precio de venta, precio de compra y registro de nuevas compras.
+
+### 10.2 Servicios — kilometraje (reemplaza el modelo del Sprint 3)
+
+El dueño precisó la regla de negocio que en el Sprint 3 había quedado sin confirmar (ver HU-41 original y sección 7.6, ahora resuelta):
+
+- El intervalo de kilometraje para el próximo mantenimiento **varía según el vehículo**, no es un valor fijo por tipo de servicio. Los valores que suele manejar el taller son 5.000, 8.000 y 10.000 km, a modo de referencia, no como catálogo cerrado.
+- **Es el dueño (Administrador) quien carga manualmente** el kilometraje del próximo servicio — el sistema no debe calcularlo automáticamente a partir de un intervalo.
+- El kilometraje **solo aplica a la tarea de mantenimiento**, no a otros tipos de servicio del catálogo.
+- Pidió poder buscar por chapa del vehículo o por nombre del cliente y ver el historial de servicios realizados a ese vehículo: fecha de cada visita y kilometraje con el que ingresó en cada Orden de Servicio.
+
+**Esto reemplaza, no ajusta, el modelo implementado durante el Sprint 3** (`intervaloKm` por tipo de servicio en `tiposServicio`, cálculo automático de `proximoMantenimientoKm`): el equipo ya decidió rehacerlo para Sprint 4 siguiendo esta regla. Ver el modelo de datos actualizado en `entidades-dominio.md`, sección 10, y los criterios de aceptación en HU-41 (actualizada) y HU-42 (nueva, historial por vehículo) en `historias-usuario.md`.
 
 Esto acota más de lo implementado hasta ahora: hasta el Sprint 2, el Empleado no podía *registrar* ventas ni compras, pero sí podía *consultar* su historial y ver precios de compra. Ver HU-36 (nueva) en `historias-usuario.md`.

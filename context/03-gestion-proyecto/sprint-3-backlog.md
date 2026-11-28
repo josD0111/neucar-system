@@ -91,6 +91,17 @@ Incorporar el feedback de la presentación del Sprint 2 al dueño: un nuevo fluj
 - [ ] Actualizar `desiciones-alcance.md` (secciones 7.6 y 158) retirando esto de "preguntas sin resolver" y dejando asentada la decisión tomada, con fecha.
 - [ ] Revisar si corresponde actualizar `historias-usuario.md` (HU-41) con los criterios de aceptación ya cumplidos por el código, ya que el backlog decía que todavía no existían.
 
+## Cierre del Sprint 3 (26/11/2026)
+
+*Resumen del feedback recibido en la presentación de cierre — ver `docs/01-analisis/reuniones/reunion-sprint03--2026-11-26.md` y `context/01-analisis/desiciones-alcance.md`, sección 10, para el detalle completo.*
+
+- **Punto 1 (Ventas):** aprobado por el dueño, con un ajuste que entra en Sprint 4: la selección manual de lote (sección 7.3/7.8 de `desiciones-alcance.md`) queda reemplazada por un reparto automático editable entre lotes — ver `entidades-dominio.md`, sección 14.
+- **Punto 2 (Compras):** no se cerró del todo (seguía pendiente sacar el formulario duplicado de `StockScreen.tsx`); pasa a Sprint 4, ver `docs/02-planificacion/planificacion-sprint04.md`.
+- **Punto 3 (Marcas):** cerrado, sin observaciones del dueño en esta reunión más allá de la pregunta ya abierta (obligatoriedad del campo).
+- **Punto 4 (restricciones de lectura Empleado):** no se llegó a implementar en este sprint; pasa a Sprint 4.
+- **Punto 5 (Visual):** sigue bloqueado, sin propuesta concreta mostrada al dueño todavía; pasa a Sprint 4.
+- **Punto 6 (kilometraje):** la alerta del 25/11/2026 (reglas de negocio implementadas sin pasar por el dueño ni actualizar la documentación) queda **resuelta, pero con el modelo implementado descartado**: el dueño precisó una regla distinta (intervalo por vehículo, no por tipo de servicio; carga manual por el Administrador, no cálculo automático). El equipo decidió rehacer este punto en Sprint 4 siguiendo la regla real — ver `historias-usuario.md`, HU-41 (reescrita) y HU-42 (nueva), y `entidades-dominio.md`, sección 10. Queda como aprendizaje del sprint: documentar y confirmar con el dueño **antes** de dar por cerrado un punto bloqueado, tal como pedía la Definición de Hecho de este mismo backlog — en este caso, no hacerlo llevó a implementar dos veces la misma funcionalidad.
+
 ## Fuera de este sprint
 
 - HU-28, HU-29 (reportes de ventas y de ganancias) — post-MVP, sin cambios.
